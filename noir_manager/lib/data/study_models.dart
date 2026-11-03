@@ -54,7 +54,15 @@ class Chapter {
       );
 }
 
-/// หัวข้อย่อย 1 ข้อ + คะแนนล่าสุด (คำนวณจากตาราง assessment)
+/// คะแนน 1 รอบ: ได้กี่ % เมื่อไหร่
+class ScorePoint {
+  const ScorePoint(this.score, this.at);
+
+  final int score;
+  final DateTime at;
+}
+
+/// หัวข้อย่อย 1 ข้อ + ประวัติคะแนน (นับตั้งแต่ "เริ่มนับใหม่" ครั้งล่าสุด)
 class Subtopic {
   const Subtopic({
     required this.id,
@@ -62,8 +70,7 @@ class Subtopic {
     required this.name,
     required this.sortOrder,
     required this.examFlag,
-    required this.latestScore,
-    required this.everBelow60,
+    required this.scores,
   });
 
   final int id;
@@ -74,21 +81,27 @@ class Subtopic {
   /// ธง "อาจออกสอบ"
   final bool examFlag;
 
-  /// คะแนนล่าสุด 0–100 · null = ยังไม่เคยประเมิน
-  final int? latestScore;
+  /// คะแนนทุกรอบ เรียงจากเก่า → ใหม่
+  /// (คะแนนก่อนวันที่ถูกทำเป็นโมฆะจะไม่อยู่ในนี้)
+  final List<ScorePoint> scores;
 
-  /// เคยได้ต่ำกว่า 60% อย่างน้อย 1 ครั้ง → โชว์ป้าย "เช็กซ้ำ" (กฎ EZ mode)
-  final bool everBelow60;
+  /// คะแนนล่าสุด 0–100 · null = ยังไม่เคยประเมิน (ใช้ในโหมด EZ)
+  int? get latestScore => scores.isEmpty ? null : scores.last.score;
 
-  factory Subtopic.fromRow(Map<String, Object?> row) => Subtopic(
-        id: row['id'] as int,
-        chapterId: row['chapter_id'] as int,
-        name: row['name'] as String,
-        sortOrder: row['sort_order'] as int,
-        examFlag: (row['exam_flag'] as int) == 1,
-        latestScore: row['latest_score'] as int?,
-        everBelow60: (row['ever_below'] as int) == 1,
-      );
+  /// ค่าเฉลี่ยทุกรอบ ปัดเป็นจำนวนเต็ม (ใช้ในโหมด Advanced)
+  int? get averageScore => scores.isEmpty
+      ? null
+      : (scores.map((s) => s.score).reduce((a, b) => a + b) / scores.length)
+          .round();
+
+  /// เคยได้ต่ำกว่า 60% อย่างน้อย 1 ครั้ง
+  bool get everBelow60 => scores.any((s) => s.score < 60);
+
+  /// 2 รอบล่าสุดได้ "ดี" (>80) ทั้งคู่
+  bool get greenTwice =>
+      scores.length >= 2 &&
+      scores[scores.length - 1].score > 80 &&
+      scores[scores.length - 2].score > 80;
 }
 
 /// บท 1 บท พร้อมหัวข้อย่อยข้างใน (ใช้แสดงผลทั้งก้อน)

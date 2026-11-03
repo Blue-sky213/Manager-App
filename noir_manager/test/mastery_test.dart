@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:noir_manager/data/memory_study_repository.dart';
+import 'package:noir_manager/data/study_models.dart';
 import 'package:noir_manager/study/mastery.dart';
 
 void main() {
@@ -84,5 +85,58 @@ void main() {
     expect(await repo.gradingMode(), GradingMode.ez);
     await repo.setGradingMode(GradingMode.advanced);
     expect(await repo.gradingMode(), GradingMode.advanced);
+  });
+
+  group('Advanced: เคยตก → ต้องเขียว 2 รอบติดถึงผ่าน', () {
+    Future<(MemoryStudyRepository, int, int)> setup(List<int> scores) async {
+      final repo = MemoryStudyRepository.seeded();
+      final subjectId = (await repo.subjects()).first.id;
+      final topicId = (await repo.chapters(subjectId)).first.subtopics.first.id;
+      for (var i = 0; i < scores.length; i++) {
+        await repo.addAssessment(topicId, scores[i], at: DateTime(2026, 11, 1 + i));
+      }
+      return (repo, subjectId, topicId);
+    }
+
+    Future<Subtopic> topicOf(MemoryStudyRepository repo, int subjectId) async =>
+        (await repo.chapters(subjectId)).first.subtopics.first;
+
+    test('แดง → เขียว 1 รอบ: ใช้ค่าเฉลี่ย ยังมีป้ายเช็กซ้ำ และต้องทวน', () async {
+      final (repo, subjectId, _) = await setup([55, 81]);
+      final t = await topicOf(repo, subjectId);
+      expect(shownScore(t, GradingMode.advanced), 68);
+      expect(showRecheck(t, GradingMode.advanced), isTrue);
+      expect(needsGreenDecision(t), isFalse);
+      expect(reviewOrder([t], mode: GradingMode.advanced), [t]);
+    });
+
+    test('แดง → เขียว 2 รอบติด แต่ค่าเฉลี่ยยังส้ม: ต้องถาม · นับเป็นเขียวแล้วผ่าน', () async {
+      final (repo, subjectId, topicId) = await setup([45, 82, 90]);
+      var t = await topicOf(repo, subjectId);
+      expect(t.averageScore, 72);
+      expect(needsGreenDecision(t), isTrue);
+
+      // ผู้ใช้เลือก "นับเป็นเขียว" → คะแนนก่อน 2 รอบล่าสุดเป็นโมฆะ
+      await repo.resetHistoryFrom(topicId, t.scores[t.scores.length - 2].at);
+      t = await topicOf(repo, subjectId);
+      expect(t.averageScore, 86);
+      expect(showRecheck(t, GradingMode.advanced), isFalse);
+      expect(reviewOrder([t], mode: GradingMode.advanced), isEmpty);
+    });
+
+    test('แดง → เขียว 2 รอบติด และค่าเฉลี่ยเขียวอยู่แล้ว: ผ่านเลย ไม่ต้องถาม', () async {
+      final (repo, subjectId, _) = await setup([59, 100, 100]);
+      final t = await topicOf(repo, subjectId);
+      expect(shownScore(t, GradingMode.advanced), 86);
+      expect(needsGreenDecision(t), isFalse);
+      expect(showRecheck(t, GradingMode.advanced), isFalse);
+    });
+
+    test('จำค่าตั้งค่าได้', () async {
+      final repo = MemoryStudyRepository();
+      expect(await repo.getSetting('green_twice_rule'), isNull);
+      await repo.setSetting('green_twice_rule', 'green');
+      expect(await repo.getSetting('green_twice_rule'), 'green');
+    });
   });
 }

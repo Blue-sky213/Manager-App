@@ -26,6 +26,13 @@ abstract class StudyRepository {
   Future<GradingMode> gradingMode();
   Future<void> setGradingMode(GradingMode mode);
 
+  /// ค่าตั้งค่าทั่วไปแบบ key → value (null = ยังไม่เคยตั้ง)
+  Future<String?> getSetting(String key);
+  Future<void> setSetting(String key, String value);
+
+  /// ทำให้คะแนนก่อน [from] เป็นโมฆะ: ไม่นำมาเฉลี่ย ไม่นับว่าเคยตก (ข้อมูลยังอยู่ในไฟล์)
+  Future<void> resetHistoryFrom(int subtopicId, DateTime from);
+
   /// บันทึกคะแนนประเมินตัวเอง 0–100
   Future<void> addAssessment(int subtopicId, int score, {DateTime? at});
 }

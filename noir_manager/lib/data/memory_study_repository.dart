@@ -54,7 +54,11 @@ class MemoryStudyRepository implements StudyRepository {
   }
 
   Subtopic _toSubtopic(_TopicRow t) {
-    final mine = _scores.where((s) => s.subtopicId == t.id).toList()
+    final cleared = t.clearedAt;
+    final mine = _scores
+        .where((s) => s.subtopicId == t.id)
+        .where((s) => cleared == null || !s.at.isBefore(cleared))
+        .toList()
       ..sort((a, b) => a.at.compareTo(b.at));
     return Subtopic(
       id: t.id,
@@ -62,8 +66,7 @@ class MemoryStudyRepository implements StudyRepository {
       name: t.name,
       sortOrder: t.sortOrder,
       examFlag: t.examFlag,
-      latestScore: mine.isEmpty ? null : mine.last.score,
-      everBelow60: mine.any((s) => s.score < 60),
+      scores: [for (final s in mine) ScorePoint(s.score, s.at)],
     );
   }
 
@@ -171,6 +174,20 @@ class MemoryStudyRepository implements StudyRepository {
     _topics.firstWhere((t) => t.id == subtopicId).examFlag = flag;
   }
 
+  final Map<String, String> _settings = {};
+
+  @override
+  Future<String?> getSetting(String key) async => _settings[key];
+
+  @override
+  Future<void> setSetting(String key, String value) async =>
+      _settings[key] = value;
+
+  @override
+  Future<void> resetHistoryFrom(int subtopicId, DateTime from) async {
+    _topics.firstWhere((t) => t.id == subtopicId).clearedAt = from;
+  }
+
   @override
   Future<GradingMode> gradingMode() async => _mode;
 
@@ -190,6 +207,7 @@ class _TopicRow {
   String name;
   final int sortOrder;
   bool examFlag = false;
+  DateTime? clearedAt;
 }
 
 class _ScoreRow {

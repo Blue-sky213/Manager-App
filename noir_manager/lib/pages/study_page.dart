@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../data/study_models.dart';
 import '../data/study_repository.dart';
 import '../data/study_scope.dart';
+import '../study/green_rule.dart';
 import '../study/mastery.dart';
 import '../study/subtopic_dialog.dart';
 import '../theme/noir_colors.dart';
@@ -156,9 +157,52 @@ class _StudyPageState extends State<StudyPage> {
       }
       if (edit.score != null) {
         await repo.addAssessment(topic.id, edit.score!);
+        if (_mode == GradingMode.advanced) await _applyGreenRule(topic.id);
       }
     }
     await _reload();
+  }
+
+  /// [Advanced] เคยตก → เขียว 2 รอบติด แต่ค่าเฉลี่ยยังไม่เขียว → ทำตามค่าตั้งค่า / ถามผู้ใช้
+  Future<void> _applyGreenRule(int subtopicId) async {
+    final repo = _repo!;
+    Subtopic? topic;
+    for (final ch in await repo.chapters(_subjectId!)) {
+      for (final t in ch.subtopics) {
+        if (t.id == subtopicId) topic = t;
+      }
+    }
+    if (topic == null || !needsGreenDecision(topic)) return;
+
+    final rule = GreenRule.parse(await repo.getSetting(greenRuleKey));
+    bool makeGreen;
+    if (rule == GreenRule.ask) {
+      if (!mounted) return;
+      final answer = await askGreenTwice(context, topic);
+      if (answer == null) return; // ปิดกล่องเฉย ๆ = ยังไม่ตัดสินใจ
+      makeGreen = answer.makeGreen;
+      if (answer.remember) {
+        await repo.setSetting(greenRuleKey,
+            (makeGreen ? GreenRule.green : GreenRule.average).name);
+      }
+    } else {
+      makeGreen = rule == GreenRule.green;
+    }
+
+    if (makeGreen) {
+      // เริ่มนับใหม่ตั้งแต่รอบแรกของ "เขียว 2 รอบติด"
+      final from = topic.scores[topic.scores.length - 2].at;
+      await repo.resetHistoryFrom(topic.id, from);
+    }
+  }
+
+  Future<void> _openSettings() async {
+    final repo = _repo!;
+    final current = GreenRule.parse(await repo.getSetting(greenRuleKey));
+    if (!mounted) return;
+    final picked = await showStudySettings(context, current);
+    if (picked == null) return;
+    await repo.setSetting(greenRuleKey, picked.name);
   }
 
   @override
@@ -244,9 +288,9 @@ class _StudyPageState extends State<StudyPage> {
           const _Legend(),
           const SizedBox(height: 12),
           // สวิตช์โหมด EZ / Advanced (จำไว้ในฐานข้อมูล ทุกวิชาใช้ร่วมกัน)
-          Align(
-            alignment: Alignment.centerLeft,
-            child: SegmentedButton<GradingMode>(
+          Row(
+            children: [
+              SegmentedButton<GradingMode>(
               segments: const [
                 ButtonSegment(value: GradingMode.ez, label: Text('EZ')),
                 ButtonSegment(
@@ -258,7 +302,21 @@ class _StudyPageState extends State<StudyPage> {
                 await _repo!.setGradingMode(selected.first);
                 await _reload();
               },
-            ),
+              ),
+              if (_mode == GradingMode.advanced)
+                IconButton(
+                  tooltip: 'ตั้งค่าโหมด Advanced',
+                  icon: const Icon(Icons.settings_outlined),
+                  onPressed: _openSettings,
+                ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            _mode == GradingMode.ez
+                ? 'EZ: สีและ % = คะแนนล่าสุด'
+                : 'Advanced: สีและ % = ค่าเฉลี่ยทุกรอบ · เคยตกต้องเขียว 2 รอบติดถึงผ่าน',
+            style: TextStyle(fontSize: 12, color: c.muted),
           ),
           const SizedBox(height: 16),
           for (final ch in _chapters) ...[
@@ -268,6 +326,7 @@ class _StudyPageState extends State<StudyPage> {
               onRename: () => _renameChapter(ch.chapter),
               onDelete: () => _deleteChapter(ch.chapter),
               onOpenSubtopic: _openSubtopic,
+              mode: _mode,
             ),
             const SizedBox(height: 12),
           ],
@@ -304,9 +363,11 @@ class _ChapterCard extends StatelessWidget {
     required this.onRename,
     required this.onDelete,
     required this.onOpenSubtopic,
+    required this.mode,
   });
 
   final ChapterWithTopics data;
+  final GradingMode mode;
   final VoidCallback onAddSubtopic;
   final VoidCallback onRename;
   final VoidCallback onDelete;
@@ -365,7 +426,7 @@ class _ChapterCard extends StatelessWidget {
           ),
           for (final t in topics) ...[
             Divider(height: 1, color: c.line),
-            _SubtopicRow(topic: t, onTap: () => onOpenSubtopic(t)),
+            _SubtopicRow(topic: t, mode: mode, onTap: () => onOpenSubtopic(t)),
           ],
         ],
       ),
@@ -375,15 +436,20 @@ class _ChapterCard extends StatelessWidget {
 
 /// แถวหัวข้อย่อย: ชื่อ + ป้าย + แถบคะแนน + %
 class _SubtopicRow extends StatelessWidget {
-  const _SubtopicRow({required this.topic, required this.onTap});
+  const _SubtopicRow({
+    required this.topic,
+    required this.mode,
+    required this.onTap,
+  });
 
   final Subtopic topic;
+  final GradingMode mode;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final c = context.noir;
-    final score = topic.latestScore;
+    final score = shownScore(topic, mode); // EZ = ล่าสุด · Advanced = เฉลี่ย
     final color = switch (masteryOf(score)) {
       MasteryLevel.good => c.good,
       MasteryLevel.warn => c.warn,
@@ -408,7 +474,7 @@ class _SubtopicRow extends StatelessWidget {
                   Text(topic.name, style: TextStyle(fontSize: 15, color: c.text)),
                   if (topic.examFlag)
                     _Tag(text: 'ธง', border: c.flag, fg: c.flagText),
-                  if (topic.everBelow60)
+                  if (showRecheck(topic, mode))
                     _Tag(text: 'เช็กซ้ำ', bg: c.amberBg, fg: c.amberText),
                 ],
               ),

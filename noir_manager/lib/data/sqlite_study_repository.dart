@@ -71,22 +71,44 @@ class SqliteStudyRepository implements StudyRepository {
       orderBy: 'sort_order, id',
     );
 
-    // ดึงหัวข้อย่อยทั้งวิชาในคำสั่งเดียว พร้อมคำนวณ "คะแนนล่าสุด" และ "เคยต่ำกว่า 60"
+    // หัวข้อย่อยทั้งวิชา (คำสั่งเดียว)
     final topicRows = await _db.rawQuery('''
-      SELECT s.id, s.chapter_id, s.name, s.sort_order, s.exam_flag,
-        (SELECT a.score FROM assessment a
-          WHERE a.subtopic_id = s.id
-          ORDER BY a.taken_at DESC, a.id DESC
-          LIMIT 1) AS latest_score,
-        EXISTS (SELECT 1 FROM assessment a
-          WHERE a.subtopic_id = s.id AND a.score < 60) AS ever_below
+      SELECT s.id, s.chapter_id, s.name, s.sort_order, s.exam_flag
       FROM subtopic s
       JOIN chapter c ON c.id = s.chapter_id
       WHERE c.subject_id = ?
       ORDER BY s.sort_order, s.id
     ''', [subjectId]);
 
-    final topics = topicRows.map(Subtopic.fromRow).toList();
+    // คะแนนทุกรอบของวิชานี้ ตัดรอบที่เก่ากว่า cleared_at (เป็นโมฆะแล้ว) ทิ้ง
+    final scoreRows = await _db.rawQuery('''
+      SELECT a.subtopic_id, a.score, a.taken_at
+      FROM assessment a
+      JOIN subtopic s ON s.id = a.subtopic_id
+      JOIN chapter c ON c.id = s.chapter_id
+      WHERE c.subject_id = ?
+        AND (s.cleared_at IS NULL OR a.taken_at >= s.cleared_at)
+      ORDER BY a.taken_at, a.id
+    ''', [subjectId]);
+
+    // จัดกลุ่มคะแนนตามหัวข้อ: subtopicId → [คะแนน...]
+    final scoresByTopic = <int, List<ScorePoint>>{};
+    for (final r in scoreRows) {
+      scoresByTopic.putIfAbsent(r['subtopic_id'] as int, () => []).add(
+          ScorePoint(r['score'] as int, DateTime.parse(r['taken_at'] as String)));
+    }
+
+    final topics = [
+      for (final r in topicRows)
+        Subtopic(
+          id: r['id'] as int,
+          chapterId: r['chapter_id'] as int,
+          name: r['name'] as String,
+          sortOrder: r['sort_order'] as int,
+          examFlag: (r['exam_flag'] as int) == 1,
+          scores: scoresByTopic[r['id'] as int] ?? const [],
+        ),
+    ];
 
     return [
       for (final row in chapterRows)
@@ -141,6 +163,30 @@ class SqliteStudyRepository implements StudyRepository {
     await _db.update(
       'subtopic',
       {'exam_flag': flag ? 1 : 0},
+      where: 'id = ?',
+      whereArgs: [subtopicId],
+    );
+  }
+
+  @override
+  Future<String?> getSetting(String key) async {
+    final rows = await _db.query('setting',
+        where: 'key = ?', whereArgs: [key], limit: 1);
+    return rows.isEmpty ? null : rows.first['value'] as String?;
+  }
+
+  @override
+  Future<void> setSetting(String key, String value) async {
+    // replace = มี key นี้แล้วเขียนทับ ยังไม่มีก็เพิ่มใหม่
+    await _db.insert('setting', {'key': key, 'value': value},
+        conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  @override
+  Future<void> resetHistoryFrom(int subtopicId, DateTime from) async {
+    await _db.update(
+      'subtopic',
+      {'cleared_at': from.toIso8601String(), 'needs_recheck': 0},
       where: 'id = ?',
       whereArgs: [subtopicId],
     );

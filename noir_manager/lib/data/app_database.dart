@@ -9,7 +9,7 @@ import 'seed_data.dart';
 import 'study_repository.dart';
 
 /// เวอร์ชันโครงตาราง: ถ้าวันหลังเพิ่มตาราง/คอลัมน์ ให้เพิ่มเลขนี้ + เขียน onUpgrade
-const int _schemaVersion = 2; // v2: เพิ่มตาราง setting
+const int _schemaVersion = 3; // v2: ตาราง setting · v3: subtopic.cleared_at
 
 /// เปิด (หรือสร้างครั้งแรก) ไฟล์ฐานข้อมูล noir_manager.db
 Future<Database> openAppDatabase() async {
@@ -39,6 +39,9 @@ Future<Database> openAppDatabase() async {
     // เครื่องที่มีไฟล์ v1 อยู่แล้ว (เครื่องนัวร์): เพิ่มเฉพาะส่วนที่ขาด ข้อมูลเดิมไม่หาย
     onUpgrade: (db, oldVersion, newVersion) async {
       if (oldVersion < 2) await createSettingSchema(db);
+      if (oldVersion < 3) {
+        await db.execute('ALTER TABLE subtopic ADD COLUMN cleared_at TEXT');
+      }
     },
   );
 }
@@ -74,7 +77,8 @@ Future<void> createStudySchema(DatabaseExecutor db) async {
       exam_flag     INTEGER NOT NULL DEFAULT 0,
       status        TEXT    NOT NULL DEFAULT 'not_started',
       needs_recheck INTEGER NOT NULL DEFAULT 0,
-      note          TEXT
+      note          TEXT,
+      cleared_at    TEXT
     )''');
 
   await db.execute('''

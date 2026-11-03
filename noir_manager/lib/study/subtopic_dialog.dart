@@ -71,7 +71,10 @@ class _SubtopicDialogState extends State<_SubtopicDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(latest == null ? 'ยังไม่เคยประเมิน' : 'คะแนนล่าสุด $latest%'),
+            Text(latest == null
+                ? 'ยังไม่เคยประเมิน'
+                : 'คะแนนล่าสุด $latest% · เฉลี่ย ${widget.topic.averageScore}% '
+                    '(${widget.topic.scores.length} รอบ)'),
             const SizedBox(height: 16),
             TextField(
               key: const Key('score-field'),
