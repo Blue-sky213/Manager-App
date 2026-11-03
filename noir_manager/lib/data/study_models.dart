@@ -54,12 +54,30 @@ class Chapter {
       );
 }
 
-/// คะแนน 1 รอบ: ได้กี่ % เมื่อไหร่
+/// คะแนน 1 รอบ: ได้กี่ % เมื่อไหร่ (id = แถวในตาราง assessment)
 class ScorePoint {
-  const ScorePoint(this.score, this.at);
+  const ScorePoint(this.id, this.score, this.at);
 
+  final int id;
   final int score;
   final DateTime at;
+}
+
+/// แถวในตารางประวัติคะแนน (รวมรอบที่เป็นโมฆะด้วย)
+class ScoreRecord {
+  const ScoreRecord({
+    required this.id,
+    required this.score,
+    required this.at,
+    required this.voided,
+  });
+
+  final int id;
+  final int score;
+  final DateTime at;
+
+  /// true = โมฆะ (ไม่นำมาคิด แต่ยังเก็บไว้)
+  final bool voided;
 }
 
 /// หัวข้อย่อย 1 ข้อ + ประวัติคะแนน (นับตั้งแต่ "เริ่มนับใหม่" ครั้งล่าสุด)

@@ -35,6 +35,28 @@ bool needsGreenDecision(Subtopic t) =>
     t.greenTwice &&
     masteryOf(t.averageScore) != MasteryLevel.good;
 
+/// [Advanced] ต้องถามผู้ใช้ไหม: เคยได้เขียว (>80) → แล้ว 2 รอบล่าสุดต่ำกว่า 60 ทั้งคู่
+/// (คะแนนตกแรงผิดปกติ อาจใส่ผิด หรือลืมจริง ค่าเฉลี่ยรวมจะหลอกตา)
+bool needsRedDecision(Subtopic t) {
+  final s = t.scores;
+  if (s.length < 3) return false;
+  final lastTwoRed = s[s.length - 1].score < 60 && s[s.length - 2].score < 60;
+  final wasGreenBefore = s.sublist(0, s.length - 2).any((p) => p.score > 80);
+  return lastTwoRed && wasGreenBefore;
+}
+
+/// ค่าเฉลี่ย (ปัดเศษ) ของรายการคะแนน · null ถ้าว่าง
+int? averageOf(List<int> scores) => scores.isEmpty
+    ? null
+    : (scores.reduce((a, b) => a + b) / scores.length).round();
+
+String levelLabel(MasteryLevel level) => switch (level) {
+      MasteryLevel.good => 'ดี',
+      MasteryLevel.warn => 'พอได้',
+      MasteryLevel.bad => 'ยังไม่ได้',
+      MasteryLevel.none => 'ยังไม่ประเมิน',
+    };
+
 /// ลำดับทวนก่อนสอบ เรียงจากเร่งสุดลงไป (หัวข้อที่ยังไม่เคยประเมิน ไม่นับ)
 /// 1. คะแนน (ตามโหมด) <60 — ต่ำสุดก่อน
 /// 2. ติดธง + ยังไม่ถึง "ดี"

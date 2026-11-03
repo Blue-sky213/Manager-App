@@ -9,12 +9,14 @@ class SubtopicEdit {
     required this.examFlag,
     this.delete = false,
     this.rename = false,
+    this.history = false,
   });
 
   final int? score; // null = ไม่ได้กรอกคะแนนใหม่
   final bool examFlag;
   final bool delete; // กดปุ่มลบหัวข้อ
   final bool rename; // กดปุ่มเปลี่ยนชื่อ
+  final bool history; // กดดูประวัติคะแนน
 }
 
 /// กล่องจัดการหัวข้อย่อย: บันทึกคะแนน · ติด/เอาธงออก · เปลี่ยนชื่อ · ลบ
@@ -75,6 +77,19 @@ class _SubtopicDialogState extends State<_SubtopicDialog> {
                 ? 'ยังไม่เคยประเมิน'
                 : 'คะแนนล่าสุด $latest% · เฉลี่ย ${widget.topic.averageScore}% '
                     '(${widget.topic.scores.length} รอบ)'),
+            if (latest != null)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  style: TextButton.styleFrom(padding: EdgeInsets.zero),
+                  onPressed: () => Navigator.pop(
+                    context,
+                    SubtopicEdit(examFlag: _flag, history: true),
+                  ),
+                  icon: const Icon(Icons.history, size: 18),
+                  label: const Text('ประวัติคะแนน · แก้คะแนนที่ใส่ผิด'),
+                ),
+              ),
             const SizedBox(height: 16),
             TextField(
               key: const Key('score-field'),

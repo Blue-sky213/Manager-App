@@ -3,8 +3,9 @@ import 'package:flutter/material.dart';
 import '../data/study_models.dart';
 import '../data/study_repository.dart';
 import '../data/study_scope.dart';
-import '../study/green_rule.dart';
+import '../study/advanced_rules.dart';
 import '../study/mastery.dart';
+import '../study/score_history_dialog.dart';
 import '../study/subtopic_dialog.dart';
 import '../theme/noir_colors.dart';
 import '../widgets/dialogs.dart';
@@ -143,6 +144,8 @@ class _StudyPageState extends State<StudyPage> {
     if (edit.delete) {
       if (!await confirmDelete(context, topic.name)) return;
       await repo.deleteSubtopic(topic.id);
+    } else if (edit.history) {
+      await showScoreHistory(context, repo, topic);
     } else if (edit.rename) {
       final name = await askText(context,
           title: 'เปลี่ยนชื่อหัวข้อย่อย',
@@ -157,14 +160,16 @@ class _StudyPageState extends State<StudyPage> {
       }
       if (edit.score != null) {
         await repo.addAssessment(topic.id, edit.score!);
-        if (_mode == GradingMode.advanced) await _applyGreenRule(topic.id);
+        if (_mode == GradingMode.advanced) await _applyAdvancedRules(topic.id);
       }
     }
     await _reload();
   }
 
-  /// [Advanced] เคยตก → เขียว 2 รอบติด แต่ค่าเฉลี่ยยังไม่เขียว → ทำตามค่าตั้งค่า / ถามผู้ใช้
-  Future<void> _applyGreenRule(int subtopicId) async {
+  /// [Advanced] หลังบันทึกคะแนน: เช็ก 2 เหตุการณ์ที่ค่าเฉลี่ยรวมหลอกตา
+  /// 1) เคยตก → เขียว 2 รอบติด  2) เคยเขียว → ตก 2 รอบติด
+  /// ทำตามค่าตั้งค่า หรือถามผู้ใช้ (พร้อมติ๊ก "ไม่ต้องถามอีก")
+  Future<void> _applyAdvancedRules(int subtopicId) async {
     final repo = _repo!;
     Subtopic? topic;
     for (final ch in await repo.chapters(_subjectId!)) {
@@ -172,38 +177,51 @@ class _StudyPageState extends State<StudyPage> {
         if (t.id == subtopicId) topic = t;
       }
     }
-    if (topic == null || !needsGreenDecision(topic)) return;
+    if (topic == null) return;
 
-    final rule = GreenRule.parse(await repo.getSetting(greenRuleKey));
-    bool makeGreen;
-    if (rule == GreenRule.ask) {
+    final RuleText rule;
+    if (needsGreenDecision(topic)) {
+      rule = greenRule;
+    } else if (needsRedDecision(topic)) {
+      rule = redRule;
+    } else {
+      return;
+    }
+
+    final saved = RuleChoice.parse(await repo.getSetting(rule.key));
+    RuleAnswer answer;
+    if (saved == RuleChoice.ask) {
       if (!mounted) return;
-      final answer = await askGreenTwice(context, topic);
-      if (answer == null) return; // ปิดกล่องเฉย ๆ = ยังไม่ตัดสินใจ
-      makeGreen = answer.makeGreen;
-      if (answer.remember) {
-        await repo.setSetting(greenRuleKey,
-            (makeGreen ? GreenRule.green : GreenRule.average).name);
+      final decision = rule == greenRule
+          ? await askGreenTwice(context, topic)
+          : await askRedTwice(context, topic);
+      if (decision == null) return; // ปิดกล่องเฉย ๆ = ยังไม่ตัดสินใจ
+      answer = decision.answer;
+      if (decision.remember) {
+        await repo.setSetting(
+          rule.key,
+          (answer == RuleAnswer.recent ? RuleChoice.recent : RuleChoice.average)
+              .name,
+        );
       }
     } else {
-      makeGreen = rule == GreenRule.green;
+      answer =
+          saved == RuleChoice.recent ? RuleAnswer.recent : RuleAnswer.average;
     }
 
-    if (makeGreen) {
-      // เริ่มนับใหม่ตั้งแต่รอบแรกของ "เขียว 2 รอบติด"
-      final from = topic.scores[topic.scores.length - 2].at;
-      await repo.resetHistoryFrom(topic.id, from);
+    switch (answer) {
+      case RuleAnswer.recent:
+        // เริ่มนับใหม่ตั้งแต่รอบแรกของ 2 รอบล่าสุด (ก่อนหน้านั้นเป็นโมฆะ)
+        await repo.resetHistoryFrom(
+            topic.id, topic.scores[topic.scores.length - 2].at);
+      case RuleAnswer.average:
+        break; // ไม่ต้องทำอะไร
+      case RuleAnswer.wrongScore:
+        if (mounted) await showScoreHistory(context, repo, topic);
     }
   }
 
-  Future<void> _openSettings() async {
-    final repo = _repo!;
-    final current = GreenRule.parse(await repo.getSetting(greenRuleKey));
-    if (!mounted) return;
-    final picked = await showStudySettings(context, current);
-    if (picked == null) return;
-    await repo.setSetting(greenRuleKey, picked.name);
-  }
+  Future<void> _openSettings() => showStudySettings(context, _repo!);
 
   @override
   Widget build(BuildContext context) {

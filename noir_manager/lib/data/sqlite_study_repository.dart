@@ -82,7 +82,7 @@ class SqliteStudyRepository implements StudyRepository {
 
     // คะแนนทุกรอบของวิชานี้ ตัดรอบที่เก่ากว่า cleared_at (เป็นโมฆะแล้ว) ทิ้ง
     final scoreRows = await _db.rawQuery('''
-      SELECT a.subtopic_id, a.score, a.taken_at
+      SELECT a.id, a.subtopic_id, a.score, a.taken_at
       FROM assessment a
       JOIN subtopic s ON s.id = a.subtopic_id
       JOIN chapter c ON c.id = s.chapter_id
@@ -95,7 +95,8 @@ class SqliteStudyRepository implements StudyRepository {
     final scoresByTopic = <int, List<ScorePoint>>{};
     for (final r in scoreRows) {
       scoresByTopic.putIfAbsent(r['subtopic_id'] as int, () => []).add(
-          ScorePoint(r['score'] as int, DateTime.parse(r['taken_at'] as String)));
+          ScorePoint(r['id'] as int, r['score'] as int,
+              DateTime.parse(r['taken_at'] as String)));
     }
 
     final topics = [
@@ -190,6 +191,44 @@ class SqliteStudyRepository implements StudyRepository {
       where: 'id = ?',
       whereArgs: [subtopicId],
     );
+  }
+
+  @override
+  Future<List<ScoreRecord>> scoreHistory(int subtopicId) async {
+    final rows = await _db.rawQuery('''
+      SELECT a.id, a.score, a.taken_at,
+        (s.cleared_at IS NOT NULL AND a.taken_at < s.cleared_at) AS voided
+      FROM assessment a
+      JOIN subtopic s ON s.id = a.subtopic_id
+      WHERE a.subtopic_id = ?
+      ORDER BY a.taken_at, a.id
+    ''', [subtopicId]);
+    return [
+      for (final r in rows)
+        ScoreRecord(
+          id: r['id'] as int,
+          score: r['score'] as int,
+          at: DateTime.parse(r['taken_at'] as String),
+          voided: (r['voided'] as int) == 1,
+        ),
+    ];
+  }
+
+  @override
+  Future<void> updateAssessment(int assessmentId, int score) async {
+    await _db.update('assessment', {'score': score},
+        where: 'id = ?', whereArgs: [assessmentId]);
+  }
+
+  @override
+  Future<void> deleteAssessment(int assessmentId) async {
+    await _db.delete('assessment', where: 'id = ?', whereArgs: [assessmentId]);
+  }
+
+  @override
+  Future<void> undoReset(int subtopicId) async {
+    await _db.update('subtopic', {'cleared_at': null},
+        where: 'id = ?', whereArgs: [subtopicId]);
   }
 
   @override

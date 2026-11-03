@@ -139,4 +139,54 @@ void main() {
       expect(await repo.getSetting('green_twice_rule'), 'green');
     });
   });
+
+  group('Advanced: เคยเขียว → ตก 2 รอบติด + ตารางแก้คะแนน', () {
+    Future<(MemoryStudyRepository, int, int)> setup(List<int> scores) async {
+      final repo = MemoryStudyRepository.seeded();
+      final subjectId = (await repo.subjects()).first.id;
+      final topicId = (await repo.chapters(subjectId)).first.subtopics.first.id;
+      for (var i = 0; i < scores.length; i++) {
+        await repo.addAssessment(topicId, scores[i], at: DateTime(2026, 11, 1 + i));
+      }
+      return (repo, subjectId, topicId);
+    }
+
+    Future<Subtopic> topicOf(MemoryStudyRepository repo, int subjectId) async =>
+        (await repo.chapters(subjectId)).first.subtopics.first;
+
+    test('99 → 45 → 55: ต้องถาม · ถูกจริง = คิดจาก 2 รอบแดง (เฉลี่ย 50)', () async {
+      final (repo, subjectId, topicId) = await setup([99, 45, 55]);
+      var t = await topicOf(repo, subjectId);
+      expect(t.averageScore, 66); // ค่าเฉลี่ยรวมดูดีเกินจริง
+      expect(needsRedDecision(t), isTrue);
+
+      await repo.resetHistoryFrom(topicId, t.scores[t.scores.length - 2].at);
+      t = await topicOf(repo, subjectId);
+      expect(t.averageScore, 50);
+      expect(masteryOf(shownScore(t, GradingMode.advanced)), MasteryLevel.bad);
+    });
+
+    test('ตก 2 รอบแต่ไม่เคยเขียว: ไม่ต้องถาม', () async {
+      final (repo, subjectId, _) = await setup([70, 45, 55]);
+      expect(needsRedDecision(await topicOf(repo, subjectId)), isFalse);
+    });
+
+    test('ประวัติ: แก้ / ลบ / ยกเลิกโมฆะ', () async {
+      final (repo, subjectId, topicId) = await setup([99, 45, 55]);
+      final t = await topicOf(repo, subjectId);
+      await repo.resetHistoryFrom(topicId, t.scores[1].at);
+
+      var rows = await repo.scoreHistory(topicId);
+      expect(rows.map((r) => r.voided), [true, false, false]);
+
+      await repo.updateAssessment(rows[1].id, 85); // ใส่ผิด แก้ 45 → 85
+      await repo.deleteAssessment(rows[2].id); // ลบรอบ 55
+      await repo.undoReset(topicId); // นำ 99 กลับมาคิด
+
+      rows = await repo.scoreHistory(topicId);
+      expect(rows.map((r) => r.score), [99, 85]);
+      expect(rows.any((r) => r.voided), isFalse);
+      expect((await topicOf(repo, subjectId)).averageScore, 92);
+    });
+  });
 }

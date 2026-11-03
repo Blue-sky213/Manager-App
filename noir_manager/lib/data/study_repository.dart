@@ -33,6 +33,14 @@ abstract class StudyRepository {
   /// ทำให้คะแนนก่อน [from] เป็นโมฆะ: ไม่นำมาเฉลี่ย ไม่นับว่าเคยตก (ข้อมูลยังอยู่ในไฟล์)
   Future<void> resetHistoryFrom(int subtopicId, DateTime from);
 
+  /// ประวัติคะแนนทุกรอบของหัวข้อ เรียงเก่า → ใหม่ (รวมรอบโมฆะ)
+  Future<List<ScoreRecord>> scoreHistory(int subtopicId);
+  Future<void> updateAssessment(int assessmentId, int score);
+  Future<void> deleteAssessment(int assessmentId);
+
+  /// ยกเลิกโมฆะ: นำคะแนนทุกรอบกลับมาคิดเหมือนเดิม
+  Future<void> undoReset(int subtopicId);
+
   /// บันทึกคะแนนประเมินตัวเอง 0–100
   Future<void> addAssessment(int subtopicId, int score, {DateTime? at});
 }

@@ -66,7 +66,7 @@ class MemoryStudyRepository implements StudyRepository {
       name: t.name,
       sortOrder: t.sortOrder,
       examFlag: t.examFlag,
-      scores: [for (final s in mine) ScorePoint(s.score, s.at)],
+      scores: [for (final s in mine) ScorePoint(s.id, s.score, s.at)],
     );
   }
 
@@ -189,6 +189,37 @@ class MemoryStudyRepository implements StudyRepository {
   }
 
   @override
+  Future<List<ScoreRecord>> scoreHistory(int subtopicId) async {
+    final cleared = _topics.firstWhere((t) => t.id == subtopicId).clearedAt;
+    final mine = _scores.where((s) => s.subtopicId == subtopicId).toList()
+      ..sort((a, b) => a.at.compareTo(b.at));
+    return [
+      for (final s in mine)
+        ScoreRecord(
+          id: s.id,
+          score: s.score,
+          at: s.at,
+          voided: cleared != null && s.at.isBefore(cleared),
+        ),
+    ];
+  }
+
+  @override
+  Future<void> updateAssessment(int assessmentId, int score) async {
+    _scores.firstWhere((s) => s.id == assessmentId).score = score;
+  }
+
+  @override
+  Future<void> deleteAssessment(int assessmentId) async {
+    _scores.removeWhere((s) => s.id == assessmentId);
+  }
+
+  @override
+  Future<void> undoReset(int subtopicId) async {
+    _topics.firstWhere((t) => t.id == subtopicId).clearedAt = null;
+  }
+
+  @override
   Future<GradingMode> gradingMode() async => _mode;
 
   @override
@@ -196,7 +227,7 @@ class MemoryStudyRepository implements StudyRepository {
 
   @override
   Future<void> addAssessment(int subtopicId, int score, {DateTime? at}) async {
-    _scores.add(_ScoreRow(subtopicId, score, at ?? DateTime.now()));
+    _scores.add(_ScoreRow(_nextId++, subtopicId, score, at ?? DateTime.now()));
   }
 }
 
@@ -211,8 +242,9 @@ class _TopicRow {
 }
 
 class _ScoreRow {
-  _ScoreRow(this.subtopicId, this.score, this.at);
+  _ScoreRow(this.id, this.subtopicId, this.score, this.at);
+  final int id;
   final int subtopicId;
-  final int score;
+  int score;
   final DateTime at;
 }
