@@ -9,7 +9,7 @@ import 'seed_data.dart';
 import 'study_repository.dart';
 
 /// เวอร์ชันโครงตาราง: ถ้าวันหลังเพิ่มตาราง/คอลัมน์ ให้เพิ่มเลขนี้ + เขียน onUpgrade
-const int _schemaVersion = 1;
+const int _schemaVersion = 2; // v2: เพิ่มตาราง setting
 
 /// เปิด (หรือสร้างครั้งแรก) ไฟล์ฐานข้อมูล noir_manager.db
 Future<Database> openAppDatabase() async {
@@ -30,9 +30,15 @@ Future<Database> openAppDatabase() async {
     version: _schemaVersion,
     // SQLite ปิดการเช็ก Foreign Key ไว้เป็นค่าเริ่มต้น ต้องเปิดเองทุกครั้งที่ต่อ
     onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
+    // เครื่องใหม่ (ยังไม่มีไฟล์): สร้างทุกตารางในครั้งเดียว
     onCreate: (db, version) async {
       await createStudySchema(db);
+      await createSettingSchema(db);
       await seedStudyData(db);
+    },
+    // เครื่องที่มีไฟล์ v1 อยู่แล้ว (เครื่องนัวร์): เพิ่มเฉพาะส่วนที่ขาด ข้อมูลเดิมไม่หาย
+    onUpgrade: (db, oldVersion, newVersion) async {
+      if (oldVersion < 2) await createSettingSchema(db);
     },
   );
 }
@@ -85,6 +91,15 @@ Future<void> createStudySchema(DatabaseExecutor db) async {
   await db.execute('CREATE INDEX idx_subtopic_chapter ON subtopic(chapter_id)');
   await db.execute(
       'CREATE INDEX idx_assessment_subtopic ON assessment(subtopic_id, taken_at)');
+}
+
+/// ตารางตั้งค่าแบบ key → value เช่น grading_mode → ez / advanced
+Future<void> createSettingSchema(DatabaseExecutor db) async {
+  await db.execute('''
+    CREATE TABLE setting (
+      key   TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    )''');
 }
 
 /// ใส่วิชา DaVinci เป็นข้อมูลตั้งต้น (ทำครั้งเดียวตอนสร้างไฟล์)

@@ -23,6 +23,7 @@ class _StudyPageState extends State<StudyPage> {
   List<Subject> _subjects = [];
   int? _subjectId; // วิชาที่เลือกอยู่
   List<ChapterWithTopics> _chapters = [];
+  GradingMode _mode = GradingMode.ez;
 
   Subject? get _subject {
     for (final s in _subjects) {
@@ -49,6 +50,7 @@ class _StudyPageState extends State<StudyPage> {
     final selected = subjects.any((s) => s.id == _subjectId)
         ? _subjectId
         : (subjects.isEmpty ? null : subjects.first.id);
+    final mode = await repo.gradingMode();
     final chapters =
         selected == null ? <ChapterWithTopics>[] : await repo.chapters(selected);
     if (!mounted) return; // ผู้ใช้ปิดหน้าไปแล้วระหว่างรอ → ไม่ต้องวาด
@@ -56,6 +58,7 @@ class _StudyPageState extends State<StudyPage> {
       _subjects = subjects;
       _subjectId = selected;
       _chapters = chapters;
+      _mode = mode;
       _loading = false;
     });
   }
@@ -168,7 +171,7 @@ class _StudyPageState extends State<StudyPage> {
 
     final subject = _subject;
     final allTopics = [for (final ch in _chapters) ...ch.subtopics];
-    final review = reviewOrder(allTopics);
+    final review = reviewOrder(allTopics, mode: _mode);
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(24, 28, 24, 32),
@@ -239,6 +242,24 @@ class _StudyPageState extends State<StudyPage> {
           ),
           const SizedBox(height: 16),
           const _Legend(),
+          const SizedBox(height: 12),
+          // สวิตช์โหมด EZ / Advanced (จำไว้ในฐานข้อมูล ทุกวิชาใช้ร่วมกัน)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: SegmentedButton<GradingMode>(
+              segments: const [
+                ButtonSegment(value: GradingMode.ez, label: Text('EZ')),
+                ButtonSegment(
+                    value: GradingMode.advanced, label: Text('Advanced')),
+              ],
+              selected: {_mode},
+              showSelectedIcon: false,
+              onSelectionChanged: (selected) async {
+                await _repo!.setGradingMode(selected.first);
+                await _reload();
+              },
+            ),
+          ),
           const SizedBox(height: 16),
           for (final ch in _chapters) ...[
             _ChapterCard(

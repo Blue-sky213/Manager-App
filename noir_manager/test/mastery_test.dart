@@ -63,4 +63,26 @@ void main() {
     expect((await repo.subjects()).map((s) => s.name), ['DaVinci Resolve']);
     expect(await repo.chapters(id), isEmpty);
   });
+
+  test('Advanced: เพิ่มหัวข้อที่เคยตกแต่ตอนนี้ยังไม่ถึงดี ไว้ท้ายรายการ · EZ ไม่เพิ่ม', () async {
+    final repo = MemoryStudyRepository.seeded();
+    final subject = (await repo.subjects()).first;
+    final t = (await repo.chapters(subject.id)).first.subtopics;
+
+    await repo.addAssessment(t[0].id, 45, at: DateTime(2026, 11, 3)); // ต่ำ
+    await repo.addAssessment(t[1].id, 59, at: DateTime(2026, 11, 1)); // เคยตก
+    await repo.addAssessment(t[1].id, 80, at: DateTime(2026, 11, 3)); // ตอนนี้พอได้
+    await repo.addAssessment(t[2].id, 75, at: DateTime(2026, 11, 3)); // ไม่เคยตก
+
+    final topics = (await repo.chapters(subject.id)).first.subtopics;
+    expect(reviewOrder(topics).map((x) => x.id), [t[0].id]);
+    expect(
+      reviewOrder(topics, mode: GradingMode.advanced).map((x) => x.id),
+      [t[0].id, t[1].id],
+    );
+
+    expect(await repo.gradingMode(), GradingMode.ez);
+    await repo.setGradingMode(GradingMode.advanced);
+    expect(await repo.gradingMode(), GradingMode.advanced);
+  });
 }

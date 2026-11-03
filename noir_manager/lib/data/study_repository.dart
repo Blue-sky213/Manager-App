@@ -1,3 +1,4 @@
+import '../study/mastery.dart';
 import 'study_models.dart';
 
 /// "สัญญา" ว่าที่เก็บข้อมูลวิชาต้องทำอะไรได้บ้าง
@@ -20,6 +21,10 @@ abstract class StudyRepository {
   Future<void> renameSubtopic(int subtopicId, String name);
   Future<void> deleteSubtopic(int subtopicId);
   Future<void> setExamFlag(int subtopicId, bool flag);
+
+  /// โหมดการให้คะแนน EZ / Advanced (จำไว้ในฐานข้อมูล)
+  Future<GradingMode> gradingMode();
+  Future<void> setGradingMode(GradingMode mode);
 
   /// บันทึกคะแนนประเมินตัวเอง 0–100
   Future<void> addAssessment(int subtopicId, int score, {DateTime? at});

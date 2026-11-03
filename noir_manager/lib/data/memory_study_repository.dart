@@ -1,3 +1,4 @@
+import '../study/mastery.dart';
 import 'seed_data.dart';
 import 'study_models.dart';
 import 'study_repository.dart';
@@ -21,6 +22,7 @@ class MemoryStudyRepository implements StudyRepository {
   }
 
   int _nextId = 1;
+  GradingMode _mode = GradingMode.ez;
   final List<Subject> _subjects = [];
   final List<Chapter> _chapters = [];
   final List<_TopicRow> _topics = [];
@@ -168,6 +170,12 @@ class MemoryStudyRepository implements StudyRepository {
   Future<void> setExamFlag(int subtopicId, bool flag) async {
     _topics.firstWhere((t) => t.id == subtopicId).examFlag = flag;
   }
+
+  @override
+  Future<GradingMode> gradingMode() async => _mode;
+
+  @override
+  Future<void> setGradingMode(GradingMode mode) async => _mode = mode;
 
   @override
   Future<void> addAssessment(int subtopicId, int score, {DateTime? at}) async {

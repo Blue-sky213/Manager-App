@@ -10,9 +10,17 @@ MasteryLevel masteryOf(int? score) {
   return MasteryLevel.bad;
 }
 
-/// ลำดับทวนก่อนสอบ: คะแนนต่ำ (<60) ก่อน เรียงจากน้อยไปมาก
-/// → ตามด้วยหัวข้อที่ติดธงแต่ยังไม่ถึง "ดี" → หัวข้อที่ยังไม่เคยประเมิน ไม่นับ
-List<Subtopic> reviewOrder(Iterable<Subtopic> topics) {
+/// โหมดการให้คะแนน (เหมือนหน้า BIOS: EZ = ง่าย, Advanced = ละเอียด)
+enum GradingMode { ez, advanced }
+
+/// ลำดับทวนก่อนสอบ เรียงจากเร่งสุดลงไป (หัวข้อที่ยังไม่เคยประเมิน ไม่นับ)
+/// 1. คะแนนล่าสุด <60 (ต่ำสุดก่อน)
+/// 2. ติดธง + ยังไม่ถึง "ดี" (60–80)
+/// 3. [Advanced เท่านั้น] เคยต่ำกว่า 60 + ตอนนี้ยังไม่ถึง "ดี" (60–80) — ทวนจนได้ >80
+List<Subtopic> reviewOrder(
+  Iterable<Subtopic> topics, {
+  GradingMode mode = GradingMode.ez,
+}) {
   final weak = topics
       .where((t) => masteryOf(t.latestScore) == MasteryLevel.bad)
       .toList()
@@ -22,5 +30,14 @@ List<Subtopic> reviewOrder(Iterable<Subtopic> topics) {
           t.examFlag && masteryOf(t.latestScore) == MasteryLevel.warn)
       .toList()
     ..sort((a, b) => a.latestScore!.compareTo(b.latestScore!));
-  return [...weak, ...flagged];
+  final recovered = mode == GradingMode.advanced
+      ? (topics
+          .where((t) =>
+              !t.examFlag && // ติดธงอยู่ในกลุ่ม 2 แล้ว ไม่ต้องซ้ำ
+              t.everBelow60 &&
+              masteryOf(t.latestScore) == MasteryLevel.warn)
+          .toList()
+        ..sort((a, b) => a.latestScore!.compareTo(b.latestScore!)))
+      : <Subtopic>[];
+  return [...weak, ...flagged, ...recovered];
 }

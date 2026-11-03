@@ -1,5 +1,6 @@
 import 'package:sqflite/sqflite.dart';
 
+import '../study/mastery.dart';
 import 'study_models.dart';
 import 'study_repository.dart';
 
@@ -142,6 +143,24 @@ class SqliteStudyRepository implements StudyRepository {
       {'exam_flag': flag ? 1 : 0},
       where: 'id = ?',
       whereArgs: [subtopicId],
+    );
+  }
+
+  @override
+  Future<GradingMode> gradingMode() async {
+    final rows = await _db.query('setting',
+        where: 'key = ?', whereArgs: ['grading_mode'], limit: 1);
+    final value = rows.isEmpty ? null : rows.first['value'] as String?;
+    return value == 'advanced' ? GradingMode.advanced : GradingMode.ez;
+  }
+
+  @override
+  Future<void> setGradingMode(GradingMode mode) async {
+    // replace = ถ้ามี key นี้แล้วให้เขียนทับ ถ้ายังไม่มีให้เพิ่มใหม่
+    await _db.insert(
+      'setting',
+      {'key': 'grading_mode', 'value': mode.name},
+      conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }
 
