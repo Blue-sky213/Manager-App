@@ -80,4 +80,26 @@ void main() {
     expect(find.text('Study Tree'), findsOneWidget);
     expect(tester.takeException(), isNull); // ไม่มี error ล้นจอ
   });
+
+  testWidgets('แตะหัวบท = ยุบ / ขยาย และปุ่มยุบทุกบท', (tester) async {
+    setScreen(tester, const Size(1280, 1400));
+    await tester.pumpWidget(buildApp());
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('วิชา').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('1.4 Keyboard Shortcut'), findsOneWidget);
+    await tester.tap(find.text('บท 1 · Interface & Media'));
+    await tester.pumpAndSettle();
+    expect(find.text('1.4 Keyboard Shortcut'), findsNothing); // ยุบแล้ว
+
+    await tester.tap(find.text('บท 1 · Interface & Media'));
+    await tester.pumpAndSettle();
+    expect(find.text('1.4 Keyboard Shortcut'), findsOneWidget); // ขยายกลับ
+
+    await tester.tap(find.text('ยุบทุกบท'));
+    await tester.pumpAndSettle();
+    expect(find.text('1.4 Keyboard Shortcut'), findsNothing);
+    expect(find.text('ขยายทุกบท'), findsOneWidget);
+  });
 }

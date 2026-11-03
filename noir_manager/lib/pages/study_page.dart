@@ -27,6 +27,10 @@ class _StudyPageState extends State<StudyPage> {
   List<ChapterWithTopics> _chapters = [];
   GradingMode _mode = GradingMode.ez;
 
+  /// ส่วนที่ "ยุบ" อยู่ (จำไว้ในฐานข้อมูล): 'ch<id>' = การ์ดบท · 'review' / 'exam' = กล่องท้ายหน้า
+  Set<String> _collapsed = {};
+  static const _collapsedKey = 'collapsed_sections';
+
   Subject? get _subject {
     for (final s in _subjects) {
       if (s.id == _subjectId) return s;
@@ -53,6 +57,7 @@ class _StudyPageState extends State<StudyPage> {
         ? _subjectId
         : (subjects.isEmpty ? null : subjects.first.id);
     final mode = await repo.gradingMode();
+    final collapsedRaw = await repo.getSetting(_collapsedKey) ?? '';
     final chapters =
         selected == null ? <ChapterWithTopics>[] : await repo.chapters(selected);
     if (!mounted) return; // ผู้ใช้ปิดหน้าไปแล้วระหว่างรอ → ไม่ต้องวาด
@@ -61,6 +66,7 @@ class _StudyPageState extends State<StudyPage> {
       _subjectId = selected;
       _chapters = chapters;
       _mode = mode;
+      _collapsed = collapsedRaw.split(',').where((k) => k.isNotEmpty).toSet();
       _loading = false;
     });
   }
@@ -223,6 +229,15 @@ class _StudyPageState extends State<StudyPage> {
 
   Future<void> _openSettings() => showStudySettings(context, _repo!);
 
+  /// กดยุบ / ขยาย แล้วบันทึกทันที (ปิดเปิดแอปก็ยังเป็นแบบเดิม)
+  Future<void> _setCollapsed(Set<String> keys) async {
+    setState(() => _collapsed = keys);
+    await _repo!.setSetting(_collapsedKey, keys.join(','));
+  }
+
+  void _toggle(String key) => _setCollapsed(
+      _collapsed.contains(key) ? ({..._collapsed}..remove(key)) : {..._collapsed, key});
+
   @override
   Widget build(BuildContext context) {
     final c = context.noir;
@@ -340,9 +355,26 @@ class _StudyPageState extends State<StudyPage> {
                 : 'Advanced: สีและ % = ค่าเฉลี่ยทุกรอบ · เคยตกต้องเขียว 2 รอบติดถึงผ่าน',
             style: TextStyle(fontSize: 12, color: c.muted),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
+          if (_chapters.isNotEmpty)
+            Align(
+              alignment: Alignment.centerRight,
+              child: Builder(builder: (context) {
+                final chapterKeys = {for (final ch in _chapters) 'ch${ch.chapter.id}'};
+                final allCollapsed = chapterKeys.every(_collapsed.contains);
+                return TextButton.icon(
+                  onPressed: () => _setCollapsed(allCollapsed
+                      ? _collapsed.difference(chapterKeys)
+                      : _collapsed.union(chapterKeys)),
+                  icon: Icon(allCollapsed ? Icons.unfold_more : Icons.unfold_less),
+                  label: Text(allCollapsed ? 'ขยายทุกบท' : 'ยุบทุกบท'),
+                );
+              }),
+            ),
           for (final ch in _chapters) ...[
             _ChapterCard(
+              collapsed: _collapsed.contains('ch${ch.chapter.id}'),
+              onToggle: () => _toggle('ch${ch.chapter.id}'),
               data: ch,
               onAddSubtopic: () => _addSubtopic(ch.chapter),
               onRename: () => _renameChapter(ch.chapter),
@@ -364,11 +396,22 @@ class _StudyPageState extends State<StudyPage> {
           ),
           if (review.isNotEmpty) ...[
             const SizedBox(height: 16),
-            _ReviewBox(topics: review, chapterNames: chapterNames),
+            _ReviewBox(
+              topics: review,
+              chapterNames: chapterNames,
+              collapsed: _collapsed.contains('review'),
+              onToggle: () => _toggle('review'),
+            ),
           ],
           if (exam.isNotEmpty) ...[
             const SizedBox(height: 12),
-            _ExamBox(topics: exam, chapterNames: chapterNames, mode: _mode),
+            _ExamBox(
+              topics: exam,
+              chapterNames: chapterNames,
+              mode: _mode,
+              collapsed: _collapsed.contains('exam'),
+              onToggle: () => _toggle('exam'),
+            ),
           ],
         ],
       ],
@@ -385,10 +428,14 @@ class _ChapterCard extends StatelessWidget {
     required this.onDelete,
     required this.onOpenSubtopic,
     required this.mode,
+    required this.collapsed,
+    required this.onToggle,
   });
 
   final ChapterWithTopics data;
   final GradingMode mode;
+  final bool collapsed; // true = ซ่อนหัวข้อย่อย เหลือแค่หัวบท
+  final VoidCallback onToggle;
   final VoidCallback onAddSubtopic;
   final VoidCallback onRename;
   final VoidCallback onDelete;
@@ -405,10 +452,15 @@ class _ChapterCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 8, 4, 8),
+          InkWell(
+            onTap: onToggle, // แตะหัวบท = ยุบ / ขยาย
+            child: Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 4, 8),
             child: Row(
               children: [
+                Icon(collapsed ? Icons.chevron_right : Icons.expand_more,
+                    color: c.muted),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -445,6 +497,8 @@ class _ChapterCard extends StatelessWidget {
               ],
             ),
           ),
+          ),
+          if (!collapsed)
           for (final t in topics) ...[
             Divider(height: 1, color: c.line),
             _SubtopicRow(topic: t, mode: mode, onTap: () => onOpenSubtopic(t)),
@@ -543,10 +597,17 @@ class _SubtopicRow extends StatelessWidget {
 /// กล่อง "ต้องทวนก่อนสอบ": รายการหัวข้อแยกบรรทัด เรียงจากเร่งสุด (ข้อ 1) ลงไป
 /// โชว์แค่ชื่อหัวข้อ + อยู่บทไหน ไม่โชว์คะแนน (คะแนนดูได้ในการ์ดบทด้านบน)
 class _ReviewBox extends StatelessWidget {
-  const _ReviewBox({required this.topics, required this.chapterNames});
+  const _ReviewBox({
+    required this.topics,
+    required this.chapterNames,
+    required this.collapsed,
+    required this.onToggle,
+  });
 
   final List<Subtopic> topics;
   final Map<int, String> chapterNames; // chapterId → ชื่อบท
+  final bool collapsed;
+  final VoidCallback onToggle;
 
   @override
   Widget build(BuildContext context) {
@@ -561,11 +622,14 @@ class _ReviewBox extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'ต้องทวนก่อนสอบ · ${topics.length} หัวข้อ',
-            style: TextStyle(fontWeight: FontWeight.w600, color: c.amberText),
+          _BoxHeader(
+            text: 'ต้องทวนก่อนสอบ · ${topics.length} หัวข้อ',
+            color: c.amberText,
+            collapsed: collapsed,
+            onToggle: onToggle,
           ),
-          const SizedBox(height: 8),
+          if (!collapsed) const SizedBox(height: 8),
+          if (!collapsed)
           for (var i = 0; i < topics.length; i++)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
@@ -698,11 +762,15 @@ class _ExamBox extends StatelessWidget {
     required this.topics,
     required this.chapterNames,
     required this.mode,
+    required this.collapsed,
+    required this.onToggle,
   });
 
   final List<Subtopic> topics;
   final Map<int, String> chapterNames;
   final GradingMode mode;
+  final bool collapsed;
+  final VoidCallback onToggle;
 
   @override
   Widget build(BuildContext context) {
@@ -717,17 +785,15 @@ class _ExamBox extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(Icons.star, size: 18, color: c.flagText),
-              const SizedBox(width: 6),
-              Text(
-                'อาจออกสอบ · ${topics.length} หัวข้อ',
-                style: TextStyle(fontWeight: FontWeight.w600, color: c.flagText),
-              ),
-            ],
+          _BoxHeader(
+            icon: Icons.star,
+            text: 'อาจออกสอบ · ${topics.length} หัวข้อ',
+            color: c.flagText,
+            collapsed: collapsed,
+            onToggle: onToggle,
           ),
-          const SizedBox(height: 8),
+          if (!collapsed) const SizedBox(height: 8),
+          if (!collapsed)
           for (final t in topics)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
@@ -786,6 +852,48 @@ class _ScoreDot extends StatelessWidget {
               style: TextStyle(fontSize: 14, color: c.text)),
         ),
       ],
+    );
+  }
+}
+
+/// หัวกล่องท้ายหน้า: แตะเพื่อยุบ / ขยาย (ลูกศรอยู่ขวา)
+class _BoxHeader extends StatelessWidget {
+  const _BoxHeader({
+    required this.text,
+    required this.color,
+    required this.collapsed,
+    required this.onToggle,
+    this.icon,
+  });
+
+  final String text;
+  final Color color;
+  final bool collapsed;
+  final VoidCallback onToggle;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onToggle,
+      borderRadius: BorderRadius.circular(6),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          children: [
+            if (icon != null) ...[
+              Icon(icon, size: 18, color: color),
+              const SizedBox(width: 6),
+            ],
+            Expanded(
+              child: Text(text,
+                  style: TextStyle(fontWeight: FontWeight.w600, color: color)),
+            ),
+            Icon(collapsed ? Icons.expand_more : Icons.expand_less,
+                color: color),
+          ],
+        ),
+      ),
     );
   }
 }
