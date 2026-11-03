@@ -1,22 +1,438 @@
 import 'package:flutter/material.dart';
 
-import '../widgets/page_scaffold.dart';
+import '../data/study_models.dart';
+import '../data/study_repository.dart';
+import '../data/study_scope.dart';
+import '../study/mastery.dart';
+import '../study/subtopic_dialog.dart';
+import '../theme/noir_colors.dart';
+import '../widgets/dialogs.dart';
 
-/// หน้า "วิชา": Study Tree + Mastery Score (Phase 1 ทดสอบกับวิชา DaVinci)
-class StudyPage extends StatelessWidget {
+/// หน้า "วิชา": Study Tree + Mastery Score
+/// วิชา → บท → หัวข้อย่อย · แตะหัวข้อย่อยเพื่อบันทึกคะแนน / ติดธง / ลบ
+class StudyPage extends StatefulWidget {
   const StudyPage({super.key});
 
   @override
+  State<StudyPage> createState() => _StudyPageState();
+}
+
+class _StudyPageState extends State<StudyPage> {
+  StudyRepository? _repo;
+  bool _loading = true;
+  List<Subject> _subjects = [];
+  int? _subjectId; // วิชาที่เลือกอยู่
+  List<ChapterWithTopics> _chapters = [];
+
+  Subject? get _subject {
+    for (final s in _subjects) {
+      if (s.id == _subjectId) return s;
+    }
+    return null;
+  }
+
+  // ใช้ didChangeDependencies แทน initState เพราะต้องอ่าน StudyScope จาก context
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final repo = StudyScope.of(context);
+    if (repo != _repo) {
+      _repo = repo;
+      _reload();
+    }
+  }
+
+  /// โหลดข้อมูลใหม่ทั้งหน้า (เรียกหลังทุกการเปลี่ยนแปลง)
+  Future<void> _reload() async {
+    final repo = _repo!;
+    final subjects = await repo.subjects();
+    final selected = subjects.any((s) => s.id == _subjectId)
+        ? _subjectId
+        : (subjects.isEmpty ? null : subjects.first.id);
+    final chapters =
+        selected == null ? <ChapterWithTopics>[] : await repo.chapters(selected);
+    if (!mounted) return; // ผู้ใช้ปิดหน้าไปแล้วระหว่างรอ → ไม่ต้องวาด
+    setState(() {
+      _subjects = subjects;
+      _subjectId = selected;
+      _chapters = chapters;
+      _loading = false;
+    });
+  }
+
+  Future<void> _addSubject() async {
+    final name = await askText(context,
+        title: 'เพิ่มวิชา', label: 'ชื่อวิชา', hint: 'เช่น DataCOM');
+    if (name == null) return;
+    final id = await _repo!.addSubject(name);
+    _subjectId = id;
+    await _reload();
+  }
+
+  Future<void> _addChapter() async {
+    final name = await askText(context,
+        title: 'เพิ่มบท',
+        label: 'ชื่อบท',
+        hint: 'เช่น บท ${_chapters.length + 1} · ...');
+    if (name == null) return;
+    await _repo!.addChapter(_subjectId!, name);
+    await _reload();
+  }
+
+  Future<void> _addSubtopic(Chapter chapter) async {
+    final name = await askText(context,
+        title: 'เพิ่มหัวข้อย่อย', label: 'ชื่อหัวข้อย่อย', hint: chapter.name);
+    if (name == null) return;
+    await _repo!.addSubtopic(chapter.id, name);
+    await _reload();
+  }
+
+  Future<void> _deleteChapter(Chapter chapter) async {
+    if (!await confirmDelete(context, chapter.name)) return;
+    await _repo!.deleteChapter(chapter.id);
+    await _reload();
+  }
+
+  Future<void> _openSubtopic(Subtopic topic) async {
+    final edit = await showSubtopicDialog(context, topic);
+    if (edit == null || !mounted) return;
+    final repo = _repo!;
+
+    if (edit.delete) {
+      if (!await confirmDelete(context, topic.name)) return;
+      await repo.deleteSubtopic(topic.id);
+    } else {
+      if (edit.examFlag != topic.examFlag) {
+        await repo.setExamFlag(topic.id, edit.examFlag);
+      }
+      if (edit.score != null) {
+        await repo.addAssessment(topic.id, edit.score!);
+      }
+    }
+    await _reload();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return const PageScaffold(
-      overline: 'Study Tree',
-      title: 'วิชา',
+    final c = context.noir;
+
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final subject = _subject;
+    final allTopics = [for (final ch in _chapters) ...ch.subtopics];
+    final review = reviewOrder(allTopics);
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(24, 28, 24, 32),
       children: [
-        ComingSoonCard(
-          icon: Icons.account_tree_outlined,
-          message: 'วิชา → บท → หัวข้อย่อย + คะแนนความเข้าใจ — มาใน Phase 1',
+        Text('Study Tree', style: TextStyle(fontSize: 13, color: c.muted)),
+        const SizedBox(height: 4),
+        Text(
+          subject?.name ?? 'ยังไม่มีวิชา',
+          style: TextStyle(fontSize: 28, fontWeight: FontWeight.w600, color: c.text),
         ),
+        const SizedBox(height: 12),
+
+        // แถบเลือกวิชา + ปุ่มเพิ่มวิชา (Wrap = ล้นแล้วขึ้นบรรทัดใหม่เอง)
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final s in _subjects)
+              ChoiceChip(
+                label: Text(s.name),
+                selected: s.id == _subjectId,
+                onSelected: (_) {
+                  _subjectId = s.id;
+                  _reload();
+                },
+              ),
+            ActionChip(
+              avatar: const Icon(Icons.add, size: 18),
+              label: const Text('เพิ่มวิชา'),
+              onPressed: _addSubject,
+            ),
+          ],
+        ),
+
+        if (subject != null) ...[
+          const SizedBox(height: 12),
+          _Pill(
+            text: 'ความสำคัญ: ${subject.importanceLabel} · '
+                '${subject.sessionsPerWeek} รอบ/สัปดาห์',
+            bg: c.navBg,
+            fg: c.navText,
+          ),
+          const SizedBox(height: 16),
+          const _Legend(),
+          const SizedBox(height: 16),
+          for (final ch in _chapters) ...[
+            _ChapterCard(
+              data: ch,
+              onAddSubtopic: () => _addSubtopic(ch.chapter),
+              onDelete: () => _deleteChapter(ch.chapter),
+              onOpenSubtopic: _openSubtopic,
+            ),
+            const SizedBox(height: 12),
+          ],
+          OutlinedButton.icon(
+            onPressed: _addChapter,
+            icon: const Icon(Icons.add),
+            label: const Text('เพิ่มบท'),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(44),
+              foregroundColor: c.text,
+              side: BorderSide(color: c.line2),
+            ),
+          ),
+          if (review.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            _ReviewBox(topics: review),
+          ],
+        ],
       ],
+    );
+  }
+}
+
+/// การ์ดของ 1 บท: หัวบท + หัวข้อย่อยทุกข้อ
+class _ChapterCard extends StatelessWidget {
+  const _ChapterCard({
+    required this.data,
+    required this.onAddSubtopic,
+    required this.onDelete,
+    required this.onOpenSubtopic,
+  });
+
+  final ChapterWithTopics data;
+  final VoidCallback onAddSubtopic;
+  final VoidCallback onDelete;
+  final ValueChanged<Subtopic> onOpenSubtopic;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.noir;
+    final topics = data.subtopics;
+    final assessed = topics.where((t) => t.latestScore != null).length;
+
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 8, 4, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(data.chapter.name,
+                          style: TextStyle(fontWeight: FontWeight.w600, color: c.text)),
+                      Text(
+                        topics.isEmpty
+                            ? 'ยังไม่มีหัวข้อย่อย'
+                            : 'ประเมินแล้ว $assessed/${topics.length} หัวข้อ',
+                        style: TextStyle(fontSize: 13, color: c.muted),
+                      ),
+                    ],
+                  ),
+                ),
+                PopupMenuButton<String>(
+                  tooltip: 'ตัวเลือกบท',
+                  onSelected: (v) => v == 'add' ? onAddSubtopic() : onDelete(),
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(value: 'add', child: Text('เพิ่มหัวข้อย่อย')),
+                    PopupMenuItem(value: 'delete', child: Text('ลบบทนี้')),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          for (final t in topics) ...[
+            Divider(height: 1, color: c.line),
+            _SubtopicRow(topic: t, onTap: () => onOpenSubtopic(t)),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// แถวหัวข้อย่อย: ชื่อ + ป้าย + แถบคะแนน + %
+class _SubtopicRow extends StatelessWidget {
+  const _SubtopicRow({required this.topic, required this.onTap});
+
+  final Subtopic topic;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.noir;
+    final score = topic.latestScore;
+    final color = switch (masteryOf(score)) {
+      MasteryLevel.good => c.good,
+      MasteryLevel.warn => c.warn,
+      MasteryLevel.bad => c.bad,
+      MasteryLevel.none => c.line2,
+    };
+    // จอแคบ (มือถือ / หน้าต่างเล็ก) → แถบคะแนนสั้นลง ชื่อหัวข้อจะได้ไม่โดนบีบ
+    final barWidth = MediaQuery.sizeOf(context).width < 600 ? 64.0 : 160.0;
+
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        child: Row(
+          children: [
+            Expanded(
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Text(topic.name, style: TextStyle(fontSize: 15, color: c.text)),
+                  if (topic.examFlag)
+                    _Tag(text: 'ธง', border: c.flag, fg: c.flagText),
+                  if (topic.everBelow60)
+                    _Tag(text: 'เช็กซ้ำ', bg: c.amberBg, fg: c.amberText),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Container(
+              width: barWidth,
+              height: 8,
+              decoration: BoxDecoration(
+                color: c.surface2,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              alignment: Alignment.centerLeft,
+              child: FractionallySizedBox(
+                widthFactor: (score ?? 0) / 100,
+                heightFactor: 1,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: color,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ),
+            ),
+            SizedBox(
+              width: 48,
+              child: Text(
+                score == null ? '—' : '$score%',
+                textAlign: TextAlign.right,
+                style: TextStyle(fontSize: 14, color: score == null ? c.muted : c.text),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// กล่อง "Review ก่อนสอบ": หัวข้อที่ควรทวนก่อน เรียงตามความเร่ง
+class _ReviewBox extends StatelessWidget {
+  const _ReviewBox({required this.topics});
+
+  final List<Subtopic> topics;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.noir;
+    final text = topics
+        .map((t) => '${t.name} (${t.latestScore}%${t.examFlag ? ' · ธง' : ''})')
+        .join('  →  ');
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: c.amberBg,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text('ทวนก่อนสอบ: $text', style: TextStyle(color: c.amberText)),
+    );
+  }
+}
+
+/// คำอธิบายสี
+class _Legend extends StatelessWidget {
+  const _Legend();
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.noir;
+    Widget dot(Color color, String label) => Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 10,
+              height: 10,
+              decoration: BoxDecoration(
+                  color: color, borderRadius: BorderRadius.circular(3)),
+            ),
+            const SizedBox(width: 6),
+            Text(label, style: TextStyle(fontSize: 13, color: c.muted)),
+          ],
+        );
+
+    return Wrap(
+      spacing: 16,
+      runSpacing: 8,
+      children: [
+        dot(c.good, 'ดี >80%'),
+        dot(c.warn, 'พอได้ 60–80%'),
+        dot(c.bad, 'ยังไม่ได้ <60%'),
+        dot(c.line2, 'ยังไม่ประเมิน'),
+      ],
+    );
+  }
+}
+
+class _Pill extends StatelessWidget {
+  const _Pill({required this.text, required this.bg, required this.fg});
+
+  final String text;
+  final Color bg;
+  final Color fg;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(999)),
+        child: Text(text, style: TextStyle(fontSize: 13, color: fg)),
+      ),
+    );
+  }
+}
+
+class _Tag extends StatelessWidget {
+  const _Tag({required this.text, required this.fg, this.bg, this.border});
+
+  final String text;
+  final Color fg;
+  final Color? bg;
+  final Color? border;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(4),
+        border: border == null ? null : Border.all(color: border!),
+      ),
+      child: Text(text, style: TextStyle(fontSize: 12, color: fg)),
     );
   }
 }

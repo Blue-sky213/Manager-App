@@ -1,0 +1,139 @@
+import 'seed_data.dart';
+import 'study_models.dart';
+import 'study_repository.dart';
+
+/// StudyRepository แบบเก็บใน RAM (ปิดแอปแล้วหาย) — ใช้ในการเทส
+/// กฎทุกข้อต้องเหมือน SqliteStudyRepository
+class MemoryStudyRepository implements StudyRepository {
+  MemoryStudyRepository();
+
+  /// สร้างพร้อมข้อมูล DaVinci เหมือนตอนเปิดแอปครั้งแรก
+  factory MemoryStudyRepository.seeded() {
+    final repo = MemoryStudyRepository();
+    final subjectId = repo._insertSubject(seedSubjectName, seedSubjectImportance);
+    for (final seed in seedChapters) {
+      final chapterId = repo._insertChapter(subjectId, seed.name);
+      for (final name in seed.subtopics) {
+        repo._insertSubtopic(chapterId, name);
+      }
+    }
+    return repo;
+  }
+
+  int _nextId = 1;
+  final List<Subject> _subjects = [];
+  final List<Chapter> _chapters = [];
+  final List<_TopicRow> _topics = [];
+  final List<_ScoreRow> _scores = [];
+
+  int _insertSubject(String name, int importance) {
+    final id = _nextId++;
+    _subjects.add(Subject(
+      id: id,
+      name: name,
+      importance: importance,
+      sessionsPerWeek: sessionsForImportance(importance),
+    ));
+    return id;
+  }
+
+  int _insertChapter(int subjectId, String name) {
+    final id = _nextId++;
+    final order = _chapters.where((c) => c.subjectId == subjectId).length + 1;
+    _chapters.add(Chapter(id: id, subjectId: subjectId, name: name, sortOrder: order));
+    return id;
+  }
+
+  int _insertSubtopic(int chapterId, String name) {
+    final id = _nextId++;
+    final order = _topics.where((t) => t.chapterId == chapterId).length + 1;
+    _topics.add(_TopicRow(id, chapterId, name, order));
+    return id;
+  }
+
+  Subtopic _toSubtopic(_TopicRow t) {
+    final mine = _scores.where((s) => s.subtopicId == t.id).toList()
+      ..sort((a, b) => a.at.compareTo(b.at));
+    return Subtopic(
+      id: t.id,
+      chapterId: t.chapterId,
+      name: t.name,
+      sortOrder: t.sortOrder,
+      examFlag: t.examFlag,
+      latestScore: mine.isEmpty ? null : mine.last.score,
+      everBelow60: mine.any((s) => s.score < 60),
+    );
+  }
+
+  @override
+  Future<List<Subject>> subjects() async => List.of(_subjects);
+
+  @override
+  Future<int> addSubject(String name, {int importance = 2}) async =>
+      _insertSubject(name, importance);
+
+  @override
+  Future<List<ChapterWithTopics>> chapters(int subjectId) async {
+    final mine = _chapters.where((c) => c.subjectId == subjectId).toList()
+      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    return [
+      for (final c in mine)
+        ChapterWithTopics(
+          c,
+          (_topics.where((t) => t.chapterId == c.id).toList()
+                ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder)))
+              .map(_toSubtopic)
+              .toList(),
+        ),
+    ];
+  }
+
+  @override
+  Future<int> addChapter(int subjectId, String name) async =>
+      _insertChapter(subjectId, name);
+
+  @override
+  Future<void> deleteChapter(int chapterId) async {
+    final topicIds =
+        _topics.where((t) => t.chapterId == chapterId).map((t) => t.id).toSet();
+    _scores.removeWhere((s) => topicIds.contains(s.subtopicId));
+    _topics.removeWhere((t) => t.chapterId == chapterId);
+    _chapters.removeWhere((c) => c.id == chapterId);
+  }
+
+  @override
+  Future<int> addSubtopic(int chapterId, String name) async =>
+      _insertSubtopic(chapterId, name);
+
+  @override
+  Future<void> deleteSubtopic(int subtopicId) async {
+    _scores.removeWhere((s) => s.subtopicId == subtopicId);
+    _topics.removeWhere((t) => t.id == subtopicId);
+  }
+
+  @override
+  Future<void> setExamFlag(int subtopicId, bool flag) async {
+    _topics.firstWhere((t) => t.id == subtopicId).examFlag = flag;
+  }
+
+  @override
+  Future<void> addAssessment(int subtopicId, int score, {DateTime? at}) async {
+    _scores.add(_ScoreRow(subtopicId, score, at ?? DateTime.now()));
+  }
+}
+
+class _TopicRow {
+  _TopicRow(this.id, this.chapterId, this.name, this.sortOrder);
+  final int id;
+  final int chapterId;
+  final String name;
+  final int sortOrder;
+  bool examFlag = false;
+}
+
+class _ScoreRow {
+  _ScoreRow(this.subtopicId, this.score, this.at);
+  final int subtopicId;
+  final int score;
+  final DateTime at;
+}

@@ -23,6 +23,7 @@ class AppTheme {
 
     return ThemeData(
       useMaterial3: true,
+      fontFamily: 'IBMPlexSansThai', // ชื่อตรงกับ family ใน pubspec.yaml
       colorScheme: scheme,
       scaffoldBackgroundColor: c.bg,
       dividerColor: c.line,
