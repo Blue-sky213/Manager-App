@@ -25,6 +25,43 @@ class SqliteStudyRepository implements StudyRepository {
   }
 
   @override
+  Future<void> renameSubject(int subjectId, String name) async {
+    await _db.update('subject', {'name': name},
+        where: 'id = ?', whereArgs: [subjectId]);
+  }
+
+  @override
+  Future<void> setSubjectImportance(int subjectId, int importance) async {
+    await _db.update(
+      'subject',
+      {
+        'importance': importance,
+        'sessions_per_week': sessionsForImportance(importance),
+      },
+      where: 'id = ?',
+      whereArgs: [subjectId],
+    );
+  }
+
+  @override
+  Future<void> deleteSubject(int subjectId) async {
+    // CASCADE: ลบบท → หัวข้อย่อย → คะแนน ของวิชานี้ตามไปทั้งหมด
+    await _db.delete('subject', where: 'id = ?', whereArgs: [subjectId]);
+  }
+
+  @override
+  Future<void> renameChapter(int chapterId, String name) async {
+    await _db.update('chapter', {'name': name},
+        where: 'id = ?', whereArgs: [chapterId]);
+  }
+
+  @override
+  Future<void> renameSubtopic(int subtopicId, String name) async {
+    await _db.update('subtopic', {'name': name},
+        where: 'id = ?', whereArgs: [subtopicId]);
+  }
+
+  @override
   Future<List<ChapterWithTopics>> chapters(int subjectId) async {
     final chapterRows = await _db.query(
       'chapter',

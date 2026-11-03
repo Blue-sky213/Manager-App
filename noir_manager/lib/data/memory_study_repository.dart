@@ -73,6 +73,59 @@ class MemoryStudyRepository implements StudyRepository {
       _insertSubject(name, importance);
 
   @override
+  Future<void> renameSubject(int subjectId, String name) async {
+    final i = _subjects.indexWhere((s) => s.id == subjectId);
+    final old = _subjects[i];
+    _subjects[i] = Subject(
+      id: old.id,
+      name: name,
+      importance: old.importance,
+      sessionsPerWeek: old.sessionsPerWeek,
+    );
+  }
+
+  @override
+  Future<void> setSubjectImportance(int subjectId, int importance) async {
+    final i = _subjects.indexWhere((s) => s.id == subjectId);
+    final old = _subjects[i];
+    _subjects[i] = Subject(
+      id: old.id,
+      name: old.name,
+      importance: importance,
+      sessionsPerWeek: sessionsForImportance(importance),
+    );
+  }
+
+  @override
+  Future<void> deleteSubject(int subjectId) async {
+    final chapterIds = _chapters
+        .where((c) => c.subjectId == subjectId)
+        .map((c) => c.id)
+        .toList();
+    for (final id in chapterIds) {
+      await deleteChapter(id);
+    }
+    _subjects.removeWhere((s) => s.id == subjectId);
+  }
+
+  @override
+  Future<void> renameChapter(int chapterId, String name) async {
+    final i = _chapters.indexWhere((c) => c.id == chapterId);
+    final old = _chapters[i];
+    _chapters[i] = Chapter(
+      id: old.id,
+      subjectId: old.subjectId,
+      name: name,
+      sortOrder: old.sortOrder,
+    );
+  }
+
+  @override
+  Future<void> renameSubtopic(int subtopicId, String name) async {
+    _topics.firstWhere((t) => t.id == subtopicId).name = name;
+  }
+
+  @override
   Future<List<ChapterWithTopics>> chapters(int subjectId) async {
     final mine = _chapters.where((c) => c.subjectId == subjectId).toList()
       ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
@@ -126,7 +179,7 @@ class _TopicRow {
   _TopicRow(this.id, this.chapterId, this.name, this.sortOrder);
   final int id;
   final int chapterId;
-  final String name;
+  String name;
   final int sortOrder;
   bool examFlag = false;
 }

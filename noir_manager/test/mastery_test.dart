@@ -39,4 +39,28 @@ void main() {
     final topics = (await repo.chapters(subject.id)).first.subtopics;
     expect(reviewOrder(topics).map((x) => x.id), [t[3].id, t[2].id, t[1].id]);
   });
+
+  test('เปลี่ยนชื่อ + เปลี่ยนความสำคัญ + ลบวิชา (ลบบทและหัวข้อตามไปด้วย)', () async {
+    final repo = MemoryStudyRepository.seeded();
+    final id = await repo.addSubject('Test 67', importance: 1);
+    final chapterId = await repo.addChapter(id, 'Test deleat');
+    await repo.addSubtopic(chapterId, 'Tesst 67');
+
+    await repo.renameSubject(id, 'DataCOM');
+    await repo.setSubjectImportance(id, 3);
+    await repo.renameChapter(chapterId, 'บท 1');
+    final topicId = (await repo.chapters(id)).first.subtopics.first.id;
+    await repo.renameSubtopic(topicId, 'Test 67');
+
+    final subject = (await repo.subjects()).firstWhere((s) => s.id == id);
+    expect(subject.name, 'DataCOM');
+    expect(subject.sessionsPerWeek, 3);
+    final chapters = await repo.chapters(id);
+    expect(chapters.first.chapter.name, 'บท 1');
+    expect(chapters.first.subtopics.first.name, 'Test 67');
+
+    await repo.deleteSubject(id);
+    expect((await repo.subjects()).map((s) => s.name), ['DaVinci Resolve']);
+    expect(await repo.chapters(id), isEmpty);
+  });
 }

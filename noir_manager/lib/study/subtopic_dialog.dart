@@ -4,14 +4,20 @@ import '../data/study_models.dart';
 
 /// ผลลัพธ์จากกล่องหัวข้อย่อย
 class SubtopicEdit {
-  const SubtopicEdit({this.score, required this.examFlag, this.delete = false});
+  const SubtopicEdit({
+    this.score,
+    required this.examFlag,
+    this.delete = false,
+    this.rename = false,
+  });
 
   final int? score; // null = ไม่ได้กรอกคะแนนใหม่
   final bool examFlag;
-  final bool delete;
+  final bool delete; // กดปุ่มลบหัวข้อ
+  final bool rename; // กดปุ่มเปลี่ยนชื่อ
 }
 
-/// กล่องจัดการหัวข้อย่อย: บันทึกคะแนน · ติด/เอาธงออก · ลบ
+/// กล่องจัดการหัวข้อย่อย: บันทึกคะแนน · ติด/เอาธงออก · เปลี่ยนชื่อ · ลบ
 Future<SubtopicEdit?> showSubtopicDialog(BuildContext context, Subtopic topic) {
   return showDialog<SubtopicEdit>(
     context: context,
@@ -99,6 +105,13 @@ class _SubtopicDialogState extends State<_SubtopicDialog> {
             foregroundColor: Theme.of(context).colorScheme.error,
           ),
           child: const Text('ลบหัวข้อ'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(
+            context,
+            SubtopicEdit(examFlag: _flag, rename: true),
+          ),
+          child: const Text('เปลี่ยนชื่อ'),
         ),
         TextButton(
           onPressed: () => Navigator.pop(context),

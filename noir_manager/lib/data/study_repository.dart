@@ -7,12 +7,17 @@ import 'study_models.dart';
 abstract class StudyRepository {
   Future<List<Subject>> subjects();
   Future<int> addSubject(String name, {int importance = 2});
+  Future<void> renameSubject(int subjectId, String name);
+  Future<void> setSubjectImportance(int subjectId, int importance);
+  Future<void> deleteSubject(int subjectId);
 
   Future<List<ChapterWithTopics>> chapters(int subjectId);
   Future<int> addChapter(int subjectId, String name);
+  Future<void> renameChapter(int chapterId, String name);
   Future<void> deleteChapter(int chapterId);
 
   Future<int> addSubtopic(int chapterId, String name);
+  Future<void> renameSubtopic(int subtopicId, String name);
   Future<void> deleteSubtopic(int subtopicId);
   Future<void> setExamFlag(int subtopicId, bool flag);
 

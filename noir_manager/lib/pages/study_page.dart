@@ -63,9 +63,47 @@ class _StudyPageState extends State<StudyPage> {
   Future<void> _addSubject() async {
     final name = await askText(context,
         title: 'เพิ่มวิชา', label: 'ชื่อวิชา', hint: 'เช่น DataCOM');
-    if (name == null) return;
-    final id = await _repo!.addSubject(name);
+    if (name == null || !mounted) return;
+    final importance = await askImportance(context, current: 2);
+    if (importance == null) return; // ยกเลิกตอนเลือกความสำคัญ = ไม่เพิ่มวิชา
+    final id = await _repo!.addSubject(name, importance: importance);
     _subjectId = id;
+    await _reload();
+  }
+
+  Future<void> _renameSubject(Subject subject) async {
+    final name = await askText(context,
+        title: 'เปลี่ยนชื่อวิชา',
+        label: 'ชื่อวิชา',
+        initial: subject.name,
+        confirmLabel: 'บันทึก');
+    if (name == null) return;
+    await _repo!.renameSubject(subject.id, name);
+    await _reload();
+  }
+
+  Future<void> _changeImportance(Subject subject) async {
+    final importance = await askImportance(context, current: subject.importance);
+    if (importance == null) return;
+    await _repo!.setSubjectImportance(subject.id, importance);
+    await _reload();
+  }
+
+  Future<void> _deleteSubject(Subject subject) async {
+    if (!await confirmDelete(context, subject.name)) return;
+    await _repo!.deleteSubject(subject.id);
+    _subjectId = null; // ให้ _reload เลือกวิชาแรกที่เหลือแทน
+    await _reload();
+  }
+
+  Future<void> _renameChapter(Chapter chapter) async {
+    final name = await askText(context,
+        title: 'เปลี่ยนชื่อบท',
+        label: 'ชื่อบท',
+        initial: chapter.name,
+        confirmLabel: 'บันทึก');
+    if (name == null) return;
+    await _repo!.renameChapter(chapter.id, name);
     await _reload();
   }
 
@@ -101,6 +139,14 @@ class _StudyPageState extends State<StudyPage> {
     if (edit.delete) {
       if (!await confirmDelete(context, topic.name)) return;
       await repo.deleteSubtopic(topic.id);
+    } else if (edit.rename) {
+      final name = await askText(context,
+          title: 'เปลี่ยนชื่อหัวข้อย่อย',
+          label: 'ชื่อหัวข้อย่อย',
+          initial: topic.name,
+          confirmLabel: 'บันทึก');
+      if (name == null) return;
+      await repo.renameSubtopic(topic.id, name);
     } else {
       if (edit.examFlag != topic.examFlag) {
         await repo.setExamFlag(topic.id, edit.examFlag);
@@ -129,9 +175,35 @@ class _StudyPageState extends State<StudyPage> {
       children: [
         Text('Study Tree', style: TextStyle(fontSize: 13, color: c.muted)),
         const SizedBox(height: 4),
-        Text(
-          subject?.name ?? 'ยังไม่มีวิชา',
-          style: TextStyle(fontSize: 28, fontWeight: FontWeight.w600, color: c.text),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                subject?.name ?? 'ยังไม่มีวิชา',
+                style: TextStyle(
+                    fontSize: 28, fontWeight: FontWeight.w600, color: c.text),
+              ),
+            ),
+            if (subject != null)
+              PopupMenuButton<String>(
+                tooltip: 'ตัวเลือกวิชา',
+                onSelected: (v) {
+                  switch (v) {
+                    case 'rename':
+                      _renameSubject(subject);
+                    case 'importance':
+                      _changeImportance(subject);
+                    default:
+                      _deleteSubject(subject);
+                  }
+                },
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: 'rename', child: Text('เปลี่ยนชื่อวิชา')),
+                  PopupMenuItem(value: 'importance', child: Text('เปลี่ยนความสำคัญ')),
+                  PopupMenuItem(value: 'delete', child: Text('ลบวิชา')),
+                ],
+              ),
+          ],
         ),
         const SizedBox(height: 12),
 
@@ -172,6 +244,7 @@ class _StudyPageState extends State<StudyPage> {
             _ChapterCard(
               data: ch,
               onAddSubtopic: () => _addSubtopic(ch.chapter),
+              onRename: () => _renameChapter(ch.chapter),
               onDelete: () => _deleteChapter(ch.chapter),
               onOpenSubtopic: _openSubtopic,
             ),
@@ -202,12 +275,14 @@ class _ChapterCard extends StatelessWidget {
   const _ChapterCard({
     required this.data,
     required this.onAddSubtopic,
+    required this.onRename,
     required this.onDelete,
     required this.onOpenSubtopic,
   });
 
   final ChapterWithTopics data;
   final VoidCallback onAddSubtopic;
+  final VoidCallback onRename;
   final VoidCallback onDelete;
   final ValueChanged<Subtopic> onOpenSubtopic;
 
@@ -243,9 +318,19 @@ class _ChapterCard extends StatelessWidget {
                 ),
                 PopupMenuButton<String>(
                   tooltip: 'ตัวเลือกบท',
-                  onSelected: (v) => v == 'add' ? onAddSubtopic() : onDelete(),
+                  onSelected: (v) {
+                    switch (v) {
+                      case 'add':
+                        onAddSubtopic();
+                      case 'rename':
+                        onRename();
+                      default:
+                        onDelete();
+                    }
+                  },
                   itemBuilder: (_) => const [
                     PopupMenuItem(value: 'add', child: Text('เพิ่มหัวข้อย่อย')),
+                    PopupMenuItem(value: 'rename', child: Text('เปลี่ยนชื่อบท')),
                     PopupMenuItem(value: 'delete', child: Text('ลบบทนี้')),
                   ],
                 ),
