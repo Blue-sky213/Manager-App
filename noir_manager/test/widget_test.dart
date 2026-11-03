@@ -62,6 +62,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('55%'), findsOneWidget);
+    // กล่องทวน: หัวข้อแยกบรรทัด ไม่มีคะแนน → ชื่อหัวข้อขึ้น 2 ที่ (การ์ดบท + กล่องทวน)
+    expect(find.text('ต้องทวนก่อนสอบ · 1 หัวข้อ'), findsOneWidget);
+    expect(find.text('1.4 Keyboard Shortcut'), findsNWidgets(2));
     expect(find.text('เช็กซ้ำ'), findsOneWidget); // ต่ำกว่า 60 → ป้ายเช็กซ้ำ
     expect(find.text('ประเมินแล้ว 1/4 หัวข้อ'), findsOneWidget);
   });

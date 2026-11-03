@@ -262,7 +262,12 @@ class _StudyPageState extends State<StudyPage> {
           ),
           if (review.isNotEmpty) ...[
             const SizedBox(height: 16),
-            _ReviewBox(topics: review),
+            _ReviewBox(
+              topics: review,
+              chapterNames: {
+                for (final ch in _chapters) ch.chapter.id: ch.chapter.name,
+              },
+            ),
           ],
         ],
       ],
@@ -422,26 +427,61 @@ class _SubtopicRow extends StatelessWidget {
   }
 }
 
-/// กล่อง "Review ก่อนสอบ": หัวข้อที่ควรทวนก่อน เรียงตามความเร่ง
+/// กล่อง "ต้องทวนก่อนสอบ": รายการหัวข้อแยกบรรทัด เรียงจากเร่งสุด (ข้อ 1) ลงไป
+/// โชว์แค่ชื่อหัวข้อ + อยู่บทไหน ไม่โชว์คะแนน (คะแนนดูได้ในการ์ดบทด้านบน)
 class _ReviewBox extends StatelessWidget {
-  const _ReviewBox({required this.topics});
+  const _ReviewBox({required this.topics, required this.chapterNames});
 
   final List<Subtopic> topics;
+  final Map<int, String> chapterNames; // chapterId → ชื่อบท
 
   @override
   Widget build(BuildContext context) {
     final c = context.noir;
-    final text = topics
-        .map((t) => '${t.name} (${t.latestScore}%${t.examFlag ? ' · ธง' : ''})')
-        .join('  →  ');
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
       decoration: BoxDecoration(
         color: c.amberBg,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Text('ทวนก่อนสอบ: $text', style: TextStyle(color: c.amberText)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'ต้องทวนก่อนสอบ · ${topics.length} หัวข้อ',
+            style: TextStyle(fontWeight: FontWeight.w600, color: c.amberText),
+          ),
+          const SizedBox(height: 8),
+          for (var i = 0; i < topics.length; i++)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 24,
+                    child: Text('${i + 1}.',
+                        style: TextStyle(color: c.amberText)),
+                  ),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(topics[i].name,
+                            style: TextStyle(fontSize: 15, color: c.text)),
+                        Text(
+                          chapterNames[topics[i].chapterId] ?? '',
+                          style: TextStyle(fontSize: 12, color: c.muted),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
