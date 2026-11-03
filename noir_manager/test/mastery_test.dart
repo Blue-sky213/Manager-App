@@ -197,4 +197,33 @@ void main() {
     expect(redRule.choiceFrom('recent'), RuleChoice.recent);
     expect(greenRule.choiceFrom('average'), RuleChoice.average);
   });
+
+  test('EZ เสถียร: ป้ายเช็กซ้ำหายเมื่อเขียว 2 รอบติด', () async {
+    final repo = MemoryStudyRepository.seeded();
+    final subjectId = (await repo.subjects()).first.id;
+    final id = (await repo.chapters(subjectId)).first.subtopics.first.id;
+    Future<Subtopic> t() async =>
+        (await repo.chapters(subjectId)).first.subtopics.first;
+
+    await repo.addAssessment(id, 50, at: DateTime(2026, 11, 1));
+    await repo.addAssessment(id, 90, at: DateTime(2026, 11, 2));
+    expect(showRecheck(await t(), GradingMode.ez), isTrue); // เขียวรอบเดียว
+    await repo.addAssessment(id, 95, at: DateTime(2026, 11, 3));
+    expect(showRecheck(await t(), GradingMode.ez), isFalse); // เขียว 2 รอบติด
+  });
+
+  test('กล่องอาจออกสอบ: ทุกหัวข้อติดดาว ไม่สนคะแนน เรียงต่ำ → สูง', () async {
+    final repo = MemoryStudyRepository.seeded();
+    final subjectId = (await repo.subjects()).first.id;
+    final ts = (await repo.chapters(subjectId)).first.subtopics;
+    await repo.addAssessment(ts[0].id, 95); // เขียว + ดาว → ยังต้องขึ้น
+    await repo.setExamFlag(ts[0].id, true);
+    await repo.addAssessment(ts[1].id, 40);
+    await repo.setExamFlag(ts[1].id, true);
+    await repo.addAssessment(ts[2].id, 30); // ไม่มีดาว → ไม่ขึ้น
+
+    final topics = (await repo.chapters(subjectId)).first.subtopics;
+    expect(examTopics(topics, GradingMode.ez).map((t) => t.id),
+        [ts[1].id, ts[0].id]);
+  });
 }

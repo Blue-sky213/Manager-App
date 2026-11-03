@@ -234,6 +234,10 @@ class _StudyPageState extends State<StudyPage> {
     final subject = _subject;
     final allTopics = [for (final ch in _chapters) ...ch.subtopics];
     final review = reviewOrder(allTopics, mode: _mode);
+    final exam = examTopics(allTopics, _mode);
+    final chapterNames = {
+      for (final ch in _chapters) ch.chapter.id: ch.chapter.name,
+    };
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(24, 28, 24, 32),
@@ -360,12 +364,11 @@ class _StudyPageState extends State<StudyPage> {
           ),
           if (review.isNotEmpty) ...[
             const SizedBox(height: 16),
-            _ReviewBox(
-              topics: review,
-              chapterNames: {
-                for (final ch in _chapters) ch.chapter.id: ch.chapter.name,
-              },
-            ),
+            _ReviewBox(topics: review, chapterNames: chapterNames),
+          ],
+          if (exam.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _ExamBox(topics: exam, chapterNames: chapterNames, mode: _mode),
           ],
         ],
       ],
@@ -491,7 +494,12 @@ class _SubtopicRow extends StatelessWidget {
                 children: [
                   Text(topic.name, style: TextStyle(fontSize: 15, color: c.text)),
                   if (topic.examFlag)
-                    _Tag(text: 'ธง', border: c.flag, fg: c.flagText),
+                    _Tag(
+                      text: 'ออกสอบ',
+                      icon: Icons.star,
+                      border: c.flag,
+                      fg: c.flagText,
+                    ),
                   if (showRecheck(topic, mode))
                     _Tag(text: 'เช็กซ้ำ', bg: c.amberBg, fg: c.amberText),
                 ],
@@ -646,12 +654,19 @@ class _Pill extends StatelessWidget {
 }
 
 class _Tag extends StatelessWidget {
-  const _Tag({required this.text, required this.fg, this.bg, this.border});
+  const _Tag({
+    required this.text,
+    required this.fg,
+    this.bg,
+    this.border,
+    this.icon,
+  });
 
   final String text;
   final Color fg;
   final Color? bg;
   final Color? border;
+  final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
@@ -662,7 +677,115 @@ class _Tag extends StatelessWidget {
         borderRadius: BorderRadius.circular(4),
         border: border == null ? null : Border.all(color: border!),
       ),
-      child: Text(text, style: TextStyle(fontSize: 12, color: fg)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 12, color: fg),
+            const SizedBox(width: 3),
+          ],
+          Text(text, style: TextStyle(fontSize: 12, color: fg)),
+        ],
+      ),
+    );
+  }
+}
+
+/// กล่อง "อาจออกสอบ": ทุกหัวข้อที่ติดดาว ไม่สนว่าคะแนนเท่าไหร่
+/// โชว์คะแนน + สี เพื่อดูภาพรวมก่อนสอบ (ต่างจากกล่องทวนที่บอกแค่ "ต้องทำอะไร")
+class _ExamBox extends StatelessWidget {
+  const _ExamBox({
+    required this.topics,
+    required this.chapterNames,
+    required this.mode,
+  });
+
+  final List<Subtopic> topics;
+  final Map<int, String> chapterNames;
+  final GradingMode mode;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.noir;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: c.flag),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.star, size: 18, color: c.flagText),
+              const SizedBox(width: 6),
+              Text(
+                'อาจออกสอบ · ${topics.length} หัวข้อ',
+                style: TextStyle(fontWeight: FontWeight.w600, color: c.flagText),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          for (final t in topics)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(t.name,
+                            style: TextStyle(fontSize: 15, color: c.text)),
+                        Text(chapterNames[t.chapterId] ?? '',
+                            style: TextStyle(fontSize: 12, color: c.muted)),
+                      ],
+                    ),
+                  ),
+                  _ScoreDot(score: shownScore(t, mode)),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// จุดสี + % เล็ก ๆ (ใช้ในกล่องอาจออกสอบ)
+class _ScoreDot extends StatelessWidget {
+  const _ScoreDot({required this.score});
+
+  final int? score;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.noir;
+    final color = switch (masteryOf(score)) {
+      MasteryLevel.good => c.good,
+      MasteryLevel.warn => c.warn,
+      MasteryLevel.bad => c.bad,
+      MasteryLevel.none => c.line2,
+    };
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+              color: color, borderRadius: BorderRadius.circular(3)),
+        ),
+        const SizedBox(width: 6),
+        SizedBox(
+          width: 44,
+          child: Text(score == null ? '—' : '$score%',
+              textAlign: TextAlign.right,
+              style: TextStyle(fontSize: 14, color: c.text)),
+        ),
+      ],
     );
   }
 }

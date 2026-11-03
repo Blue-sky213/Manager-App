@@ -98,7 +98,7 @@ class _SubtopicDialogState extends State<_SubtopicDialog> {
               keyboardType: TextInputType.number,
               decoration: InputDecoration(
                 labelText: 'คะแนนรอบนี้ (%)',
-                hintText: '0–100 · เว้นว่างถ้าแค่จะแก้ธง',
+                hintText: '0–100 · เว้นว่างถ้าแค่จะติด/เอาดาวออก',
                 errorText: _error,
               ),
               onSubmitted: (_) => _save(),
@@ -106,7 +106,9 @@ class _SubtopicDialogState extends State<_SubtopicDialog> {
             const SizedBox(height: 8),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              title: const Text('ธง: อาจออกสอบ'),
+              secondary: const Icon(Icons.star_outline),
+              title: const Text('อาจออกสอบ'),
+              subtitle: const Text('ติดดาวไว้ · ขึ้นในกล่อง "อาจออกสอบ" เสมอ'),
               value: _flag,
               onChanged: (v) => setState(() => _flag = v),
             ),

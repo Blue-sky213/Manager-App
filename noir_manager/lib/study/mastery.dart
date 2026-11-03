@@ -18,12 +18,12 @@ enum GradingMode { ez, advanced }
 int? shownScore(Subtopic t, GradingMode mode) =>
     mode == GradingMode.ez ? t.latestScore : t.averageScore;
 
-/// ป้าย "เช็กซ้ำ"
-/// EZ = เคยต่ำกว่า 60 · Advanced = เคยต่ำกว่า 60 และยังไม่ "ผ่านจริง"
-/// (ผ่านจริง = เขียว 2 รอบติด + ค่าเฉลี่ยเป็นเขียว)
+/// ป้าย "เช็กซ้ำ" = เคยต่ำกว่า 60 และยังไม่ "ผ่าน"
+/// EZ: ผ่าน = เขียว 2 รอบติด
+/// Advanced: ผ่าน = เขียว 2 รอบติด + ค่าเฉลี่ยเป็นเขียว (โหดกว่า)
 bool showRecheck(Subtopic t, GradingMode mode) {
   if (!t.everBelow60) return false;
-  if (mode == GradingMode.ez) return true;
+  if (mode == GradingMode.ez) return !t.greenTwice;
   final passed =
       t.greenTwice && masteryOf(t.averageScore) == MasteryLevel.good;
   return !passed;
@@ -56,6 +56,14 @@ String levelLabel(MasteryLevel level) => switch (level) {
       MasteryLevel.bad => 'ยังไม่ได้',
       MasteryLevel.none => 'ยังไม่ประเมิน',
     };
+
+/// หัวข้อที่ติดดาว "อาจออกสอบ" ทั้งหมด เรียงคะแนนต่ำ → สูง (ยังไม่ประเมินอยู่บนสุด)
+List<Subtopic> examTopics(Iterable<Subtopic> topics, GradingMode mode) {
+  final list = topics.where((t) => t.examFlag).toList()
+    ..sort((a, b) =>
+        (shownScore(a, mode) ?? -1).compareTo(shownScore(b, mode) ?? -1));
+  return list;
+}
 
 /// ลำดับทวนก่อนสอบ เรียงจากเร่งสุดลงไป (หัวข้อที่ยังไม่เคยประเมิน ไม่นับ)
 /// 1. คะแนน (ตามโหมด) <60 — ต่ำสุดก่อน
