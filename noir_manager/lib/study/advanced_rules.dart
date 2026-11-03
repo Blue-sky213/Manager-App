@@ -35,6 +35,7 @@ class RuleText {
     required this.recentDetail,
     required this.averageLabel,
     required this.averageDetail,
+    this.allowAverage = true,
   });
 
   final String key;
@@ -43,6 +44,15 @@ class RuleText {
   final String recentDetail;
   final String averageLabel;
   final String averageDetail;
+
+  /// false = ไม่มีทางเลือก "ใช้ค่าเฉลี่ยต่อ" (โหมด Advanced ต้องโหดและตรงความจริง)
+  final bool allowAverage;
+
+  /// ตีความค่าที่บันทึกไว้: ถ้าห้ามใช้ค่าเฉลี่ย แต่บันทึกไว้เป็น average (ค่าเก่า) → กลับไปถาม
+  RuleChoice choiceFrom(String? saved) {
+    final c = RuleChoice.parse(saved);
+    return (!allowAverage && c == RuleChoice.average) ? RuleChoice.ask : c;
+  }
 }
 
 const greenRule = RuleText(
@@ -57,10 +67,11 @@ const greenRule = RuleText(
 const redRule = RuleText(
   key: redRuleKey,
   event: 'เคยได้เขียว แล้วตกต่ำกว่า 60 สองรอบติด',
-  recentLabel: 'นับจาก 2 รอบล่าสุด',
+  recentLabel: 'ถูกแล้ว → นับจาก 2 รอบล่าสุด',
   recentDetail: 'คะแนนก่อน 2 รอบล่าสุดเป็นโมฆะ เห็นระดับจริงตอนนี้',
   averageLabel: 'ใช้ค่าเฉลี่ยต่อ',
-  averageDetail: 'คะแนนเขียวเก่ายังช่วยดึงค่าเฉลี่ยขึ้น',
+  averageDetail: 'ไม่อนุญาต: คะแนนเขียวเก่าจะหลอกให้ดูดีเกินจริง',
+  allowAverage: false, // ตก 2 รอบติด = ต้องยอมรับความจริง ไม่ให้ค่าเฉลี่ยเก่าช่วย
 );
 
 /// ผลจากกล่องถาม
@@ -101,8 +112,8 @@ Future<RuleDecision?> askRedTwice(BuildContext context, Subtopic t) {
     builder: (_) => _RuleDialog(
       title: 'คะแนนตก 2 รอบติด',
       message: '"${t.name}" เคยได้ $best% แต่ 2 รอบล่าสุดได้ ${lastTwo.join(' และ ')}\n\n'
-          'ใส่คะแนนถูกจริงไหม? ถ้าถูก แนะนำให้คิดจาก 2 รอบล่าสุด '
-          '(ค่าเฉลี่ยรวม ${t.averageScore}% จะดูดีเกินจริง)',
+          'ใส่คะแนนถูกจริงไหม? ถ้าถูก จะคิดจาก 2 รอบล่าสุดเท่านั้น '
+          '(โหมด Advanced ไม่ใช้ค่าเฉลี่ยรวม ${t.averageScore}% เพราะดูดีเกินจริง)',
       text: redRule,
       offerWrongScore: true,
     ),
@@ -165,10 +176,11 @@ class _RuleDialogState extends State<_RuleDialog> {
             onPressed: () => _answer(RuleAnswer.wrongScore),
             child: const Text('ใส่ผิด → แก้คะแนน'),
           ),
-        TextButton(
-          onPressed: () => _answer(RuleAnswer.average),
-          child: Text(widget.text.averageLabel),
-        ),
+        if (widget.text.allowAverage)
+          TextButton(
+            onPressed: () => _answer(RuleAnswer.average),
+            child: Text(widget.text.averageLabel),
+          ),
         FilledButton(
           onPressed: () => _answer(RuleAnswer.recent),
           child: Text(widget.text.recentLabel),
@@ -183,7 +195,7 @@ class _RuleDialogState extends State<_RuleDialog> {
 Future<void> showStudySettings(BuildContext context, StudyRepository repo) async {
   final current = {
     for (final r in [greenRule, redRule])
-      r.key: RuleChoice.parse(await repo.getSetting(r.key)),
+      r.key: r.choiceFrom(await repo.getSetting(r.key)),
   };
   if (!context.mounted) return;
   await showDialog<void>(
@@ -226,9 +238,30 @@ class _SettingsDialogState extends State<_SettingsDialog> {
       children: [
         Text('เมื่อ${r.event}:',
             style: const TextStyle(fontWeight: FontWeight.w600)),
-        option(RuleChoice.ask, 'ถามทุกครั้ง', 'เด้งกล่องถามเมื่อเกิดเหตุการณ์'),
-        option(RuleChoice.recent, '${r.recentLabel}อัตโนมัติ', r.recentDetail),
-        option(RuleChoice.average, '${r.averageLabel}อัตโนมัติ', r.averageDetail),
+        option(
+          RuleChoice.ask,
+          'ถามทุกครั้ง',
+          r.allowAverage
+              ? 'เด้งกล่องถามเมื่อเกิดเหตุการณ์'
+              : 'ถามว่าใส่คะแนนถูกไหม (แนะนำ · กันใส่ผิด)',
+        ),
+        option(
+          RuleChoice.recent,
+          r.allowAverage
+              ? '${r.recentLabel}อัตโนมัติ'
+              : 'นับจาก 2 รอบล่าสุดอัตโนมัติ (ไม่ถาม)',
+          r.recentDetail,
+        ),
+        if (r.allowAverage)
+          option(RuleChoice.average, '${r.averageLabel}อัตโนมัติ', r.averageDetail)
+        else
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            enabled: false,
+            leading: const Icon(Icons.block),
+            title: Text(r.averageLabel),
+            subtitle: Text(r.averageDetail),
+          ),
       ],
     );
   }

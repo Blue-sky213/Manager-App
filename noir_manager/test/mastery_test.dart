@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:noir_manager/data/memory_study_repository.dart';
 import 'package:noir_manager/data/study_models.dart';
+import 'package:noir_manager/study/advanced_rules.dart';
 import 'package:noir_manager/study/mastery.dart';
 
 void main() {
@@ -188,5 +189,12 @@ void main() {
       expect(rows.any((r) => r.voided), isFalse);
       expect((await topicOf(repo, subjectId)).averageScore, 92);
     });
+  });
+
+  test('Advanced โหด: ตก 2 รอบติด ห้ามเลือกใช้ค่าเฉลี่ย (ค่าเก่า average → กลับไปถาม)', () {
+    expect(redRule.allowAverage, isFalse);
+    expect(redRule.choiceFrom('average'), RuleChoice.ask);
+    expect(redRule.choiceFrom('recent'), RuleChoice.recent);
+    expect(greenRule.choiceFrom('average'), RuleChoice.average);
   });
 }

@@ -188,7 +188,7 @@ class _StudyPageState extends State<StudyPage> {
       return;
     }
 
-    final saved = RuleChoice.parse(await repo.getSetting(rule.key));
+    final saved = rule.choiceFrom(await repo.getSetting(rule.key));
     RuleAnswer answer;
     if (saved == RuleChoice.ask) {
       if (!mounted) return;
