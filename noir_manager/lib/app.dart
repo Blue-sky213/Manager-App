@@ -1,0 +1,39 @@
+import 'package:flutter/material.dart';
+
+import 'shell/app_shell.dart';
+import 'theme/app_theme.dart';
+
+/// ตัวแอปทั้งหมด: ถือ "ธีมปัจจุบัน" (มืด/สว่าง) และส่งให้ทุกหน้าใช้
+class NoirManagerApp extends StatefulWidget {
+  const NoirManagerApp({super.key});
+
+  @override
+  State<NoirManagerApp> createState() => _NoirManagerAppState();
+}
+
+class _NoirManagerAppState extends State<NoirManagerApp> {
+  // ค่าเริ่มต้น = โหมดมืด (ตาม Mockup)
+  ThemeMode _themeMode = ThemeMode.dark;
+
+  void _toggleTheme() {
+    setState(() {
+      _themeMode =
+          _themeMode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Noir Manager',
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
+      themeMode: _themeMode,
+      home: AppShell(
+        isDark: _themeMode == ThemeMode.dark,
+        onToggleTheme: _toggleTheme,
+      ),
+    );
+  }
+}
