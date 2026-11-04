@@ -389,6 +389,15 @@ List<Occurrence> findOverlaps(
             rangesOverlap(start, end, o.startAt!, o.endAt!))
         .toList();
 
+/// id ของงานในวันเดียวกันที่เวลาทับกับงานอื่น (ไว้ทำกรอบแดงเตือน)
+Set<int> clashingIds(List<Occurrence> dayItems) => {
+      for (final o in dayItems)
+        if (o.status == OccurrenceStatus.planned &&
+            o.timed &&
+            findOverlaps(dayItems, o.startAt!, o.endAt!, excludeId: o.id).isNotEmpty)
+          o.id,
+    };
+
 // ---------- Life Base: เวลานอน / ตื่น ----------
 
 class LifeBaseDay {

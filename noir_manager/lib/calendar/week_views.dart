@@ -158,6 +158,7 @@ class WeekTimeline extends StatelessWidget {
 
     Widget column(DateTime d) {
       final items = byDay[d] ?? const <Occurrence>[];
+      final clashes = clashingIds(items);
       return SizedBox(
         height: height,
         child: Stack(
@@ -184,8 +185,13 @@ class WeekTimeline extends StatelessWidget {
                     opacity: o.active ? 1 : 0.45,
                     child: Material(
                       color: bg,
-                      borderRadius: BorderRadius.circular(6),
                       clipBehavior: Clip.antiAlias,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6),
+                        side: clashes.contains(o.id)
+                            ? BorderSide(color: c.bad, width: 2)
+                            : BorderSide.none,
+                      ),
                       child: InkWell(
                         onTap: () => onTapOccurrence(o),
                         child: Padding(

@@ -26,6 +26,7 @@ class DayAgenda extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.noir;
     final timed = items.where((o) => o.timed).toList();
+    final clashes = clashingIds(items);
     final list = items.where((o) => !o.timed).toList();
 
     // รวมงานล็อกเวลา + ตื่น/นอน แล้วเรียงตามนาที
@@ -35,7 +36,12 @@ class DayAgenda extends StatelessWidget {
       for (final o in timed)
         (
           minuteOf(o.startAt!),
-          _OccurrenceRow(o: o, category: categories[o.categoryId], onTap: () => onTap(o)),
+          _OccurrenceRow(
+            o: o,
+            category: categories[o.categoryId],
+            clash: clashes.contains(o.id),
+            onTap: () => onTap(o),
+          ),
         ),
       if (lifeBase != null)
         (
@@ -142,8 +148,15 @@ IconData? _statusIcon(OccurrenceStatus s) => switch (s) {
 
 /// งานล็อกเวลา 1 ครั้ง
 class _OccurrenceRow extends StatelessWidget {
-  const _OccurrenceRow({required this.o, required this.category, required this.onTap});
+  const _OccurrenceRow({
+    required this.o,
+    required this.category,
+    required this.onTap,
+    this.clash = false,
+  });
 
+  /// เวลาทับกับงานอื่นในวันเดียวกัน → กรอบแดง + ป้าย "ทับเวลา"
+  final bool clash;
   final Occurrence o;
   final ActivityCategory? category;
   final VoidCallback onTap;
@@ -192,7 +205,11 @@ class _OccurrenceRow extends StatelessWidget {
               opacity: faded ? 0.5 : 1,
               child: Material(
                 color: bg,
-                borderRadius: BorderRadius.circular(8),
+                // Material ห้ามใส่ทั้ง borderRadius และ shape → ใช้ shape อย่างเดียว
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  side: clash ? BorderSide(color: c.bad, width: 2) : BorderSide.none,
+                ),
                 child: InkWell(
                   borderRadius: BorderRadius.circular(8),
                   onTap: onTap,
@@ -216,6 +233,7 @@ class _OccurrenceRow extends StatelessWidget {
                               ),
                               Text(
                                 [
+                                  if (clash) '⚠ ทับเวลา',
                                   durationText(minutes),
                                   if (category != null) category!.name,
                                   if (o.importance == 3) 'สำคัญ',

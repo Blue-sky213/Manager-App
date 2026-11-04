@@ -298,4 +298,20 @@ void main() {
       expect(draft.subjectId, 3);
     });
   });
+
+  test('clashingIds: งานที่เวลาทับกันถูกจับทั้งคู่ · งานที่ยกเลิกไม่นับ', () async {
+    final repo = MemoryCalendarRepository();
+    NewActivity at(String n, int h) => NewActivity(
+        name: n, categoryId: 1, importance: 3, timed: true, day: mon,
+        startMinute: h * 60, durationMin: 120);
+    await repo.addActivity(at('A', 9));
+    await repo.addActivity(at('B', 10));
+    await repo.addActivity(at('C', 13));
+    final items = await repo.occurrencesOn(mon);
+    final ids = clashingIds(items);
+    expect(items.where((o) => ids.contains(o.id)).map((o) => o.title), unorderedEquals(['A', 'B']));
+
+    await repo.cancel(items.firstWhere((o) => o.title == 'B').id, 'ไม่ไป');
+    expect(clashingIds(await repo.occurrencesOn(mon)), isEmpty);
+  });
 }

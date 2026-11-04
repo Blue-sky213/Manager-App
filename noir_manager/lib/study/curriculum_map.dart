@@ -66,7 +66,6 @@ class CurriculumMap extends StatelessWidget {
                 child: _SubjectBox(
                   subject: s,
                   progress: progress[s.id] ?? SubjectProgress.empty,
-                  selected: s.id == selectedId,
                   onTap: () => onOpen(s),
                 ),
               ),
@@ -170,19 +169,23 @@ class _SubjectBox extends StatelessWidget {
   const _SubjectBox({
     required this.subject,
     required this.progress,
-    required this.selected,
     required this.onTap,
   });
 
   final Subject subject;
   final SubjectProgress progress;
-  final bool selected;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final c = context.noir;
     final level = masteryOf(progress.average?.round());
+    // ข้อมูลที่ขาด (เช่น ใส่วิชาไว้ก่อนมีแผนการเรียน) → กรอบแดง + บอกว่าขาดอะไร
+    final missing = [
+      if ((subject.code ?? '').isEmpty) 'รหัส',
+      if ((subject.credits ?? '').isEmpty) 'หน่วยกิต',
+      if (subject.planYear == null || subject.planTerm == null) 'ปี/เทอม',
+    ];
     final barColor = switch (level) {
       MasteryLevel.good => c.good,
       MasteryLevel.warn => c.warn,
@@ -198,7 +201,7 @@ class _SubjectBox extends StatelessWidget {
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: selected ? c.accent : c.line2, width: selected ? 2 : 1),
+            border: Border.all(color: missing.isEmpty ? c.line2 : c.bad, width: missing.isEmpty ? 1 : 2),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -227,6 +230,13 @@ class _SubjectBox extends StatelessWidget {
                   style: TextStyle(fontSize: 13, color: c.text, height: 1.3),
                 ),
               ),
+              if (missing.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
+                  child: Text('⚠ ขาด ${missing.join(' · ')}',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 11, color: c.bad, fontWeight: FontWeight.w600)),
+                ),
               if (progress.total > 0)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
