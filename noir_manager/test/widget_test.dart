@@ -6,6 +6,8 @@ import 'package:noir_manager/data/memory_study_repository.dart';
 import 'package:noir_manager/calendar/calendar_models.dart';
 import 'package:noir_manager/calendar/calendar_repository.dart';
 import 'package:noir_manager/calendar/memory_calendar_repository.dart';
+import 'package:noir_manager/pages/calendar_page.dart' show addMonths, monthGridDays;
+import 'package:noir_manager/utils/thai_date.dart';
 
 /// เปิดแอปด้วยข้อมูลใน RAM (ไม่แตะไฟล์ฐานข้อมูลจริง)
 Widget buildApp({CalendarRepository? calendar}) => NoirManagerApp(
@@ -193,6 +195,40 @@ void main() {
     await tester.tap(find.text('เลือกวันเอง'));
     await tester.pumpAndSettle();
     expect(find.text('เพิ่มวัน'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  test('ตารางเดือน: เริ่มจันทร์ จบอาทิตย์ · เลื่อนเดือนไม่ล้นวัน', () {
+    final days = monthGridDays(DateTime(2026, 11, 4));
+    expect(days.first, DateTime(2026, 10, 26)); // จันทร์
+    expect(days.last, DateTime(2026, 12, 6)); // อาทิตย์
+    expect(days.length % 7, 0);
+    expect(addMonths(DateTime(2026, 1, 31), 1), DateTime(2026, 2, 28));
+    expect(addMonths(DateTime(2026, 11, 4), -12), DateTime(2025, 11, 4));
+  });
+
+  testWidgets('ปฏิทิน: สลับ วัน / สัปดาห์ / เดือน / ปี ได้ที่ 420x640', (tester) async {
+    setScreen(tester, const Size(420, 640));
+    await tester.pumpWidget(buildApp());
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('ปฏิทิน').first);
+    await tester.pumpAndSettle();
+
+    final now = DateTime.now();
+    await tester.tap(find.text('เดือน'));
+    await tester.pumpAndSettle();
+    expect(find.text(thaiMonthYear(now)), findsOneWidget);
+
+    await tester.tap(find.text('ปี'));
+    await tester.pumpAndSettle();
+    expect(find.text('พ.ศ. ${buddhistYear(now)}'), findsOneWidget);
+    await tester.tap(find.text('มกราคม'));
+    await tester.pumpAndSettle();
+    expect(find.text(thaiMonthYear(DateTime(now.year, 1))), findsOneWidget);
+
+    await tester.tap(find.text('วัน'));
+    await tester.pumpAndSettle();
+    expect(find.text('เพิ่มงาน'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

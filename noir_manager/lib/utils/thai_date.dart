@@ -9,3 +9,19 @@ String thaiShortDate(DateTime d) {
   // DateTime.weekday: จันทร์ = 1 ... อาทิตย์ = 7 → ลบ 1 ให้เป็น index 0–6
   return '${days[d.weekday - 1]} ${d.day} ${months[d.month - 1]}';
 }
+
+const List<String> thaiMonthsLong = [
+  'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+  'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม',
+];
+
+const List<String> thaiMonthsShort = [
+  'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+  'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.',
+];
+
+/// ปี พ.ศ. = ค.ศ. + 543
+int buddhistYear(DateTime d) => d.year + 543;
+
+/// "พฤศจิกายน 2569"
+String thaiMonthYear(DateTime d) => '${thaiMonthsLong[d.month - 1]} ${buddhistYear(d)}';
