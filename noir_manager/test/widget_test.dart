@@ -299,7 +299,16 @@ void main() {
 
     await tester.tap(find.text('การเขียนโปรแกรมคอมพิวเตอร์'));
     await tester.pumpAndSettle();
-    expect(find.text('บท 1 · อัลกอริทึมและผังงาน [กลางภาค]'), findsOneWidget);
+    // หน้ารายวิชายาว (ตารางเรียน + รอบติว) → เลื่อนลงไปหาบทแรกแทนการเดาความสูงจอ
+    final chapter1 = find.text('บท 1 · อัลกอริทึมและผังงาน [กลางภาค]');
+    await tester.scrollUntilVisible(
+      chapter1,
+      300,
+      scrollable: find
+          .byWidgetPredicate((w) => w is Scrollable && w.axisDirection == AxisDirection.down)
+          .first,
+    );
+    expect(chapter1, findsOneWidget);
     expect(find.text('ตารางเรียน'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
