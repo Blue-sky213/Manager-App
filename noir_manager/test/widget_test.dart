@@ -192,6 +192,9 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('เพิ่มงาน').first);
     await tester.pumpAndSettle();
+    // จอเตี้ย 640: ปุ่มอยู่ใต้ขอบ ต้องเลื่อนฟอร์มลงก่อน (ไม่งั้นแตะพลาด)
+    await tester.ensureVisible(find.text('เลือกวันเอง'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('เลือกวันเอง'));
     await tester.pumpAndSettle();
     expect(find.text('เพิ่มวัน'), findsOneWidget);
@@ -222,9 +225,18 @@ void main() {
     await tester.tap(find.text('ปี'));
     await tester.pumpAndSettle();
     expect(find.text('พ.ศ. ${buddhistYear(now)}'), findsOneWidget);
+
+    // แตะหัว พ.ศ. → ตารางปี → เลือกปีถัดไป
+    await tester.tap(find.text('พ.ศ. ${buddhistYear(now)}'));
+    await tester.pumpAndSettle();
+    final from = buddhistYear(now) ~/ 10 * 10;
+    expect(find.text('พ.ศ. $from – ${from + 15}'), findsOneWidget);
+    await tester.tap(find.text('${buddhistYear(now) + 1}'));
+    await tester.pumpAndSettle();
+    expect(find.text('พ.ศ. ${buddhistYear(now) + 1}'), findsOneWidget);
     await tester.tap(find.text('มกราคม'));
     await tester.pumpAndSettle();
-    expect(find.text(thaiMonthYear(DateTime(now.year, 1))), findsOneWidget);
+    expect(find.text(thaiMonthYear(DateTime(now.year + 1, 1))), findsOneWidget);
 
     await tester.tap(find.text('วัน'));
     await tester.pumpAndSettle();

@@ -40,6 +40,9 @@ class CalendarPage extends StatefulWidget {
 class _CalendarPageState extends State<CalendarPage> with CalendarListener<CalendarPage> {
   bool _loading = true;
   CalView _view = CalView.week;
+
+  /// ในมุมมองปี: แตะหัว "พ.ศ." → เลือกปีจากตาราง 16 ปี (แบบปฏิทิน Windows)
+  bool _pickYear = false;
   DateTime _selected = dayOnly(DateTime.now());
   List<Occurrence> _items = [];
 
@@ -81,6 +84,7 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
 
   void _go({DateTime? day, CalView? view}) {
     setState(() {
+      _pickYear = false;
       if (day != null) _selected = dayOnly(day);
       if (view != null) _view = view;
     });
@@ -88,7 +92,9 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
   }
 
   /// ◀ ▶ เลื่อนตามมุมมอง
-  void _step(int dir) => _go(
+  void _step(int dir) => _pickYear
+      ? setState(() => _selected = addMonths(_selected, 10 * 12 * dir))
+      : _go(
         day: switch (_view) {
           CalView.day => _selected.add(Duration(days: dir)),
           CalView.week => _selected.add(Duration(days: 7 * dir)),
@@ -107,7 +113,27 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
       case CalView.month:
         return thaiMonthYear(_selected);
       case CalView.year:
+        if (_pickYear) {
+          final from = _decadeStart;
+          return 'พ.ศ. $from – ${from + 15}';
+        }
         return 'พ.ศ. ${buddhistYear(_selected)}';
+    }
+  }
+
+  /// ปี พ.ศ. แรกของตาราง 16 ปี (เริ่มที่ปีลงท้าย 0 เหมือน Windows: 2560–2575)
+  int get _decadeStart => buddhistYear(_selected) ~/ 10 * 10;
+
+  /// แตะหัวข้อ = ขยับขึ้นไปดูภาพกว้างขึ้น: วัน/สัปดาห์ → เดือน → ปี → ตารางปี
+  void _zoomOut() {
+    switch (_view) {
+      case CalView.day:
+      case CalView.week:
+        _go(view: CalView.month);
+      case CalView.month:
+        _go(view: CalView.year);
+      case CalView.year:
+        setState(() => _pickYear = !_pickYear);
     }
   }
 
@@ -157,10 +183,14 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
               onPressed: () => _step(-1),
             ),
             Expanded(
-              child: Text(
-                _title,
-                textAlign: TextAlign.center,
-                style: TextStyle(fontWeight: FontWeight.w600, color: c.text),
+              child: TextButton(
+                onPressed: _zoomOut,
+                style: TextButton.styleFrom(foregroundColor: c.text),
+                child: Text(
+                  _title,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
               ),
             ),
             IconButton(
@@ -174,7 +204,7 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
 
         if (_view == CalView.week) _weekRow(today),
         if (_view == CalView.month) _monthGrid(today),
-        if (_view == CalView.year) _yearGrid(today),
+        if (_view == CalView.year) _pickYear ? _decadeGrid(today) : _yearGrid(today),
 
         if (_view != CalView.year) ...[
           const SizedBox(height: 16),
@@ -218,7 +248,7 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
           ),
         ] else ...[
           const SizedBox(height: 12),
-          Text('แตะเดือนเพื่อเปิดดูแบบเดือน',
+          Text(_pickYear ? 'แตะปีเพื่อเปิดปีนั้น' : 'แตะเดือนเพื่อเปิดดูแบบเดือน · แตะ "พ.ศ." เพื่อเลือกปี',
               textAlign: TextAlign.center, style: TextStyle(color: c.muted)),
         ],
       ],
@@ -296,7 +326,25 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
     );
   }
 
-  Widget _yearGrid(DateTime today) {
+  Widget _decadeGrid(DateTime today) {
+    final from = _decadeStart;
+    return _tileGrid([
+      for (var y = from; y < from + 16; y++)
+        (
+          '$y',
+          y == buddhistYear(_selected),
+          y == buddhistYear(today),
+          y >= from + 10, // ปีนอกช่วง 10 ปี = สีจาง เหมือน Windows
+          () => setState(() {
+                _pickYear = false;
+                _selected = addMonths(_selected, (y - buddhistYear(_selected)) * 12);
+              }),
+        ),
+    ]);
+  }
+
+  /// ตารางกล่อง 4 คอลัมน์ (จอแคบ 3) ใช้ทั้งตารางเดือนในปี และตารางปี
+  Widget _tileGrid(List<(String, bool, bool, bool, VoidCallback)> tiles) {
     final c = context.noir;
     return LayoutBuilder(builder: (context, box) {
       final cols = box.maxWidth >= 600 ? 4 : 3;
@@ -304,44 +352,53 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
         spacing: 8,
         runSpacing: 8,
         children: [
-          for (var m = 1; m <= 12; m++)
+          for (final (label, picked, isNow, dim, onTap) in tiles)
             SizedBox(
               width: (box.maxWidth - 8 * (cols - 1)) / cols,
               height: 64,
-              child: Builder(builder: (context) {
-                final isNow = today.year == _selected.year && today.month == m;
-                final picked = _selected.month == m;
-                return Material(
-                  color: picked ? c.accent : c.surface,
+              child: Material(
+                color: picked ? c.accent : c.surface,
+                borderRadius: BorderRadius.circular(10),
+                child: InkWell(
                   borderRadius: BorderRadius.circular(10),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(10),
-                    onTap: () => _go(
-                      view: CalView.month,
-                      day: isNow ? today : DateTime(_selected.year, m),
+                  onTap: onTap,
+                  child: Container(
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: isNow && !picked ? c.accent : c.line),
                     ),
-                    child: Container(
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: isNow && !picked ? c.accent : c.line),
-                      ),
-                      child: Text(
-                        thaiMonthsLong[m - 1],
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: picked ? c.onAccent : c.text,
-                        ),
+                    child: Text(
+                      label,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: picked ? c.onAccent : (dim ? c.muted : c.text),
                       ),
                     ),
                   ),
-                );
-              }),
+                ),
+              ),
             ),
         ],
       );
     });
   }
+
+  Widget _yearGrid(DateTime today) => _tileGrid([
+        for (var m = 1; m <= 12; m++)
+          (
+            thaiMonthsLong[m - 1],
+            _selected.month == m,
+            today.year == _selected.year && today.month == m,
+            false,
+            () => _go(
+                  view: CalView.month,
+                  day: today.year == _selected.year && today.month == m
+                      ? today
+                      : DateTime(_selected.year, m),
+                ),
+          ),
+      ]);
 }
 
 /// ช่องวัน 1 ช่อง (ใช้ทั้งแถวสัปดาห์และตารางเดือน) + จุดสีตามหมวดงาน
