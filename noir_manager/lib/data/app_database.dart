@@ -5,11 +5,12 @@ import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart'
     show databaseFactoryFfi, sqfliteFfiInit;
 
+import '../calendar/sqlite_calendar_repository.dart';
 import 'seed_data.dart';
 import 'study_repository.dart';
 
 /// เวอร์ชันโครงตาราง: ถ้าวันหลังเพิ่มตาราง/คอลัมน์ ให้เพิ่มเลขนี้ + เขียน onUpgrade
-const int _schemaVersion = 3; // v2: ตาราง setting · v3: subtopic.cleared_at
+const int _schemaVersion = 4; // v2: setting · v3: subtopic.cleared_at · v4: ปฏิทิน
 
 /// เปิด (หรือสร้างครั้งแรก) ไฟล์ฐานข้อมูล noir_manager.db
 Future<Database> openAppDatabase() async {
@@ -34,6 +35,7 @@ Future<Database> openAppDatabase() async {
     onCreate: (db, version) async {
       await createStudySchema(db);
       await createSettingSchema(db);
+      await createCalendarSchema(db);
       await seedStudyData(db);
     },
     // เครื่องที่มีไฟล์ v1 อยู่แล้ว (เครื่องนัวร์): เพิ่มเฉพาะส่วนที่ขาด ข้อมูลเดิมไม่หาย
@@ -42,6 +44,7 @@ Future<Database> openAppDatabase() async {
       if (oldVersion < 3) {
         await db.execute('ALTER TABLE subtopic ADD COLUMN cleared_at TEXT');
       }
+      if (oldVersion < 4) await createCalendarSchema(db);
     },
   );
 }

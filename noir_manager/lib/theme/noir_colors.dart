@@ -26,6 +26,10 @@ class NoirColors extends ThemeExtension<NoirColors> {
     required this.flagText,
     required this.amberBg,
     required this.amberText,
+    required this.greenBg,
+    required this.greenText,
+    required this.purpleBg,
+    required this.purpleText,
   });
 
   final Color bg; // พื้นหลังทั้งหน้า
@@ -47,6 +51,10 @@ class NoirColors extends ThemeExtension<NoirColors> {
   final Color flagText; // ตัวหนังสือป้ายธง
   final Color amberBg; // พื้นป้ายเตือน (เช็กซ้ำ)
   final Color amberText; // ตัวหนังสือป้ายเตือน
+  final Color greenBg; // พื้นงานหมวดเขียว (ออกกำลังกาย)
+  final Color greenText; // ตัวหนังสือหมวดเขียว
+  final Color purpleBg; // พื้นงานหมวดม่วง (สตรีม)
+  final Color purpleText; // ตัวหนังสือหมวดม่วง
 
   static const dark = NoirColors(
     bg: Color(0xFF111316),
@@ -68,6 +76,10 @@ class NoirColors extends ThemeExtension<NoirColors> {
     flagText: Color(0xFFCBB8F5),
     amberBg: Color(0xFF3A2E17),
     amberText: Color(0xFFF2C66D),
+    greenBg: Color(0xFF1D2A22),
+    greenText: Color(0xFFBFEBD2),
+    purpleBg: Color(0xFF2A2233),
+    purpleText: Color(0xFFDCCBF2),
   );
 
   static const light = NoirColors(
@@ -90,6 +102,10 @@ class NoirColors extends ThemeExtension<NoirColors> {
     flagText: Color(0xFF5B3A8F),
     amberBg: Color(0xFFFFF0C9),
     amberText: Color(0xFF7A5300),
+    greenBg: Color(0xFFE4F6EC),
+    greenText: Color(0xFF1E6B43),
+    purpleBg: Color(0xFFF1EAFB),
+    purpleText: Color(0xFF5B3A8F),
   );
 
   @override
@@ -113,6 +129,10 @@ class NoirColors extends ThemeExtension<NoirColors> {
     Color? flagText,
     Color? amberBg,
     Color? amberText,
+    Color? greenBg,
+    Color? greenText,
+    Color? purpleBg,
+    Color? purpleText,
   }) {
     return NoirColors(
       bg: bg ?? this.bg,
@@ -134,6 +154,10 @@ class NoirColors extends ThemeExtension<NoirColors> {
       flagText: flagText ?? this.flagText,
       amberBg: amberBg ?? this.amberBg,
       amberText: amberText ?? this.amberText,
+      greenBg: greenBg ?? this.greenBg,
+      greenText: greenText ?? this.greenText,
+      purpleBg: purpleBg ?? this.purpleBg,
+      purpleText: purpleText ?? this.purpleText,
     );
   }
 
@@ -161,6 +185,10 @@ class NoirColors extends ThemeExtension<NoirColors> {
       flagText: Color.lerp(flagText, other.flagText, t)!,
       amberBg: Color.lerp(amberBg, other.amberBg, t)!,
       amberText: Color.lerp(amberText, other.amberText, t)!,
+      greenBg: Color.lerp(greenBg, other.greenBg, t)!,
+      greenText: Color.lerp(greenText, other.greenText, t)!,
+      purpleBg: Color.lerp(purpleBg, other.purpleBg, t)!,
+      purpleText: Color.lerp(purpleText, other.purpleText, t)!,
     );
   }
 }

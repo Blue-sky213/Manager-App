@@ -3,10 +3,15 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:noir_manager/app.dart';
 import 'package:noir_manager/data/memory_study_repository.dart';
+import 'package:noir_manager/calendar/calendar_models.dart';
+import 'package:noir_manager/calendar/calendar_repository.dart';
+import 'package:noir_manager/calendar/memory_calendar_repository.dart';
 
 /// เปิดแอปด้วยข้อมูลใน RAM (ไม่แตะไฟล์ฐานข้อมูลจริง)
-Widget buildApp() =>
-    NoirManagerApp(studyRepository: MemoryStudyRepository.seeded());
+Widget buildApp({CalendarRepository? calendar}) => NoirManagerApp(
+      studyRepository: MemoryStudyRepository.seeded(),
+      calendarRepository: calendar ?? MemoryCalendarRepository(),
+    );
 
 void setScreen(WidgetTester tester, Size size) {
   tester.view.physicalSize = size;
@@ -101,5 +106,50 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('1.4 Keyboard Shortcut'), findsNothing);
     expect(find.text('ขยายทุกบท'), findsOneWidget);
+  });
+
+  testWidgets('หน้าวันนี้: เห็นงาน + ชั่วโมงนอน · ยกเลิกต้องใส่เหตุผล', (tester) async {
+    setScreen(tester, const Size(1280, 1400));
+    final calendar = MemoryCalendarRepository();
+    await calendar.addActivity(NewActivity(
+      name: 'วิ่ง 5K',
+      categoryId: 2,
+      importance: 3,
+      timed: true,
+      day: DateTime.now(),
+      startMinute: 17 * 60,
+      durationMin: 45,
+    ));
+
+    await tester.pumpWidget(buildApp(calendar: calendar));
+    await tester.pumpAndSettle();
+
+    expect(find.text('วิ่ง 5K'), findsOneWidget);
+    expect(find.text('7.5 ชม.'), findsOneWidget); // นอน 23:30 → ตื่น 07:00
+    expect(find.text('ไม่มีงานค้าง'), findsOneWidget);
+
+    await tester.tap(find.text('วิ่ง 5K'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('ยกเลิก (ต้องใส่เหตุผล)'));
+    await tester.pumpAndSettle();
+
+    // ยังไม่ใส่เหตุผล → ปุ่มยืนยันกดไม่ได้
+    final confirm = find.widgetWithText(FilledButton, 'ยืนยันยกเลิก');
+    expect(tester.widget<FilledButton>(confirm).onPressed, isNull);
+
+    await tester.enterText(find.byKey(const Key('reason-field')), 'ฝนตก');
+    await tester.pump();
+    await tester.tap(confirm);
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('ยกเลิก: ฝนตก'), findsOneWidget);
+  });
+
+  testWidgets('หน้าวันนี้ใช้งานได้ที่ 420x640', (tester) async {
+    setScreen(tester, const Size(420, 640));
+    await tester.pumpWidget(buildApp());
+    await tester.pumpAndSettle();
+    expect(find.text('Reminder Inbox'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }

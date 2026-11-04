@@ -10,6 +10,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations: # ภาษาไทยให้ปฏิทิน/นาฬิกา/ปุ่มมาตรฐานของ Material
+    sdk: flutter
 
   cupertino_icons: ^1.0.8
 

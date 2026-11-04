@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'app.dart';
+import 'calendar/sqlite_calendar_repository.dart';
 import 'data/app_database.dart';
 import 'data/sqlite_study_repository.dart';
 
@@ -13,5 +14,8 @@ Future<void> main() async {
 
   final db = await openAppDatabase();
 
-  runApp(NoirManagerApp(studyRepository: SqliteStudyRepository(db)));
+  runApp(NoirManagerApp(
+    studyRepository: SqliteStudyRepository(db),
+    calendarRepository: SqliteCalendarRepository(db),
+  ));
 }

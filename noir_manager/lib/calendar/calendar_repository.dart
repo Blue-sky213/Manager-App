@@ -1,0 +1,68 @@
+import 'package:flutter/widgets.dart';
+
+import 'calendar_models.dart';
+
+/// "สัญญา" ของที่เก็บข้อมูลปฏิทิน (แบบเดียวกับ StudyRepository)
+///
+/// เป็น [ChangeNotifier]: ทุกครั้งที่เขียนข้อมูล จะแจ้งทุกหน้าที่ฟังอยู่ให้โหลดใหม่
+/// → หน้า "วันนี้" กับ "ปฏิทิน" ตรงกันเสมอ แม้แก้จากอีกหน้า
+abstract class CalendarRepository extends ChangeNotifier {
+  Future<List<ActivityCategory>> categories();
+
+  Future<int> addActivity(NewActivity a);
+
+  /// ลบกิจกรรมต้นแบบ + ทุกครั้งของมัน
+  Future<void> deleteActivity(int activityId);
+
+  /// งานทุกครั้งของวัน [day] (สร้างครั้งของงานซ้ำให้อัตโนมัติถ้ายังไม่มี)
+  Future<List<Occurrence>> occurrencesOn(DateTime day);
+
+  /// Reminder Inbox: งานที่เลื่อนแล้วแต่ยังไม่มีวันแทน
+  Future<List<Occurrence>> inbox();
+
+  Future<void> setDone(int occurrenceId, bool done);
+
+  /// ยกเลิก (ต้องมีเหตุผลเสมอ)
+  Future<void> cancel(int occurrenceId, String reason);
+
+  /// เลื่อนแต่ยังไม่มีวันแทน → ไป Reminder Inbox
+  Future<void> sendToInbox(int occurrenceId);
+
+  /// เลื่อนเฉพาะครั้งนี้: ครั้งเดิม = moved · สร้างครั้งใหม่ในวัน [day]
+  /// [start]/[end] = null สำหรับงานแบบลิสต์
+  Future<int> moveOccurrence(
+    int occurrenceId,
+    DateTime day, {
+    DateTime? start,
+    DateTime? end,
+  });
+
+  /// เลื่อนทั้งแถว: เปลี่ยนเวลาของงานซ้ำ ตั้งแต่วัน [fromDay] เป็นต้นไป
+  Future<void> moveSeries(
+      int activityId, DateTime fromDay, int startMinute, int durationMin);
+
+  /// Life Base: เวลานอน/ตื่น 7 วัน (จันทร์ → อาทิตย์)
+  Future<List<LifeBaseDay>> lifeBase();
+  Future<void> setLifeBase(List<LifeBaseDay> days);
+}
+
+/// ท่อส่ง CalendarRepository ลงไปทุกหน้า (เหมือน StudyScope)
+class CalendarScope extends InheritedWidget {
+  const CalendarScope({
+    super.key,
+    required this.repository,
+    required super.child,
+  });
+
+  final CalendarRepository repository;
+
+  static CalendarRepository of(BuildContext context) {
+    final scope = context.dependOnInheritedWidgetOfExactType<CalendarScope>();
+    assert(scope != null, 'ไม่พบ CalendarScope เหนือ widget นี้');
+    return scope!.repository;
+  }
+
+  @override
+  bool updateShouldNotify(CalendarScope oldWidget) =>
+      repository != oldWidget.repository;
+}
