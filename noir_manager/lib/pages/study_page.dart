@@ -6,6 +6,7 @@ import '../data/study_models.dart';
 import '../data/study_repository.dart';
 import '../data/study_scope.dart';
 import '../study/advanced_rules.dart';
+import '../study/class_schedule_card.dart';
 import '../study/mastery.dart';
 import '../study/score_history_dialog.dart';
 import '../study/subtopic_dialog.dart';
@@ -383,6 +384,8 @@ class _StudyPageState extends State<StudyPage> {
             fg: c.navText,
             onTap: () => _changeSessions(subject),
           ),
+          const SizedBox(height: 12),
+          ClassScheduleCard(subject: subject),
           const SizedBox(height: 16),
           const _Legend(),
           const SizedBox(height: 12),

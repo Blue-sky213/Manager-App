@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:noir_manager/calendar/calendar_models.dart';
+import 'package:noir_manager/calendar/class_stats.dart';
 import 'package:noir_manager/calendar/memory_calendar_repository.dart';
 
 void main() {
@@ -245,6 +246,56 @@ void main() {
       final a = await repo.activity(id);
       expect(a.name, 'Minecraft');
       expect(a.presetId, isNull);
+    });
+  });
+
+  group('คาบเรียน + เวลาเลิกจริง', () {
+    test('ผูกวิชา · บันทึกเวลาเลิกจริง · สถิติเฉลี่ย', () async {
+      final repo = MemoryCalendarRepository();
+      final id = await repo.addActivity(NewActivity(
+        name: 'เรียน · Programming',
+        categoryId: 1,
+        importance: 3,
+        timed: true,
+        day: mon,
+        startMinute: 9 * 60,
+        durationMin: 120, // 09:00–11:00
+        repeat: RepeatKind.daily,
+        subjectId: 7,
+      ));
+      expect((await repo.activitiesForSubject(7)).single.id, id);
+      expect(await repo.activitiesForSubject(8), isEmpty);
+
+      final m = (await repo.occurrencesOn(mon)).single;
+      final t = (await repo.occurrencesOn(tue)).single;
+      final w = (await repo.occurrencesOn(wed)).single;
+      expect(m.subjectId, 7);
+      for (final o in [m, t, w]) {
+        await repo.setDone(o.id, true);
+      }
+      await repo.setActualTimes(m.id, end: DateTime(2026, 11, 2, 11, 30)); // ช้า 30
+      await repo.setActualTimes(t.id, end: DateTime(2026, 11, 3, 10, 45)); // ก่อน 15
+      // พุธไม่ได้บันทึก → ไม่นับ
+
+      final s = classTimeStats(await repo.occurrencesForSubject(7));
+      expect(s.count, 2);
+      expect(s.late, 1);
+      expect(s.early, 1);
+      expect(s.averageDiff, 7.5);
+      expect(s.maxLate, 30);
+      expect(s.maxEarly, 15);
+      expect(diffText(s.averageDiff), 'ช้า 8 นาที');
+      expect(diffText(3), 'ตรงเวลา');
+    });
+
+    test('แก้ไขงานแล้วยังผูกวิชาเดิม', () async {
+      final repo = MemoryCalendarRepository();
+      final id = await repo.addActivity(NewActivity(
+        name: 'เรียน', categoryId: 1, importance: 3, timed: true, day: mon,
+        startMinute: 9 * 60, durationMin: 60, subjectId: 3,
+      ));
+      final draft = (await repo.activity(id)).toDraft();
+      expect(draft.subjectId, 3);
     });
   });
 }

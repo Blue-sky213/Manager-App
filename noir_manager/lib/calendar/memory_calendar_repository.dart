@@ -41,6 +41,9 @@ class MemoryCalendarRepository extends CalendarRepository {
       status: o.status,
       reason: o.reason,
       movedFromId: o.movedFrom,
+      subjectId: a.subjectId,
+      actualStart: o.actualStart,
+      actualEnd: o.actualEnd,
     );
   }
 
@@ -117,6 +120,7 @@ class MemoryCalendarRepository extends CalendarRepository {
           weekdays: d.weekdays,
           endDate: d.endDate,
           dates: d.dates,
+          subjectId: d.subjectId,
         ).toActivity(id: e.key);
       }
     }
@@ -161,6 +165,26 @@ class MemoryCalendarRepository extends CalendarRepository {
       });
     return list.map(_toOccurrence).toList();
   }
+
+  @override
+  Future<void> setActualTimes(int occurrenceId, {DateTime? start, DateTime? end}) async {
+    _occ(occurrenceId)
+      ..actualStart = start
+      ..actualEnd = end;
+    notifyListeners();
+  }
+
+  @override
+  Future<List<Activity>> activitiesForSubject(int subjectId) async =>
+      _activities.values.where((a) => a.subjectId == subjectId).toList();
+
+  @override
+  Future<List<Occurrence>> occurrencesForSubject(int subjectId) async => (_occs
+          .where((o) => _activities[o.activityId]?.subjectId == subjectId)
+          .toList()
+        ..sort((a, b) => a.day.compareTo(b.day)))
+      .map(_toOccurrence)
+      .toList();
 
   @override
   Future<List<Occurrence>> inbox() async => (_occs
@@ -231,6 +255,7 @@ class MemoryCalendarRepository extends CalendarRepository {
       endDate: d.endDate,
       presetId: d.presetId,
       dates: d.dates,
+      subjectId: d.subjectId,
     ).toActivity(id: activityId);
     final from = dayOnly(fromDay);
     for (final o in _occs) {
@@ -276,4 +301,6 @@ class _Occ {
   OccurrenceStatus status = OccurrenceStatus.planned;
   String? reason;
   final int? movedFrom;
+  DateTime? actualStart;
+  DateTime? actualEnd;
 }

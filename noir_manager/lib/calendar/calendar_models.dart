@@ -114,7 +114,11 @@ class Activity {
     this.endDate,
     this.presetId,
     this.dates = const {},
+    this.subjectId,
   });
+
+  /// ผูกกับวิชาในหน้าวิชา (คาบเรียน) · null = งานทั่วไป
+  final int? subjectId;
 
   final int id;
   final String name;
@@ -163,6 +167,7 @@ class Activity {
             : DateTime.parse(r['end_date'] as String),
         presetId: r['preset_id'] as int?,
         dates: dates,
+        subjectId: r['subject_id'] as int?,
       );
 
   /// แปลงกลับเป็นฟอร์ม (ใช้ตอนกด "แก้ไขงาน")
@@ -179,6 +184,7 @@ class Activity {
         endDate: endDate,
         presetId: presetId,
         dates: (dates.values.toList()..sort((a, b) => a.day.compareTo(b.day))),
+        subjectId: subjectId,
       );
 }
 
@@ -227,7 +233,10 @@ class NewActivity {
     this.endDate,
     this.presetId,
     this.dates = const [],
+    this.subjectId,
   });
+
+  final int? subjectId;
 
   final String name;
   final int? categoryId;
@@ -270,6 +279,7 @@ class NewActivity {
         dates: repeat == RepeatKind.dates
             ? {for (final d in dates) dayKey(d.day): d}
             : const {},
+        subjectId: subjectId,
       );
 }
 
@@ -295,7 +305,21 @@ class Occurrence {
     required this.status,
     required this.reason,
     required this.movedFromId,
+    this.subjectId,
+    this.actualStart,
+    this.actualEnd,
   });
+
+  /// วิชาที่ผูกไว้ (คาบเรียน)
+  final int? subjectId;
+
+  /// เวลาเริ่ม/เลิกจริง (บันทึกหลังเรียน ใช้ทำสถิติเลิกเร็ว/ช้า)
+  final DateTime? actualStart;
+  final DateTime? actualEnd;
+
+  /// เลิกช้ากว่าแผนกี่นาที (ติดลบ = เลิกก่อน) · null = ยังไม่บันทึก
+  int? get endDiffMinutes =>
+      actualEnd == null || endAt == null ? null : actualEnd!.difference(endAt!).inMinutes;
 
   final int id;
   final int activityId;
@@ -340,6 +364,13 @@ class Occurrence {
         status: OccurrenceStatus.values.byName(r['status'] as String),
         reason: r['reason'] as String?,
         movedFromId: r['moved_from'] as int?,
+        subjectId: r['subject_id'] as int?,
+        actualStart: r['actual_start'] == null
+            ? null
+            : DateTime.parse(r['actual_start'] as String),
+        actualEnd: r['actual_end'] == null
+            ? null
+            : DateTime.parse(r['actual_end'] as String),
       );
 }
 

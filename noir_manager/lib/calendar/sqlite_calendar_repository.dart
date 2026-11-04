@@ -78,6 +78,13 @@ Future<void> createCalendarSchema(DatabaseExecutor db) async {
 }
 
 /// ฐานข้อมูล v5: Preset + โหมดเลือกวันเอง (activity_date) + Preset ตั้งต้น "Stream"
+/// v7: คาบเรียนผูกกับวิชา + เวลาเริ่ม/เลิกจริง (ทำสถิติเลิกเร็ว/ช้า)
+Future<void> createCalendarV7(DatabaseExecutor db) async {
+  await db.execute('ALTER TABLE activity ADD COLUMN subject_id INTEGER');
+  await db.execute('ALTER TABLE occurrence ADD COLUMN actual_start TEXT');
+  await db.execute('ALTER TABLE occurrence ADD COLUMN actual_end TEXT');
+}
+
 Future<void> createCalendarV5(DatabaseExecutor db) async {
   await db.execute('''
     CREATE TABLE preset (
@@ -119,7 +126,7 @@ class SqliteCalendarRepository extends CalendarRepository {
 
   /// SELECT ที่ใช้ซ้ำ: งานแต่ละครั้ง + ชื่อ/หมวด/ความสำคัญจากกิจกรรมต้นแบบ
   static const _occurrenceSelect = '''
-    SELECT o.*, a.name AS a_name, a.category_id, a.importance, a.repeat
+    SELECT o.*, a.name AS a_name, a.category_id, a.importance, a.repeat, a.subject_id
     FROM occurrence o
     JOIN activity a ON a.id = o.activity_id
   ''';
@@ -145,6 +152,7 @@ class SqliteCalendarRepository extends CalendarRepository {
       'start_date': dayKey(a.startDate),
       'end_date': a.endDate == null ? null : dayKey(a.endDate!),
       'preset_id': a.presetId,
+      'subject_id': a.subjectId,
     };
   }
 
@@ -297,6 +305,32 @@ class SqliteCalendarRepository extends CalendarRepository {
         '$_occurrenceSelect WHERE o.day = ? '
         'ORDER BY o.start_at IS NULL, o.start_at, o.id',
         [key]);
+    return rows.map(Occurrence.fromRow).toList();
+  }
+
+  @override
+  Future<void> setActualTimes(int occurrenceId, {DateTime? start, DateTime? end}) async {
+    await _db.update(
+      'occurrence',
+      {'actual_start': start?.toIso8601String(), 'actual_end': end?.toIso8601String()},
+      where: 'id = ?',
+      whereArgs: [occurrenceId],
+    );
+    notifyListeners();
+  }
+
+  @override
+  Future<List<Activity>> activitiesForSubject(int subjectId) async {
+    final rows = await _db.query('activity',
+        where: 'subject_id = ?', whereArgs: [subjectId], orderBy: 'start_date, id');
+    return rows.map((r) => Activity.fromRow(r)).toList();
+  }
+
+  @override
+  Future<List<Occurrence>> occurrencesForSubject(int subjectId) async {
+    final rows = await _db.rawQuery(
+        '$_occurrenceSelect WHERE a.subject_id = ? ORDER BY o.day, o.start_at',
+        [subjectId]);
     return rows.map(Occurrence.fromRow).toList();
   }
 

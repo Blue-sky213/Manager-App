@@ -185,6 +185,7 @@ class _ActivityDialogState extends State<_ActivityDialog> {
             : null,
         presetId: _presetId,
         dates: _repeat == RepeatKind.dates ? _dates : const [],
+        subjectId: widget.initial?.subjectId, // แก้ไขคาบเรียนแล้วยังผูกวิชาเดิม
       );
 
   String? get _problem {
@@ -956,4 +957,55 @@ class _LifeBaseDialogState extends State<_LifeBaseDialog> {
       ],
     );
   }
+}
+
+
+/// ถามเวลาเลิกจริงหลังเรียน (ปุ่มลัด ±15/30 นาที หรือเลือกเวลาเอง) · null = ข้าม
+Future<DateTime?> askActualEnd(BuildContext context, Occurrence o) {
+  final planned = o.endAt!;
+  Widget quick(BuildContext ctx, String label, int diff) => ActionChip(
+        label: Text(label),
+        onPressed: () => Navigator.pop(ctx, planned.add(Duration(minutes: diff))),
+      );
+  return showDialog<DateTime>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text('เลิกจริงกี่โมง? · ${o.title}'),
+      content: SizedBox(
+        width: 420,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('ตามตารางเลิก ${fmtTime(planned)} · เก็บไว้ทำสถิติว่าวิชานี้เลิกเร็วหรือช้า',
+                style: TextStyle(color: ctx.noir.muted, fontSize: 13)),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                quick(ctx, 'ก่อน 30 นาที', -30),
+                quick(ctx, 'ก่อน 15 นาที', -15),
+                quick(ctx, 'ตรงเวลา', 0),
+                quick(ctx, 'ช้า 15 นาที', 15),
+                quick(ctx, 'ช้า 30 นาที', 30),
+                ActionChip(
+                  avatar: const Icon(Icons.schedule, size: 18),
+                  label: const Text('เลือกเวลาเอง'),
+                  onPressed: () async {
+                    final m = await pickMinute(ctx, minuteOf(planned), title: 'เวลาเลิกจริง');
+                    if (m == null || !ctx.mounted) return;
+                    Navigator.pop(ctx, atMinute(o.day, m));
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('ข้าม')),
+      ],
+    ),
+  );
 }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../theme/noir_colors.dart';
 import 'calendar_models.dart';
 import 'calendar_ui.dart';
+import 'class_stats.dart';
 
 /// ตารางของ 1 วัน: ตื่นนอน → งานล็อกเวลา (เรียงตามเวลา) → นอน · แล้วตามด้วยงานแบบลิสต์
 class DayAgenda extends StatelessWidget {
@@ -123,7 +124,9 @@ class _MarkerRow extends StatelessWidget {
 /// ข้อความสถานะใต้ชื่องาน
 String? _statusText(Occurrence o) => switch (o.status) {
       OccurrenceStatus.planned => null,
-      OccurrenceStatus.done => 'ทำแล้ว',
+      OccurrenceStatus.done => o.actualEnd == null
+          ? 'ทำแล้ว'
+          : 'เลิกจริง ${fmtTime(o.actualEnd!)} (${diffText(o.endDiffMinutes!)})',
       OccurrenceStatus.cancelled => 'ยกเลิก: ${o.reason ?? ''}',
       OccurrenceStatus.moved => 'เลื่อนไปวันอื่นแล้ว',
       OccurrenceStatus.inbox => 'อยู่ใน Reminder Inbox',

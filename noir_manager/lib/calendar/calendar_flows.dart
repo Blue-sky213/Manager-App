@@ -229,6 +229,7 @@ Future<void> openOccurrenceActions(
             title: Text(o.title,
                 style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
             subtitle: Text('$time${thaiShortDate(o.day)} · ความสำคัญ: ${importanceText(o.importance)}'
+                '${o.actualEnd == null ? '' : '\nเลิกจริง ${fmtTime(o.actualEnd!)}'}'
                 '${o.reason == null ? '' : '\nยกเลิกเพราะ: ${o.reason}'}'),
           ),
           const Divider(height: 1),
@@ -239,6 +240,9 @@ Future<void> openOccurrenceActions(
             _tile(ctx, 'move', Icons.redo, 'เลื่อน'),
             _tile(ctx, 'cancel', Icons.block, 'ยกเลิก (ต้องใส่เหตุผล)'),
           ],
+          if (o.status == OccurrenceStatus.done && o.subjectId != null && o.timed)
+            _tile(ctx, 'actual', Icons.timer_outlined,
+                o.actualEnd == null ? 'บันทึกเวลาเลิกจริง' : 'แก้เวลาเลิกจริง'),
           if (o.status == OccurrenceStatus.done)
             _tile(ctx, 'undo', Icons.undo, 'ยังไม่ได้ทำ'),
           if (o.status == OccurrenceStatus.cancelled)
@@ -265,6 +269,14 @@ Future<void> openOccurrenceActions(
   switch (action) {
     case 'done':
       await repo.setDone(o.id, true);
+      // คาบเรียน → ถามเวลาเลิกจริงต่อเลย (ทำสถิติ)
+      if (o.subjectId != null && o.timed && context.mounted) {
+        final end = await askActualEnd(context, o);
+        if (end != null) await repo.setActualTimes(o.id, end: end);
+      }
+    case 'actual':
+      final end = await askActualEnd(context, o);
+      if (end != null) await repo.setActualTimes(o.id, end: end);
     case 'undo':
       await repo.setDone(o.id, false);
     case 'time':

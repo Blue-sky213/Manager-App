@@ -27,6 +27,15 @@ abstract class CalendarRepository extends ChangeNotifier {
   Future<int> addPreset(String name, NewActivity values);
   Future<void> deletePreset(int presetId);
 
+  /// บันทึกเวลาเริ่ม/เลิกจริง (null = ล้างค่า)
+  Future<void> setActualTimes(int occurrenceId, {DateTime? start, DateTime? end});
+
+  /// งานต้นแบบที่ผูกกับวิชา (ตารางเรียนของวิชานั้น)
+  Future<List<Activity>> activitiesForSubject(int subjectId);
+
+  /// ทุกครั้งของงานที่ผูกกับวิชา (ใช้คิดสถิติเวลาเลิก)
+  Future<List<Occurrence>> occurrencesForSubject(int subjectId);
+
   /// ลบกิจกรรมต้นแบบ + ทุกครั้งของมัน
   Future<void> deleteActivity(int activityId);
 
