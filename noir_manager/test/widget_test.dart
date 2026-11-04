@@ -280,7 +280,8 @@ void main() {
 
   testWidgets('แผนผังแผนการเรียน: ใส่แผน 4 ปี → เห็นทุกปี + 125 หน่วยกิต → แตะเปิดวิชา',
       (tester) async {
-    setScreen(tester, const Size(1280, 1000));
+    // จอสูง: ListView สร้างเฉพาะส่วนที่อยู่ในจอ บทที่ 1 อยู่ใต้การ์ดตารางเรียน
+    setScreen(tester, const Size(1280, 2400));
     await tester.pumpWidget(buildApp());
     await tester.pumpAndSettle();
     await tester.tap(find.text('วิชา').first);
