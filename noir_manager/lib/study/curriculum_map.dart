@@ -90,7 +90,10 @@ class CurriculumMap extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               for (final y in sortedYears) ...[
-                Column(
+                // IntrinsicWidth: ในแถวที่เลื่อนซ้าย-ขวา ความกว้างไม่มีขอบเขต
+                // → ให้คอลัมน์กว้างเท่าเนื้อหา (หัวปียืดเท่าเทอมด้านล่าง) แทนที่จะยืดไม่สิ้นสุด
+                IntrinsicWidth(
+                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     _Header(text: 'ปีการศึกษาที่ $y', strong: true),
@@ -105,17 +108,21 @@ class CurriculumMap extends StatelessWidget {
                       ],
                     ),
                   ],
+                 ),
                 ),
                 const SizedBox(width: 14),
               ],
               if (unplanned.isNotEmpty)
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const _Header(text: 'ยังไม่จัดเทอม', strong: true),
-                    const SizedBox(height: 8),
-                    termColumn('วิชาอื่น ๆ', unplanned),
-                  ],
+                SizedBox(
+                  width: 180,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const _Header(text: 'ยังไม่จัดเทอม', strong: true),
+                      const SizedBox(height: 8),
+                      termColumn('วิชาอื่น ๆ', unplanned),
+                    ],
+                  ),
                 ),
             ],
           ),
