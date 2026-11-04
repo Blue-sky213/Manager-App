@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:noir_manager/calendar/calendar_models.dart';
 import 'package:noir_manager/calendar/clash_page.dart';
 import 'package:noir_manager/calendar/class_stats.dart';
+import 'package:noir_manager/calendar/free_slots.dart';
 import 'package:noir_manager/calendar/memory_calendar_repository.dart';
 
 void main() {
@@ -330,5 +331,35 @@ void main() {
     final clashes = findClashes(byDay);
     expect(clashes, hasLength(1));
     expect(clashes.single.days, [DateTime(2026, 11, 2), DateTime(2026, 11, 9)]);
+  });
+
+  group('ช่วงว่าง (free slots)', () {
+    test('freeGaps: ตัดงานออกจากช่วงตื่น–นอน', () {
+      final gaps = freeGaps(const [
+        Busy(9 * 60, 12 * 60, 'A'),
+        Busy(11 * 60, 13 * 60, 'B'), // ทับ A → รวมเป็นช่วงเดียว
+        Busy(20 * 60, 24 * 60, 'RE4'),
+      ], 7 * 60, 24 * 60);
+      expect([for (final g in gaps) (g.start, g.end)], [(420, 540), (780, 1200)]);
+    });
+
+    test('suggestSlots: เวลาเดิมมาก่อน · ช่องสั้นไปไม่นับ', () {
+      final s = suggestSlots({
+        1: [const Gap(13 * 60, 15 * 60)], // จ สั้นไป (2 ชม.)
+        4: [const Gap(7 * 60, 13 * 60)], // พฤ ใส่ 09–13 ได้ = เวลาเดิม
+        5: [const Gap(11 * 60, 24 * 60)], // ศ ได้เร็วสุด 11:00
+      }, 240, 9 * 60, originalRow: 1);
+      expect(s.first.row, 4);
+      expect(s.first.start, 9 * 60);
+      expect(s[1].row, 5);
+      expect(s[1].start, 11 * 60);
+      expect(s.any((x) => x.row == 1), isFalse);
+    });
+
+    test('clashesAt: ชนขอบพอดีไม่นับ', () {
+      const busy = [Busy(9 * 60, 11 * 60, 'A')];
+      expect(clashesAt(busy, 11 * 60, 60), isEmpty);
+      expect(clashesAt(busy, 10 * 60, 60), hasLength(1));
+    });
   });
 }
