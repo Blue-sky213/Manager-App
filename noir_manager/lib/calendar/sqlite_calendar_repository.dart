@@ -79,10 +79,21 @@ Future<void> createCalendarSchema(DatabaseExecutor db) async {
 
 /// ฐานข้อมูล v5: Preset + โหมดเลือกวันเอง (activity_date) + Preset ตั้งต้น "Stream"
 /// v7: คาบเรียนผูกกับวิชา + เวลาเริ่ม/เลิกจริง (ทำสถิติเลิกเร็ว/ช้า)
+///
+/// ตาราง activity ของ v4 มีคอลัมน์ subject_id อยู่แล้ว (เตรียมไว้ตาม Data Model)
+/// → เพิ่มเฉพาะคอลัมน์ที่ยังไม่มี ไม่งั้น SQLite แจ้ง "duplicate column name"
 Future<void> createCalendarV7(DatabaseExecutor db) async {
-  await db.execute('ALTER TABLE activity ADD COLUMN subject_id INTEGER');
-  await db.execute('ALTER TABLE occurrence ADD COLUMN actual_start TEXT');
-  await db.execute('ALTER TABLE occurrence ADD COLUMN actual_end TEXT');
+  await addColumnIfMissing(db, 'activity', 'subject_id', 'INTEGER');
+  await addColumnIfMissing(db, 'occurrence', 'actual_start', 'TEXT');
+  await addColumnIfMissing(db, 'occurrence', 'actual_end', 'TEXT');
+}
+
+/// ALTER TABLE ... ADD COLUMN แบบปลอดภัย: เช็กชื่อคอลัมน์ที่มีอยู่ก่อน (PRAGMA table_info)
+Future<void> addColumnIfMissing(
+    DatabaseExecutor db, String table, String column, String type) async {
+  final cols = await db.rawQuery('PRAGMA table_info($table)');
+  if (cols.any((c) => c['name'] == column)) return;
+  await db.execute('ALTER TABLE $table ADD COLUMN $column $type');
 }
 
 Future<void> createCalendarV5(DatabaseExecutor db) async {
