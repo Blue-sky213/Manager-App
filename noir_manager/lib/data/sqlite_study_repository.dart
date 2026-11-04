@@ -32,6 +32,19 @@ class SqliteStudyRepository implements StudyRepository {
   }
 
   @override
+  Future<void> setSessionsPerWeek(int subjectId, int sessions) async {
+    final rows = await _db.query('subject',
+        columns: ['importance'], where: 'id = ?', whereArgs: [subjectId]);
+    if (rows.isEmpty) return;
+    await _db.update(
+      'subject',
+      {'sessions_per_week': clampSessions(rows.first['importance'] as int, sessions)},
+      where: 'id = ?',
+      whereArgs: [subjectId],
+    );
+  }
+
+  @override
   Future<void> setSubjectImportance(int subjectId, int importance) async {
     await _db.update(
       'subject',

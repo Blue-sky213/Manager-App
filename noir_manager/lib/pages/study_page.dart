@@ -100,6 +100,46 @@ class _StudyPageState extends State<StudyPage> {
     await _reload();
   }
 
+  /// เลือกรอบติวต่อสัปดาห์ภายในช่วงของความสำคัญ (น้อย 1–2 · กลาง 2–3 · สูง 3–7)
+  Future<void> _changeSessions(Subject subject) async {
+    final (lo, hi) = sessionRange(subject.importance);
+    final picked = await showDialog<int>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('รอบติวต่อสัปดาห์'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('ความสำคัญ${subject.importanceLabel} เลือกได้ $lo–$hi รอบ'),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (var n = lo; n <= hi; n++)
+                  ChoiceChip(
+                    label: Text('$n'),
+                    selected: n == subject.sessionsPerWeek,
+                    onSelected: (_) => Navigator.pop(ctx, n),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text('อยากได้มากกว่านี้ → เปลี่ยนความสำคัญของวิชาก่อน',
+                style: TextStyle(fontSize: 12, color: ctx.noir.muted)),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('ปิด')),
+        ],
+      ),
+    );
+    if (picked == null) return;
+    await _repo!.setSessionsPerWeek(subject.id, picked);
+    await _reload();
+  }
+
   Future<void> _deleteSubject(Subject subject) async {
     if (!await confirmDelete(context, subject.name)) return;
     await _repo!.deleteSubject(subject.id);
@@ -277,6 +317,8 @@ class _StudyPageState extends State<StudyPage> {
                       _renameSubject(subject);
                     case 'importance':
                       _changeImportance(subject);
+                    case 'sessions':
+                      _changeSessions(subject);
                     default:
                       _deleteSubject(subject);
                   }
@@ -284,6 +326,7 @@ class _StudyPageState extends State<StudyPage> {
                 itemBuilder: (_) => const [
                   PopupMenuItem(value: 'rename', child: Text('เปลี่ยนชื่อวิชา')),
                   PopupMenuItem(value: 'importance', child: Text('เปลี่ยนความสำคัญ')),
+                  PopupMenuItem(value: 'sessions', child: Text('รอบติวต่อสัปดาห์')),
                   PopupMenuItem(value: 'delete', child: Text('ลบวิชา')),
                 ],
               ),
@@ -317,9 +360,10 @@ class _StudyPageState extends State<StudyPage> {
           const SizedBox(height: 12),
           _Pill(
             text: 'ความสำคัญ: ${subject.importanceLabel} · '
-                '${subject.sessionsPerWeek} รอบ/สัปดาห์',
+                '${subject.sessionsPerWeek} รอบ/สัปดาห์ ✎',
             bg: c.navBg,
             fg: c.navText,
+            onTap: () => _changeSessions(subject),
           ),
           const SizedBox(height: 16),
           const _Legend(),
@@ -698,20 +742,28 @@ class _Legend extends StatelessWidget {
 }
 
 class _Pill extends StatelessWidget {
-  const _Pill({required this.text, required this.bg, required this.fg});
+  const _Pill({required this.text, required this.bg, required this.fg, this.onTap});
 
   final String text;
   final Color bg;
   final Color fg;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     return Align(
       alignment: Alignment.centerLeft,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(999)),
-        child: Text(text, style: TextStyle(fontSize: 13, color: fg)),
+      child: Material(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(999),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            child: Text(text, style: TextStyle(fontSize: 13, color: fg)),
+          ),
+        ),
       ),
     );
   }

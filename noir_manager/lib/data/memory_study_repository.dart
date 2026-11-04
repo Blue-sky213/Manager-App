@@ -90,6 +90,18 @@ class MemoryStudyRepository implements StudyRepository {
   }
 
   @override
+  Future<void> setSessionsPerWeek(int subjectId, int sessions) async {
+    final i = _subjects.indexWhere((s) => s.id == subjectId);
+    final old = _subjects[i];
+    _subjects[i] = Subject(
+      id: old.id,
+      name: old.name,
+      importance: old.importance,
+      sessionsPerWeek: clampSessions(old.importance, sessions),
+    );
+  }
+
+  @override
   Future<void> setSubjectImportance(int subjectId, int importance) async {
     final i = _subjects.indexWhere((s) => s.id == subjectId);
     final old = _subjects[i];

@@ -58,9 +58,9 @@ Future<int?> askImportance(BuildContext context, {int? current}) {
     builder: (ctx) => SimpleDialog(
       title: const Text('ความสำคัญของวิชา'),
       children: [
-        option(ctx, 3, 'สูง', 'ติว 3 รอบ/สัปดาห์'),
-        option(ctx, 2, 'กลาง', 'ติว 2 รอบ/สัปดาห์'),
-        option(ctx, 1, 'น้อย', 'ติว 1 รอบ/สัปดาห์'),
+        option(ctx, 3, 'สูง', 'ติว 3–7 รอบ/สัปดาห์ (เริ่มที่ 3)'),
+        option(ctx, 2, 'กลาง', 'ติว 2–3 รอบ/สัปดาห์ (เริ่มที่ 2)'),
+        option(ctx, 1, 'น้อย', 'ติว 1–2 รอบ/สัปดาห์ (เริ่มที่ 2)'),
       ],
     ),
   );

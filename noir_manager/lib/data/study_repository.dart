@@ -10,6 +10,9 @@ abstract class StudyRepository {
   Future<int> addSubject(String name, {int importance = 2});
   Future<void> renameSubject(int subjectId, String name);
   Future<void> setSubjectImportance(int subjectId, int importance);
+
+  /// เลือกจำนวนรอบติวเอง (ถูกบีบให้อยู่ในช่วงของความสำคัญ)
+  Future<void> setSessionsPerWeek(int subjectId, int sessions);
   Future<void> deleteSubject(int subjectId);
 
   Future<List<ChapterWithTopics>> chapters(int subjectId);
@@ -46,5 +49,18 @@ abstract class StudyRepository {
 }
 
 /// แปลงความสำคัญ → จำนวนรอบต่อสัปดาห์ (กฎ: สูง/กลาง/น้อย = 3/2/1)
-/// รอบติวต่อสัปดาห์: สำคัญ 3 · กลาง 2 · ง่าย 2 (แผน v0.2: วิชาง่ายขั้นต่ำ 2 ครั้ง)
+/// ช่วงรอบติวต่อสัปดาห์ที่เลือกได้ (แผน v0.2): น้อย 1–2 · กลาง 2–3 · สูง 3–7
+(int, int) sessionRange(int importance) => switch (importance) {
+      >= 3 => (3, 7),
+      2 => (2, 3),
+      _ => (1, 2),
+    };
+
+/// ค่าเริ่มต้นตอนสร้าง/เปลี่ยนความสำคัญ: น้อย 2 · กลาง 2 · สูง 3
 int sessionsForImportance(int importance) => importance >= 3 ? 3 : 2;
+
+/// บีบจำนวนรอบให้อยู่ในช่วงของความสำคัญนั้น
+int clampSessions(int importance, int sessions) {
+  final (lo, hi) = sessionRange(importance);
+  return sessions.clamp(lo, hi);
+}
