@@ -153,13 +153,36 @@ class _OccurrenceRow extends StatelessWidget {
     final status = _statusText(o);
     final icon = _statusIcon(o.status);
 
+    // ยิ่งนานกล่องยิ่งสูง (ให้เห็นช่วงเวลา) แต่ไม่เตี้ย/สูงเกินไป
+    final minutes = o.endAt!.difference(o.startAt!).inMinutes;
+    final height = (52 + minutes / 60 * 14).clamp(64, 200).toDouble();
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      child: Row(
+      // IntrinsicHeight + minHeight: สูงตามระยะเวลา แต่ถ้าชื่อยาวจนตัดบรรทัด กล่องก็สูงตาม ไม่ล้น
+      child: IntrinsicHeight(
+       child: ConstrainedBox(
+        constraints: BoxConstraints(minHeight: height),
+        child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // เวลาเริ่ม │ เวลาจบ: เส้นเชื่อมสีเดียวกับหมวดงาน
           SizedBox(
             width: 56,
-            child: Text(fmtTime(o.startAt!), style: TextStyle(color: c.muted, fontSize: 14)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(fmtTime(o.startAt!),
+                    style: TextStyle(color: c.text, fontSize: 14, fontWeight: FontWeight.w600)),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 18, top: 2, bottom: 2),
+                    child: Container(width: 2, color: fg.withValues(alpha: faded ? 0.3 : 0.7)),
+                  ),
+                ),
+                Text(fmtTime(o.endAt!), style: TextStyle(color: c.muted, fontSize: 14)),
+              ],
+            ),
           ),
           Expanded(
             child: Opacity(
@@ -173,6 +196,7 @@ class _OccurrenceRow extends StatelessWidget {
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                     child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
                           child: Column(
@@ -189,7 +213,7 @@ class _OccurrenceRow extends StatelessWidget {
                               ),
                               Text(
                                 [
-                                  '${fmtTime(o.startAt!)}–${fmtTime(o.endAt!)}',
+                                  durationText(minutes),
                                   if (category != null) category!.name,
                                   if (o.importance == 3) 'สำคัญ',
                                   if (status != null) status,
@@ -207,7 +231,9 @@ class _OccurrenceRow extends StatelessWidget {
               ),
             ),
           ),
-        ],
+          ],
+          ),
+        ),
       ),
     );
   }
