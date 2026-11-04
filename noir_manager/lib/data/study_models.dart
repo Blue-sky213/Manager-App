@@ -8,10 +8,45 @@ class Subject {
     required this.name,
     required this.importance,
     required this.sessionsPerWeek,
+    this.code,
+    this.credits,
+    this.planYear,
+    this.planTerm,
   });
 
   final int id;
   final String name;
+
+  /// รหัสวิชา เช่น 060233115 · หน่วยกิต เช่น 3(2-2-5)
+  final String? code;
+  final String? credits;
+
+  /// อยู่ในแผนการเรียน ปีที่ / เทอมที่ (3 = ภาคฤดูร้อน) · null = ยังไม่จัด
+  final int? planYear;
+  final int? planTerm;
+
+  /// เลขหน้าวงเล็บ = หน่วยกิตรวม เช่น "3(2-2-5)" → 3
+  int get creditUnits => int.tryParse(RegExp(r'^\d+').stringMatch(credits ?? '') ?? '') ?? 0;
+
+  Subject copyWith({
+    String? name,
+    int? importance,
+    int? sessionsPerWeek,
+    String? code,
+    String? credits,
+    int? planYear,
+    int? planTerm,
+  }) =>
+      Subject(
+        id: id,
+        name: name ?? this.name,
+        importance: importance ?? this.importance,
+        sessionsPerWeek: sessionsPerWeek ?? this.sessionsPerWeek,
+        code: code ?? this.code,
+        credits: credits ?? this.credits,
+        planYear: planYear ?? this.planYear,
+        planTerm: planTerm ?? this.planTerm,
+      );
 
   /// ความสำคัญ 3 = สูง, 2 = กลาง, 1 = น้อย (ตามกฎ hard/medium/easy = 3/2/1 รอบต่อสัปดาห์)
   final int importance;
@@ -29,6 +64,10 @@ class Subject {
         name: row['name'] as String,
         importance: row['importance'] as int,
         sessionsPerWeek: row['sessions_per_week'] as int,
+        code: row['code'] as String?,
+        credits: row['credits'] as String?,
+        planYear: row['plan_year'] as int?,
+        planTerm: row['plan_term'] as int?,
       );
 }
 

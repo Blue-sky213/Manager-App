@@ -7,6 +7,7 @@ import '../data/study_repository.dart';
 import '../data/study_scope.dart';
 import '../study/advanced_rules.dart';
 import '../study/class_schedule_card.dart';
+import '../study/curriculum_map.dart';
 import '../study/mastery.dart';
 import '../study/score_history_dialog.dart';
 import '../study/subtopic_dialog.dart';
@@ -29,6 +30,11 @@ class _StudyPageState extends State<StudyPage> {
   int? _subjectId; // วิชาที่เลือกอยู่
   List<ChapterWithTopics> _chapters = [];
   GradingMode _mode = GradingMode.ez;
+
+  /// มุมมองหน้าวิชา: แผนผังแผนการเรียน หรือ รายละเอียดวิชา (จำไว้ใน setting)
+  bool _mapView = true;
+  static const _viewKey = 'study_view';
+  Map<int, SubjectProgress> _progress = {};
 
   /// ส่วนที่ "ยุบ" อยู่ (จำไว้ในฐานข้อมูล): 'ch<id>' = การ์ดบท · 'review' / 'exam' = กล่องท้ายหน้า
   Set<String> _collapsed = {};
@@ -63,12 +69,26 @@ class _StudyPageState extends State<StudyPage> {
     final collapsedRaw = await repo.getSetting(_collapsedKey) ?? '';
     final chapters =
         selected == null ? <ChapterWithTopics>[] : await repo.chapters(selected);
+    final view = await repo.getSetting(_viewKey);
+    // ความคืบหน้าทุกวิชา (ใช้วาดแถบสีในแผนผัง)
+    final progress = <int, SubjectProgress>{};
+    for (final s in subjects) {
+      final topics = [for (final ch in await repo.chapters(s.id)) ...ch.subtopics];
+      final scores = [for (final t in topics) if (t.latestScore != null) t.latestScore!];
+      progress[s.id] = SubjectProgress(
+        assessed: scores.length,
+        total: topics.length,
+        average: scores.isEmpty ? null : scores.reduce((a, b) => a + b) / scores.length,
+      );
+    }
     if (!mounted) return; // ผู้ใช้ปิดหน้าไปแล้วระหว่างรอ → ไม่ต้องวาด
     setState(() {
       _subjects = subjects;
       _subjectId = selected;
       _chapters = chapters;
       _mode = mode;
+      _mapView = view != 'detail';
+      _progress = progress;
       _collapsed = collapsedRaw.split(',').where((k) => k.isNotEmpty).toSet();
       _loading = false;
     });
@@ -145,13 +165,81 @@ class _StudyPageState extends State<StudyPage> {
 
   /// ใส่ข้อมูลตัวอย่าง ปี 1 เทอม 1 (6 วิชา + บท + คาบเรียน + วันสอบ)
   Future<void> _loadDemo() async {
-    final ok = await loadDemoTerm(_repo!, CalendarScope.of(context));
+    final added = await loadDemoCurriculum(_repo!, CalendarScope.of(context));
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(ok
-          ? 'ใส่ $demoTermLabel แล้ว: ${demoSubjects.length} วิชา + คาบเรียน + วันสอบ (ดูที่หน้าปฏิทิน)'
-          : 'มีข้อมูลตัวอย่างอยู่แล้ว'),
+      content: Text(added > 0
+          ? 'ใส่แผน 4 ปีแล้ว: เพิ่ม $added วิชา · ปี 1 เทอม 1 มีบท + คาบ + วันสอบ'
+          : 'มีแผนตัวอย่างครบแล้ว'),
     ));
+    await _reload();
+  }
+
+  void _setMapView(bool map) {
+    setState(() => _mapView = map);
+    _repo!.setSetting(_viewKey, map ? 'map' : 'detail');
+  }
+
+  /// แตะกล่องวิชาในแผนผัง → เปิดรายละเอียดวิชานั้น
+  void _openSubject(Subject s) {
+    _subjectId = s.id;
+    _setMapView(false);
+    _reload();
+  }
+
+  /// ย้ายวิชาไปปี/เทอมในแผน + รหัส/หน่วยกิต
+  Future<void> _editPlan(Subject subject) async {
+    var year = subject.planYear ?? 1;
+    var term = subject.planTerm ?? 1;
+    final code = TextEditingController(text: subject.code ?? '');
+    final credits = TextEditingController(text: subject.credits ?? '');
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          title: const Text('แผนการเรียน'),
+          content: SizedBox(
+            width: 400,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('ปีที่'),
+                Wrap(spacing: 6, children: [
+                  for (var y = 1; y <= 6; y++)
+                    ChoiceChip(
+                        label: Text('$y'),
+                        selected: y == year,
+                        onSelected: (_) => setLocal(() => year = y)),
+                ]),
+                const SizedBox(height: 8),
+                const Text('ภาคเรียน'),
+                Wrap(spacing: 6, children: [
+                  for (var t = 1; t <= 3; t++)
+                    ChoiceChip(
+                        label: Text(termLabel(t)),
+                        selected: t == term,
+                        onSelected: (_) => setLocal(() => term = t)),
+                ]),
+                TextField(
+                    controller: code,
+                    decoration: const InputDecoration(labelText: 'รหัสวิชา', hintText: '060233115')),
+                TextField(
+                    controller: credits,
+                    decoration: const InputDecoration(labelText: 'หน่วยกิต', hintText: '3(2-2-5)')),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('ยกเลิก')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('บันทึก')),
+          ],
+        ),
+      ),
+    );
+    if (ok != true) return;
+    await _repo!.setSubjectPlan(subject.id,
+        code: code.text.trim(), credits: credits.text.trim(), year: year, term: term);
     await _reload();
   }
 
@@ -293,6 +381,64 @@ class _StudyPageState extends State<StudyPage> {
   void _toggle(String key) => _setCollapsed(
       _collapsed.contains(key) ? ({..._collapsed}..remove(key)) : {..._collapsed, key});
 
+  /// สลับ แผนผัง ↔ รายวิชา
+  Widget _viewSwitch() => Align(
+        alignment: Alignment.centerLeft,
+        child: SegmentedButton<bool>(
+          style: const ButtonStyle(visualDensity: VisualDensity.compact),
+          segments: const [
+            ButtonSegment(value: true, icon: Icon(Icons.account_tree_outlined), label: Text('แผนผัง')),
+            ButtonSegment(value: false, icon: Icon(Icons.menu_book_outlined), label: Text('รายวิชา')),
+          ],
+          selected: {_mapView},
+          showSelectedIcon: false,
+          onSelectionChanged: (v) => _setMapView(v.first),
+        ),
+      );
+
+  Widget _buildMap(BuildContext context) {
+    final c = context.noir;
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(24, 28, 24, 32),
+      children: [
+        _viewSwitch(),
+        const SizedBox(height: 12),
+        Text('Study Tree', style: TextStyle(fontSize: 13, color: c.muted)),
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            Expanded(
+              child: Text('แผนการเรียน',
+                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.w600, color: c.text)),
+            ),
+            FilledButton.icon(
+              onPressed: _addSubject,
+              icon: const Icon(Icons.add),
+              label: const Text('เพิ่มวิชา'),
+            ),
+            PopupMenuButton<String>(
+              tooltip: 'ตัวเลือก',
+              onSelected: (_) => _loadDemo(),
+              itemBuilder: (_) => const [
+                PopupMenuItem(value: 'demo', child: Text('ใส่ตัวอย่าง: แผน 4 ปี')),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text('แตะกล่องวิชาเพื่อเปิดดูบท · คะแนน · ตารางเรียน',
+            style: TextStyle(color: c.muted, fontSize: 13)),
+        const SizedBox(height: 16),
+        CurriculumMap(
+          subjects: _subjects,
+          progress: _progress,
+          selectedId: _subjectId,
+          onOpen: _openSubject,
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = context.noir;
@@ -300,6 +446,8 @@ class _StudyPageState extends State<StudyPage> {
     if (_loading) {
       return const Center(child: CircularProgressIndicator());
     }
+
+    if (_mapView) return _buildMap(context);
 
     final subject = _subject;
     final allTopics = [for (final ch in _chapters) ...ch.subtopics];
@@ -312,6 +460,8 @@ class _StudyPageState extends State<StudyPage> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(24, 28, 24, 32),
       children: [
+        _viewSwitch(),
+        const SizedBox(height: 12),
         Text('Study Tree', style: TextStyle(fontSize: 13, color: c.muted)),
         const SizedBox(height: 4),
         Row(
@@ -336,6 +486,8 @@ class _StudyPageState extends State<StudyPage> {
                       _changeSessions(subject);
                     case 'demo':
                       _loadDemo();
+                    case 'plan':
+                      _editPlan(subject);
                     default:
                       _deleteSubject(subject);
                   }
@@ -344,9 +496,10 @@ class _StudyPageState extends State<StudyPage> {
                   PopupMenuItem(value: 'rename', child: Text('เปลี่ยนชื่อวิชา')),
                   PopupMenuItem(value: 'importance', child: Text('เปลี่ยนความสำคัญ')),
                   PopupMenuItem(value: 'sessions', child: Text('รอบติวต่อสัปดาห์')),
+                  PopupMenuItem(value: 'plan', child: Text('ปี / เทอม ในแผนการเรียน')),
                   PopupMenuItem(value: 'delete', child: Text('ลบวิชา')),
                   PopupMenuDivider(),
-                  PopupMenuItem(value: 'demo', child: Text('ใส่ตัวอย่าง: ปี 1 เทอม 1')),
+                  PopupMenuItem(value: 'demo', child: Text('ใส่ตัวอย่าง: แผน 4 ปี')),
                 ],
               ),
           ],

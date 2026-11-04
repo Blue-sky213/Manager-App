@@ -26,6 +26,22 @@ class SqliteStudyRepository implements StudyRepository {
   }
 
   @override
+  Future<void> setSubjectPlan(int subjectId,
+      {String? code, String? credits, int? year, int? term}) async {
+    await _db.update(
+      'subject',
+      {
+        if (code != null) 'code': code,
+        if (credits != null) 'credits': credits,
+        if (year != null) 'plan_year': year,
+        if (term != null) 'plan_term': term,
+      },
+      where: 'id = ?',
+      whereArgs: [subjectId],
+    );
+  }
+
+  @override
   Future<void> renameSubject(int subjectId, String name) async {
     await _db.update('subject', {'name': name},
         where: 'id = ?', whereArgs: [subjectId]);

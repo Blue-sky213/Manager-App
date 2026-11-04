@@ -10,7 +10,7 @@ import 'seed_data.dart';
 import 'study_repository.dart';
 
 /// เวอร์ชันโครงตาราง: ถ้าวันหลังเพิ่มตาราง/คอลัมน์ ให้เพิ่มเลขนี้ + เขียน onUpgrade
-const int _schemaVersion = 7; // v2: setting · v3: cleared_at · v4: ปฏิทิน · v5: Preset + เลือกวันเอง · v6: วิชาง่าย 2 รอบ · v7: คาบผูกวิชา + เวลาจริง
+const int _schemaVersion = 8; // v2 setting · v3 cleared_at · v4 ปฏิทิน · v5 Preset · v6 วิชาง่าย 2 รอบ · v7 คาบผูกวิชา + เวลาจริง · v8 แผนการเรียน
 
 /// เปิด (หรือสร้างครั้งแรก) ไฟล์ฐานข้อมูล noir_manager.db
 Future<Database> openAppDatabase() async {
@@ -38,6 +38,7 @@ Future<Database> openAppDatabase() async {
       await createCalendarSchema(db);
       await createCalendarV5(db);
       await createCalendarV7(db);
+      await createStudyPlanV8(db);
       await seedStudyData(db);
     },
     // เครื่องที่มีไฟล์ v1 อยู่แล้ว (เครื่องนัวร์): เพิ่มเฉพาะส่วนที่ขาด ข้อมูลเดิมไม่หาย
@@ -54,6 +55,7 @@ Future<Database> openAppDatabase() async {
             'UPDATE subject SET sessions_per_week = 2 WHERE sessions_per_week < 2');
       }
       if (oldVersion < 7) await createCalendarV7(db);
+      if (oldVersion < 8) await createStudyPlanV8(db);
     },
   );
 }
@@ -107,6 +109,22 @@ Future<void> createStudySchema(DatabaseExecutor db) async {
   await db.execute('CREATE INDEX idx_subtopic_chapter ON subtopic(chapter_id)');
   await db.execute(
       'CREATE INDEX idx_assessment_subtopic ON assessment(subtopic_id, taken_at)');
+}
+
+/// v8: วิชามีรหัส · หน่วยกิต · ปี/เทอมในแผนการเรียน
+/// + ผูกคาบเรียน/วันสอบตัวอย่างที่ใส่ไว้ก่อน v7 เข้ากับวิชา (จับคู่จากชื่องาน)
+Future<void> createStudyPlanV8(DatabaseExecutor db) async {
+  await addColumnIfMissing(db, 'subject', 'code', 'TEXT');
+  await addColumnIfMissing(db, 'subject', 'credits', 'TEXT');
+  await addColumnIfMissing(db, 'subject', 'plan_year', 'INTEGER');
+  await addColumnIfMissing(db, 'subject', 'plan_term', 'INTEGER');
+  await db.execute('''
+    UPDATE activity SET subject_id = (
+      SELECT s.id FROM subject s
+      WHERE activity.name IN ('เรียน · ' || s.name, 'สอบกลางภาค · ' || s.name,
+                              'สอบปลายภาค · ' || s.name)
+      LIMIT 1)
+    WHERE subject_id IS NULL''');
 }
 
 /// ตารางตั้งค่าแบบ key → value เช่น grading_mode → ez / advanced

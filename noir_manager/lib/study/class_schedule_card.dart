@@ -66,6 +66,23 @@ class _ClassScheduleCardState extends State<ClassScheduleCard>
     if (draft == null) return;
     final cats = await repo.categories();
     final learn = cats.where((c) => c.name == 'เรียน').firstOrNull?.id;
+
+    // เช็กเวลาทับ (คาบแรกของแต่ละวันที่เลือก) · ทับได้ แค่เตือนสั้น ๆ ด้านล่าง
+    final clashes = <String>{};
+    for (final wd in draft.weekdays) {
+      var d = draft.from;
+      while (d.weekday != wd) {
+        d = DateTime(d.year, d.month, d.day + 1);
+      }
+      if (d.isAfter(draft.to)) continue;
+      final start = atMinute(d, draft.start);
+      for (final o in findOverlaps(
+          await repo.occurrencesOn(d), start, start.add(Duration(minutes: draft.minutes)))) {
+        clashes.add('${o.title.replaceFirst('เรียน · ', '')} '
+            '(${thaiWeekdayShort[wd - 1]} ${fmtTime(o.startAt!)}–${fmtTime(o.endAt!)})');
+      }
+    }
+
     await repo.addActivity(NewActivity(
       name: 'เรียน · ${widget.subject.name}',
       categoryId: learn,
@@ -79,6 +96,16 @@ class _ClassScheduleCardState extends State<ClassScheduleCard>
       endDate: draft.to,
       subjectId: widget.subject.id,
     ));
+    if (clashes.isNotEmpty && mounted) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(
+          behavior: SnackBarBehavior.floating,
+          width: 420,
+          content: Text('⚠ ทับกับ ${clashes.join(', ')}',
+              maxLines: 2, overflow: TextOverflow.ellipsis),
+        ));
+    }
   }
 
   Future<void> _slotMenu(List<Activity> group) async {

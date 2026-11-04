@@ -17,10 +17,14 @@ void main() {
 
     await createCalendarV7(db);
     await createCalendarV7(db); // รันซ้ำก็ไม่พัง
+    await createStudyPlanV8(db);
+    await createStudyPlanV8(db);
 
     final occ = await db.rawQuery('PRAGMA table_info(occurrence)');
     final names = occ.map((c) => c['name']).toSet();
     expect(names, containsAll(['actual_start', 'actual_end']));
+    final subj = (await db.rawQuery('PRAGMA table_info(subject)')).map((c) => c['name']);
+    expect(subj, containsAll(['code', 'credits', 'plan_year', 'plan_term']));
     await db.close();
   });
 }

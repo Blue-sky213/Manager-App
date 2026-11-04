@@ -43,4 +43,14 @@ void main() {
 
     expect(await loadDemoTerm(study, cal), isFalse);
   });
+
+  test('แผน 4 ปี: 46 วิชา · 125 หน่วยกิต · ใส่ซ้ำไม่เพิ่ม', () async {
+    final study = MemoryStudyRepository.seeded();
+    final cal = MemoryCalendarRepository();
+    expect(await loadDemoCurriculum(study, cal), demoSubjects.length + curriculumPlan.length);
+    final planned = (await study.subjects()).where((s) => s.planYear != null);
+    expect(planned, hasLength(46));
+    expect(planned.fold<int>(0, (n, s) => n + s.creditUnits), 125);
+    expect(await loadDemoCurriculum(study, cal), 0);
+  });
 }

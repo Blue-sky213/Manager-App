@@ -56,6 +56,8 @@ void main() {
 
     await tester.tap(find.text('วิชา').first);
     await tester.pumpAndSettle();
+    await tester.tap(find.text('รายวิชา')); // หน้าวิชาเปิดที่แผนผังก่อน → สลับไปรายละเอียด
+    await tester.pumpAndSettle();
 
     expect(find.text('DaVinci Resolve'), findsWidgets);
     expect(find.text('บท 1 · Interface & Media'), findsOneWidget);
@@ -93,6 +95,8 @@ void main() {
     await tester.pumpWidget(buildApp());
     await tester.pumpAndSettle();
     await tester.tap(find.text('วิชา').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('รายวิชา')); // หน้าวิชาเปิดที่แผนผังก่อน → สลับไปรายละเอียด
     await tester.pumpAndSettle();
 
     expect(find.text('1.4 Keyboard Shortcut'), findsOneWidget);
@@ -271,6 +275,31 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('วิ่ง'), findsOneWidget);
     expect(find.text('17:45'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('แผนผังแผนการเรียน: ใส่แผน 4 ปี → เห็นทุกปี + 125 หน่วยกิต → แตะเปิดวิชา',
+      (tester) async {
+    setScreen(tester, const Size(1280, 1000));
+    await tester.pumpWidget(buildApp());
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('วิชา').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('แผนการเรียน'), findsOneWidget);
+    await tester.tap(find.byTooltip('ตัวเลือก'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('ใส่ตัวอย่าง: แผน 4 ปี'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('ปีการศึกษาที่ 1'), findsOneWidget);
+    expect(find.text('ปีการศึกษาที่ 4'), findsOneWidget);
+    expect(find.text('จำนวนหน่วยกิตตลอดหลักสูตร 125 หน่วยกิต'), findsOneWidget);
+
+    await tester.tap(find.text('การเขียนโปรแกรมคอมพิวเตอร์'));
+    await tester.pumpAndSettle();
+    expect(find.text('บท 1 · อัลกอริทึมและผังงาน [กลางภาค]'), findsOneWidget);
+    expect(find.text('ตารางเรียน'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

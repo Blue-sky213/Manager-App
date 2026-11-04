@@ -15,6 +15,10 @@ abstract class StudyRepository {
   Future<void> setSessionsPerWeek(int subjectId, int sessions);
   Future<void> deleteSubject(int subjectId);
 
+  /// ตำแหน่งในแผนการเรียน: รหัส · หน่วยกิต · ปี · เทอม
+  Future<void> setSubjectPlan(int subjectId,
+      {String? code, String? credits, int? year, int? term});
+
   Future<List<ChapterWithTopics>> chapters(int subjectId);
   Future<int> addChapter(int subjectId, String name);
   Future<void> renameChapter(int chapterId, String name);

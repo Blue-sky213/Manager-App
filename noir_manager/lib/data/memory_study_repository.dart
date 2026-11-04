@@ -81,36 +81,30 @@ class MemoryStudyRepository implements StudyRepository {
   Future<void> renameSubject(int subjectId, String name) async {
     final i = _subjects.indexWhere((s) => s.id == subjectId);
     final old = _subjects[i];
-    _subjects[i] = Subject(
-      id: old.id,
-      name: name,
-      importance: old.importance,
-      sessionsPerWeek: old.sessionsPerWeek,
-    );
+    _subjects[i] = old.copyWith(name: name);
   }
 
   @override
   Future<void> setSessionsPerWeek(int subjectId, int sessions) async {
     final i = _subjects.indexWhere((s) => s.id == subjectId);
     final old = _subjects[i];
-    _subjects[i] = Subject(
-      id: old.id,
-      name: old.name,
-      importance: old.importance,
-      sessionsPerWeek: clampSessions(old.importance, sessions),
-    );
+    _subjects[i] = old.copyWith(sessionsPerWeek: clampSessions(old.importance, sessions));
   }
 
   @override
   Future<void> setSubjectImportance(int subjectId, int importance) async {
     final i = _subjects.indexWhere((s) => s.id == subjectId);
     final old = _subjects[i];
-    _subjects[i] = Subject(
-      id: old.id,
-      name: old.name,
-      importance: importance,
-      sessionsPerWeek: sessionsForImportance(importance),
-    );
+    _subjects[i] = old.copyWith(
+        importance: importance, sessionsPerWeek: sessionsForImportance(importance));
+  }
+
+  @override
+  Future<void> setSubjectPlan(int subjectId,
+      {String? code, String? credits, int? year, int? term}) async {
+    final i = _subjects.indexWhere((s) => s.id == subjectId);
+    _subjects[i] = _subjects[i]
+        .copyWith(code: code, credits: credits, planYear: year, planTerm: term);
   }
 
   @override

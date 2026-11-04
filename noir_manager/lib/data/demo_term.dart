@@ -227,6 +227,7 @@ Future<bool> loadDemoTerm(StudyRepository study, CalendarRepository calendar) as
     // ---- วิชา + บท + หัวข้อย่อย ----
     final id = await study.addSubject(d.name, importance: d.importance);
     await study.setSessionsPerWeek(id, d.sessions);
+    await study.setSubjectPlan(id, code: d.code, credits: d.credits, year: 1, term: 1);
     for (final ch in d.chapters) {
       final chId = await study.addChapter(id, ch.name);
       for (var i = 0; i < ch.topics.length; i++) {
@@ -273,4 +274,87 @@ Future<bool> loadDemoTerm(StudyRepository study, CalendarRepository calendar) as
     }
   }
   return true;
+}
+
+// ---------- แผนการเรียนทั้งหลักสูตร (4 ปี · 125 หน่วยกิต) ----------
+// จากแผนภูมิหลักสูตรวิศวกรรมสารสนเทศและเครือข่าย พ.ศ. 2567 ที่นัวร์ส่งมา
+// ปี 1 เทอม 1 มีรายละเอียดเต็มใน demoSubjects · เทอมอื่นใส่แค่ชื่อ/รหัส/หน่วยกิต (ยังไม่มีบท)
+
+typedef PlanEntry = ({int year, int term, String code, String name, String credits});
+
+const List<PlanEntry> curriculumPlan = [
+  // ปี 1 เทอม 2 · 17 หน่วยกิต
+  (year: 1, term: 2, code: '040203123', name: 'คณิตศาสตร์เต็มหน่วยและการประยุกต์', credits: '3(3-0-6)'),
+  (year: 1, term: 2, code: '060233108', name: 'การสื่อสารข้อมูลและเครือข่ายคอมพิวเตอร์', credits: '3(3-0-6)'),
+  (year: 1, term: 2, code: '060233116', name: 'การแก้ปัญหาและขั้นตอนวิธี', credits: '3(2-2-5)'),
+  (year: 1, term: 2, code: '060233117', name: 'อิเล็กทรอนิกส์และวงจรดิจิทัล', credits: '3(2-2-5)'),
+  (year: 1, term: 2, code: '080103002', name: 'ภาษาอังกฤษ 2', credits: '3(3-0-6)'),
+  (year: 1, term: 2, code: '080XXXXXX', name: 'วิชาเลือกในหมวดวิชาศึกษาทั่วไป', credits: '2(2-0-4)'),
+  // ปี 2 เทอม 1 · 16
+  (year: 2, term: 1, code: '040203111', name: 'คณิตศาสตร์วิศวกรรม 1', credits: '3(3-0-6)'),
+  (year: 2, term: 1, code: '060233106', name: 'การเขียนแบบวิศวกรรมสารสนเทศและเครือข่าย', credits: '3(2-2-5)'),
+  (year: 2, term: 1, code: '060233215', name: 'ปฏิบัติการวิศวกรรมสารสนเทศและเครือข่าย 1', credits: '1(0-3-1)'),
+  (year: 2, term: 1, code: '060233205', name: 'เครือข่ายขั้นสูงและโปรโตคอล', credits: '3(3-0-6)'),
+  (year: 2, term: 1, code: 'XXXXXXXXX', name: 'วิชาเลือกเสรี', credits: '3(3-0-6)'),
+  (year: 2, term: 1, code: '080XXXXXX', name: 'วิชาเลือกในหมวดวิชาศึกษาทั่วไป', credits: '3(3-0-6)'),
+  // ปี 2 เทอม 2 · 19
+  (year: 2, term: 2, code: '040203112', name: 'คณิตศาสตร์วิศวกรรม 2', credits: '3(3-0-6)'),
+  (year: 2, term: 2, code: '060233120', name: 'การพัฒนาระบบสารสนเทศแบบครบองค์ประกอบ', credits: '3(2-2-5)'),
+  (year: 2, term: 2, code: '060233216', name: 'ปฏิบัติการวิศวกรรมสารสนเทศและเครือข่าย 2', credits: '1(0-3-1)'),
+  (year: 2, term: 2, code: '060233111', name: 'สถาปัตยกรรมคอมพิวเตอร์และระบบปฏิบัติการ', credits: '3(3-0-6)'),
+  (year: 2, term: 2, code: '060233112', name: 'วิศวกรรมข้อมูล', credits: '3(3-0-6)'),
+  (year: 2, term: 2, code: '060233119', name: 'ระบบฐานข้อมูล', credits: '3(3-0-6)'),
+  (year: 2, term: 2, code: '060233219', name: 'การออกแบบและการประยุกต์อินเทอร์เน็ตในทุกสรรพสิ่ง', credits: '3(2-2-5)'),
+  // ปี 3 เทอม 1 · 16
+  (year: 3, term: 1, code: '060233118', name: 'วิศวกรรมซอฟต์แวร์', credits: '3(3-0-6)'),
+  (year: 3, term: 1, code: '060233114', name: 'สถิติสำหรับวิศวกรรมข้อมูลและนักวิทยาศาสตร์ข้อมูล', credits: '3(3-0-6)'),
+  (year: 3, term: 1, code: '060233217', name: 'ปฏิบัติการวิศวกรรมสารสนเทศและเครือข่าย 3', credits: '1(0-3-1)'),
+  (year: 3, term: 1, code: '060233218', name: 'โครงสร้างพื้นฐานคลาวด์สำหรับซอฟต์แวร์และบริการ', credits: '3(2-2-5)'),
+  (year: 3, term: 1, code: '060233221', name: 'ความปลอดภัยและความเป็นส่วนตัวของข้อมูล', credits: '3(3-0-6)'),
+  (year: 3, term: 1, code: '0602333XX', name: 'วิชาเลือกกลุ่มวิชาชีพ', credits: '3(3-0-6)'),
+  // ปี 3 เทอม 2 · 19
+  (year: 3, term: 2, code: '060233207', name: 'การประยุกต์ใช้การเรียนรู้ของเครื่องจักร', credits: '3(2-2-5)'),
+  (year: 3, term: 2, code: '060233206', name: 'การจัดการเครือข่ายเบื้องต้นและเครื่องมือ', credits: '3(3-0-6)'),
+  (year: 3, term: 2, code: '060233204', name: 'การออกแบบและจัดทำเครือข่ายคอมพิวเตอร์', credits: '3(3-0-6)'),
+  (year: 3, term: 2, code: '060233209', name: 'การพัฒนาโปรแกรมประยุกต์บนอุปกรณ์เคลื่อนที่', credits: '3(3-0-6)'),
+  (year: 3, term: 2, code: '060233212', name: 'การวิเคราะห์ข้อมูลขนาดใหญ่', credits: '3(2-2-5)'),
+  (year: 3, term: 2, code: '060233214', name: 'สัมมนาวิศวกรรมสารสนเทศและเครือข่าย', credits: '1(0-3-1)'),
+  (year: 3, term: 2, code: '080203914', name: 'ผู้ประกอบการนวัตกรรม', credits: '3(3-0-6)'),
+  // ปี 3 ภาคฤดูร้อน · 1
+  (year: 3, term: 3, code: '060233403', name: 'การฝึกงาน', credits: '1(240 ชม.)'),
+  // ปี 4 เทอม 1 · 15
+  (year: 4, term: 1, code: '060233401', name: 'โครงงานวิศวกรรมสารสนเทศและเครือข่าย 1', credits: '3(0-6-3)'),
+  (year: 4, term: 1, code: '060233208', name: 'ความมั่นคงปลอดภัยไซเบอร์', credits: '3(3-0-6)'),
+  (year: 4, term: 1, code: '060233220', name: 'การประมวลผลภาษาธรรมชาติ', credits: '3(2-2-5)'),
+  (year: 4, term: 1, code: '0602333XX', name: 'วิชาเลือกกลุ่มวิชาชีพ', credits: '3(3-0-6)'),
+  (year: 4, term: 1, code: '080XXXXXX', name: 'วิชาเลือกในหมวดวิชาศึกษาทั่วไป', credits: '3(3-0-6)'),
+  // ปี 4 เทอม 2 · 6
+  (year: 4, term: 2, code: '060233402', name: 'โครงงานวิศวกรรมสารสนเทศและเครือข่าย 2', credits: '3(0-6-3)'),
+  (year: 4, term: 2, code: 'XXXXXXXXX', name: 'วิชาเลือกเสรี', credits: '3(3-0-6)'),
+];
+
+/// ใส่แผนการเรียนทั้งหลักสูตร: ปี 1 เทอม 1 แบบละเอียด + เทอมอื่นแบบรายชื่อ · คืนจำนวนวิชาที่เพิ่ม
+Future<int> loadDemoCurriculum(StudyRepository study, CalendarRepository calendar) async {
+  var added = 0;
+  if (await loadDemoTerm(study, calendar)) added += demoSubjects.length;
+
+  // วิชาตัวอย่างปี 1 เทอม 1 ที่ใส่ไว้ก่อนมีแผนการเรียน → เติมรหัส/หน่วยกิต/ปี/เทอม
+  final byName = {for (final d in demoSubjects) d.name: d};
+  for (final s in await study.subjects()) {
+    final d = byName[s.name];
+    if (d != null && s.planYear == null) {
+      await study.setSubjectPlan(s.id, code: d.code, credits: d.credits, year: 1, term: 1);
+    }
+  }
+
+  final have = {
+    for (final s in await study.subjects()) '${s.planYear}|${s.planTerm}|${s.code}|${s.name}'
+  };
+  for (final e in curriculumPlan) {
+    if (have.contains('${e.year}|${e.term}|${e.code}|${e.name}')) continue;
+    final id = await study.addSubject(e.name, importance: 2);
+    await study.setSubjectPlan(id, code: e.code, credits: e.credits, year: e.year, term: e.term);
+    added++;
+  }
+  return added;
 }
