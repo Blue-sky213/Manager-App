@@ -11,6 +11,22 @@ abstract class CalendarRepository extends ChangeNotifier {
 
   Future<int> addActivity(NewActivity a);
 
+  /// กิจกรรมต้นแบบ 1 ตัว (ใช้เปิดฟอร์มแก้ไข)
+  Future<Activity> activity(int activityId);
+
+  /// แก้กิจกรรมต้นแบบ: ชื่อ/หมวด/ความสำคัญ เปลี่ยนทุกครั้ง
+  /// ส่วนวัน/เวลา: ครั้งที่ยังเป็นแผนตั้งแต่ [from] (ค่าเริ่มต้น = วันนี้) จะสร้างใหม่ตามค่าใหม่
+  /// ครั้งที่ทำแล้ว / ยกเลิก / เลื่อน ไม่ถูกแตะ
+  Future<void> updateActivity(int activityId, NewActivity a, {DateTime? from});
+
+  /// แก้เวลาเฉพาะครั้งนี้ (วันเดิม ไม่นับว่าเลื่อน)
+  Future<void> updateOccurrenceTime(int occurrenceId, DateTime start, DateTime end);
+
+  /// Preset: ชุดค่าที่บันทึกไว้ เช่น Stream (สตรีม · สำคัญ · 20:00–00:00)
+  Future<List<Preset>> presets();
+  Future<int> addPreset(String name, NewActivity values);
+  Future<void> deletePreset(int presetId);
+
   /// ลบกิจกรรมต้นแบบ + ทุกครั้งของมัน
   Future<void> deleteActivity(int activityId);
 

@@ -119,4 +119,132 @@ void main() {
           isEmpty);
     });
   });
+
+  group('Preset · เลือกวันเอง · แก้ไขงาน', () {
+    NewActivity re4() => NewActivity(
+          name: 'RE4',
+          categoryId: 3,
+          importance: 3,
+          timed: true,
+          day: wed,
+          startMinute: 20 * 60,
+          durationMin: 4 * 60,
+          repeat: RepeatKind.dates,
+          presetId: 1,
+          dates: [
+            ScheduledDate(wed),
+            ScheduledDate(DateTime(2026, 11, 6), startMinute: 19 * 60, durationMin: 3 * 60),
+            ScheduledDate(DateTime(2026, 11, 9)),
+          ],
+        );
+
+    test('มี Preset "Stream" ตั้งต้น', () async {
+      final repo = MemoryCalendarRepository();
+      final p = (await repo.presets()).single;
+      expect(p.name, 'Stream');
+      expect((p.startMinute, p.durationMin), (20 * 60, 240));
+    });
+
+    test('เลือกวันเอง: มีงานเฉพาะวันที่เลือก และแต่ละวันใช้เวลาของตัวเอง', () async {
+      final repo = MemoryCalendarRepository();
+      await repo.addActivity(re4());
+      expect(await repo.occurrencesOn(tue), isEmpty);
+      expect(await repo.occurrencesOn(DateTime(2026, 11, 5)), isEmpty);
+
+      final w = (await repo.occurrencesOn(wed)).single;
+      expect(w.startAt, DateTime(2026, 11, 4, 20));
+      expect(w.endAt, DateTime(2026, 11, 5, 0)); // ข้ามเที่ยงคืน
+
+      final f = (await repo.occurrencesOn(DateTime(2026, 11, 6))).single;
+      expect(f.startAt, DateTime(2026, 11, 6, 19));
+      expect(f.endAt, DateTime(2026, 11, 6, 22));
+
+      expect(await repo.occurrencesOn(DateTime(2026, 11, 9)), hasLength(1));
+    });
+
+    test('ถึงวันที่: ทุกวันแต่หยุดหลังวันสิ้นสุด', () async {
+      final repo = MemoryCalendarRepository();
+      await repo.addActivity(NewActivity(
+        name: 'ติว',
+        categoryId: 1,
+        importance: 2,
+        timed: false,
+        day: mon,
+        repeat: RepeatKind.daily,
+        endDate: tue,
+      ));
+      expect(await repo.occurrencesOn(mon), hasLength(1));
+      expect(await repo.occurrencesOn(tue), hasLength(1));
+      expect(await repo.occurrencesOn(wed), isEmpty);
+    });
+
+    test('แก้ไขงาน: ครั้งที่ทำแล้วไม่เปลี่ยน ครั้งต่อไปใช้เวลาใหม่', () async {
+      final repo = MemoryCalendarRepository();
+      final id = await repo.addActivity(gym());
+      final m = (await repo.occurrencesOn(mon)).single;
+      await repo.setDone(m.id, true);
+      await repo.occurrencesOn(tue);
+
+      final d = (await repo.activity(id)).toDraft();
+      await repo.updateActivity(
+          id,
+          NewActivity(
+            name: 'วิ่ง',
+            categoryId: d.categoryId,
+            importance: d.importance,
+            timed: true,
+            day: d.day,
+            startMinute: 6 * 60,
+            durationMin: 30,
+            repeat: d.repeat,
+          ),
+          from: tue);
+
+      final monAfter = (await repo.occurrencesOn(mon)).single;
+      expect(monAfter.status, OccurrenceStatus.done);
+      expect(monAfter.startAt, DateTime(2026, 11, 2, 17));
+      final t = (await repo.occurrencesOn(tue)).single;
+      expect(t.title, 'วิ่ง');
+      expect(t.startAt, DateTime(2026, 11, 3, 6));
+      expect(t.endAt, DateTime(2026, 11, 3, 6, 30));
+    });
+
+    test('แก้เวลาเฉพาะวันนี้: วันอื่นไม่เปลี่ยน', () async {
+      final repo = MemoryCalendarRepository();
+      await repo.addActivity(gym());
+      final m = (await repo.occurrencesOn(mon)).single;
+      await repo.updateOccurrenceTime(
+          m.id, DateTime(2026, 11, 2, 18), DateTime(2026, 11, 2, 19));
+      expect((await repo.occurrencesOn(mon)).single.startAt, DateTime(2026, 11, 2, 18));
+      expect((await repo.occurrencesOn(tue)).single.startAt, DateTime(2026, 11, 3, 17));
+    });
+
+    test('toDraft → toActivity ได้ค่าเดิม (ฟอร์มแก้ไขไม่ทำข้อมูลหาย)', () {
+      final a = re4().toActivity(id: 5);
+      final again = a.toDraft().toActivity(id: 5);
+      expect(again.dates.keys, a.dates.keys);
+      expect(again.presetId, 1);
+      expect(timeFor(again, DateTime(2026, 11, 6)), (19 * 60, 180));
+    });
+
+    test('ลบ Preset: งานเดิมยังอยู่', () async {
+      final repo = MemoryCalendarRepository();
+      final pid = (await repo.presets()).single.id;
+      final id = await repo.addActivity(NewActivity(
+        name: 'Minecraft',
+        categoryId: 3,
+        importance: 3,
+        timed: true,
+        day: wed,
+        startMinute: 20 * 60,
+        durationMin: 120,
+        presetId: pid,
+      ));
+      await repo.deletePreset(pid);
+      expect(await repo.presets(), isEmpty);
+      final a = await repo.activity(id);
+      expect(a.name, 'Minecraft');
+      expect(a.presetId, isNull);
+    });
+  });
 }

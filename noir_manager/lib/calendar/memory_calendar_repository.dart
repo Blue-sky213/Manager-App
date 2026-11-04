@@ -8,18 +8,26 @@ class MemoryCalendarRepository extends CalendarRepository {
       _categories.add(ActivityCategory(
           id: i + 1, name: seedCategories[i].$1, colorKey: seedCategories[i].$2));
     }
+    // Preset ตั้งต้นเหมือนฐานข้อมูลจริง: Stream · สตรีม · สำคัญ · 20:00–00:00
+    _presets.add(Preset(
+      id: _nextId++,
+      name: 'Stream',
+      categoryId: _categories.firstWhere((c) => c.name == 'สตรีม').id,
+      importance: 3,
+      startMinute: 20 * 60,
+      durationMin: 4 * 60,
+    ));
   }
 
-  int _nextId = 1;
+  int _nextId = 100;
   final List<ActivityCategory> _categories = [];
-  final List<Activity> _activities = [];
+  final List<Preset> _presets = [];
+  final Map<int, Activity> _activities = {};
   final List<_Occ> _occs = [];
   List<LifeBaseDay> _lifeBase = defaultLifeBase();
 
-  Activity _activity(int id) => _activities.firstWhere((a) => a.id == id);
-
   Occurrence _toOccurrence(_Occ o) {
-    final a = _activity(o.activityId);
+    final a = _activities[o.activityId]!;
     return Occurrence(
       id: o.id,
       activityId: a.id,
@@ -42,44 +50,102 @@ class MemoryCalendarRepository extends CalendarRepository {
   @override
   Future<int> addActivity(NewActivity n) async {
     final id = _nextId++;
-    _activities.add(Activity(
+    _activities[id] = n.toActivity(id: id);
+    notifyListeners();
+    return id;
+  }
+
+  @override
+  Future<Activity> activity(int activityId) async => _activities[activityId]!;
+
+  @override
+  Future<void> updateActivity(int activityId, NewActivity n,
+      {DateTime? from}) async {
+    _activities[activityId] = n.toActivity(id: activityId);
+    final f = dayOnly(from ?? DateTime.now());
+    _occs.removeWhere((o) =>
+        o.activityId == activityId &&
+        o.originDay != null &&
+        !o.originDay!.isBefore(f) &&
+        o.status == OccurrenceStatus.planned);
+    notifyListeners();
+  }
+
+  @override
+  Future<void> updateOccurrenceTime(
+      int occurrenceId, DateTime start, DateTime end) async {
+    _occ(occurrenceId)
+      ..startAt = start
+      ..endAt = end;
+    notifyListeners();
+  }
+
+  @override
+  Future<List<Preset>> presets() async =>
+      List.of(_presets)..sort((a, b) => a.name.compareTo(b.name));
+
+  @override
+  Future<int> addPreset(String name, NewActivity v) async {
+    final id = _nextId++;
+    _presets.add(Preset(
       id: id,
-      name: n.name,
-      categoryId: n.categoryId,
-      importance: n.importance,
-      timed: n.timed,
-      startMinute: n.timed ? n.startMinute : null,
-      durationMin: n.timed ? n.durationMin : null,
-      repeat: n.repeat,
-      weekdays: n.weekdays,
-      startDate: dayOnly(n.day),
+      name: name,
+      categoryId: v.categoryId,
+      importance: v.importance,
+      startMinute: v.timed ? v.startMinute : null,
+      durationMin: v.timed ? v.durationMin : null,
     ));
     notifyListeners();
     return id;
   }
 
   @override
+  Future<void> deletePreset(int presetId) async {
+    _presets.removeWhere((p) => p.id == presetId);
+    for (final e in _activities.entries.toList()) {
+      if (e.value.presetId == presetId) {
+        final d = e.value.toDraft();
+        _activities[e.key] = NewActivity(
+          name: d.name,
+          categoryId: d.categoryId,
+          importance: d.importance,
+          timed: d.timed,
+          day: d.day,
+          startMinute: d.startMinute,
+          durationMin: d.durationMin,
+          repeat: d.repeat,
+          weekdays: d.weekdays,
+          endDate: d.endDate,
+          dates: d.dates,
+        ).toActivity(id: e.key);
+      }
+    }
+    notifyListeners();
+  }
+
+  @override
   Future<void> deleteActivity(int activityId) async {
     _occs.removeWhere((o) => o.activityId == activityId);
-    _activities.removeWhere((a) => a.id == activityId);
+    _activities.remove(activityId);
     notifyListeners();
   }
 
   @override
   Future<List<Occurrence>> occurrencesOn(DateTime day) async {
     final d = dayOnly(day);
-    for (final a in _activities) {
+    for (final a in _activities.values) {
       if (!occursOn(a, d)) continue;
       final exists = _occs.any((o) => o.activityId == a.id && o.originDay == d);
       if (exists) continue;
-      final start = a.timed ? atMinute(d, a.startMinute!) : null;
+      final time = timeFor(a, d);
+      final start = time == null ? null : atMinute(d, time.$1);
       _occs.add(_Occ(
         id: _nextId++,
         activityId: a.id,
         originDay: d,
         day: d,
         startAt: start,
-        endAt: start?.add(Duration(minutes: a.durationMin!)),
+        endAt: start?.add(Duration(minutes: time!.$2)),
       ));
     }
     final list = _occs.where((o) => o.day == d).toList()
@@ -108,9 +174,9 @@ class MemoryCalendarRepository extends CalendarRepository {
 
   @override
   Future<void> setDone(int occurrenceId, bool done) async {
-    _occ(occurrenceId).status =
-        done ? OccurrenceStatus.done : OccurrenceStatus.planned;
-    _occ(occurrenceId).reason = null;
+    _occ(occurrenceId)
+      ..status = done ? OccurrenceStatus.done : OccurrenceStatus.planned
+      ..reason = null;
     notifyListeners();
   }
 
@@ -151,20 +217,21 @@ class MemoryCalendarRepository extends CalendarRepository {
   @override
   Future<void> moveSeries(
       int activityId, DateTime fromDay, int startMinute, int durationMin) async {
-    final i = _activities.indexWhere((a) => a.id == activityId);
-    final a = _activities[i];
-    _activities[i] = Activity(
-      id: a.id,
-      name: a.name,
-      categoryId: a.categoryId,
-      importance: a.importance,
-      timed: a.timed,
+    final d = _activities[activityId]!.toDraft();
+    _activities[activityId] = NewActivity(
+      name: d.name,
+      categoryId: d.categoryId,
+      importance: d.importance,
+      timed: d.timed,
+      day: d.day,
       startMinute: startMinute,
       durationMin: durationMin,
-      repeat: a.repeat,
-      weekdays: a.weekdays,
-      startDate: a.startDate,
-    );
+      repeat: d.repeat,
+      weekdays: d.weekdays,
+      endDate: d.endDate,
+      presetId: d.presetId,
+      dates: d.dates,
+    ).toActivity(id: activityId);
     final from = dayOnly(fromDay);
     for (final o in _occs) {
       if (o.activityId != activityId ||

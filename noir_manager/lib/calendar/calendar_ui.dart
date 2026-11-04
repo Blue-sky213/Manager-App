@@ -27,11 +27,9 @@ String importanceText(int importance) => switch (importance) {
       _ => (c.surface2, c.text),
     };
 
-/// ตัวเลือกระยะเวลา (นาที)
-const List<int> durationChoices = [15, 30, 45, 60, 90, 120, 180, 240];
-
-String durationText(int min) =>
-    min < 60 ? '$min นาที' : (min % 60 == 0 ? '${min ~/ 60} ชม.' : '${min / 60} ชม.');
+String durationText(int min) => min < 60
+    ? '$min นาที'
+    : (min % 60 == 0 ? '${min ~/ 60} ชม.' : '${min ~/ 60} ชม. ${min % 60} นาที');
 
 /// เลือกวัน (ปฏิทิน Material)
 Future<DateTime?> pickDay(BuildContext context, DateTime initial) =>
@@ -80,46 +78,89 @@ class PickerTile extends StatelessWidget {
       );
 }
 
-// ---------- กล่องเพิ่มงาน ----------
+// ---------- ฟอร์มเพิ่มงาน / แก้ไขงาน ----------
 
-Future<NewActivity?> showAddActivityDialog(
+/// ระยะเวลาจากเวลาเริ่ม → เวลาจบ (จบก่อนหรือเท่ากับเริ่ม = ข้ามเที่ยงคืน)
+int durationBetween(int startMinute, int endMinute) {
+  final d = (endMinute - startMinute) % (24 * 60);
+  return d == 0 ? 24 * 60 : d;
+}
+
+String durationLabel(int start, int duration) =>
+    '${durationText(duration)}${start + duration > 24 * 60 ? ' · ข้ามเที่ยงคืน' : ''}';
+
+/// เลือกเวลาเริ่ม แล้วต่อด้วยเวลาจบ → (เริ่ม, ระยะเวลา) · null = ยกเลิก
+Future<(int, int)?> pickRange(BuildContext context, int start, int duration) async {
+  final s = await pickMinute(context, start);
+  if (s == null || !context.mounted) return null;
+  final e = await pickMinute(context, (s + duration) % (24 * 60));
+  if (e == null) return null;
+  return (s, durationBetween(s, e));
+}
+
+Future<NewActivity?> showActivityDialog(
   BuildContext context, {
   required DateTime day,
   required List<ActivityCategory> categories,
+  required List<Preset> presets,
   NewActivity? initial,
+  bool editing = false,
+  Future<int> Function(String name, NewActivity values)? onSavePreset,
+  Future<void> Function(int presetId)? onDeletePreset,
 }) =>
     showDialog<NewActivity>(
       context: context,
-      builder: (_) =>
-          _AddActivityDialog(day: day, categories: categories, initial: initial),
+      builder: (_) => _ActivityDialog(
+        day: day,
+        categories: categories,
+        presets: presets,
+        initial: initial,
+        editing: editing,
+        onSavePreset: onSavePreset,
+        onDeletePreset: onDeletePreset,
+      ),
     );
 
-class _AddActivityDialog extends StatefulWidget {
-  const _AddActivityDialog({
+class _ActivityDialog extends StatefulWidget {
+  const _ActivityDialog({
     required this.day,
     required this.categories,
+    required this.presets,
     required this.initial,
+    required this.editing,
+    required this.onSavePreset,
+    required this.onDeletePreset,
   });
 
   final DateTime day;
   final List<ActivityCategory> categories;
+  final List<Preset> presets;
   final NewActivity? initial;
+  final bool editing;
+  final Future<int> Function(String name, NewActivity values)? onSavePreset;
+  final Future<void> Function(int presetId)? onDeletePreset;
 
   @override
-  State<_AddActivityDialog> createState() => _AddActivityDialogState();
+  State<_ActivityDialog> createState() => _ActivityDialogState();
 }
 
-class _AddActivityDialogState extends State<_AddActivityDialog> {
+class _ActivityDialogState extends State<_ActivityDialog> {
   late final _name = TextEditingController(text: widget.initial?.name ?? '');
+  late final List<Preset> _presets = List.of(widget.presets);
+  late int? _presetId = widget.presets.any((p) => p.id == widget.initial?.presetId)
+      ? widget.initial?.presetId
+      : null;
   late int? _categoryId = widget.initial?.categoryId ??
       (widget.categories.isEmpty ? null : widget.categories.first.id);
   late int _importance = widget.initial?.importance ?? 2;
   late bool _timed = widget.initial?.timed ?? true;
-  late DateTime _day = widget.initial?.day ?? dayOnly(widget.day);
+  late DateTime _day = dayOnly(widget.initial?.day ?? widget.day);
   late int _start = widget.initial?.startMinute ?? 18 * 60;
   late int _duration = widget.initial?.durationMin ?? 60;
   late RepeatKind _repeat = widget.initial?.repeat ?? RepeatKind.none;
   late Set<int> _weekdays = {...?widget.initial?.weekdays};
+  late DateTime? _endDate = widget.initial?.endDate;
+  late List<ScheduledDate> _dates = [...?widget.initial?.dates];
 
   @override
   void dispose() {
@@ -127,15 +168,7 @@ class _AddActivityDialogState extends State<_AddActivityDialog> {
     super.dispose();
   }
 
-  bool get _valid =>
-      _name.text.trim().isNotEmpty &&
-      !(_repeat == RepeatKind.weekly && _weekdays.isEmpty);
-
-  void _save() {
-    if (!_valid) return;
-    Navigator.pop(
-      context,
-      NewActivity(
+  NewActivity get _draft => NewActivity(
         name: _name.text.trim(),
         categoryId: _categoryId,
         importance: _importance,
@@ -145,27 +178,173 @@ class _AddActivityDialogState extends State<_AddActivityDialog> {
         durationMin: _timed ? _duration : null,
         repeat: _repeat,
         weekdays: _repeat == RepeatKind.weekly ? _weekdays : const {},
+        endDate: _repeat == RepeatKind.daily || _repeat == RepeatKind.weekly
+            ? _endDate
+            : null,
+        presetId: _presetId,
+        dates: _repeat == RepeatKind.dates ? _dates : const [],
+      );
+
+  String? get _problem {
+    if (_name.text.trim().isEmpty) return 'ใส่ชื่องาน';
+    if (_repeat == RepeatKind.weekly && _weekdays.isEmpty) return 'เลือกวันในสัปดาห์อย่างน้อย 1 วัน';
+    if (_repeat == RepeatKind.dates && _dates.isEmpty) return 'เพิ่มวันอย่างน้อย 1 วัน';
+    if (_endDate != null &&
+        (_repeat == RepeatKind.daily || _repeat == RepeatKind.weekly) &&
+        _endDate!.isBefore(_day)) {
+      return 'วันสิ้นสุดต้องไม่ก่อนวันเริ่ม';
+    }
+    return null;
+  }
+
+  /// เลือก Preset → กรอกหมวด / ความสำคัญ / เวลาให้อัตโนมัติ
+  void _applyPreset(int? id) {
+    setState(() {
+      _presetId = id;
+      if (id == null) return;
+      final p = _presets.firstWhere((x) => x.id == id);
+      _categoryId = p.categoryId ?? _categoryId;
+      _importance = p.importance;
+      _timed = p.startMinute != null;
+      if (p.startMinute != null) {
+        _start = p.startMinute!;
+        _duration = p.durationMin ?? _duration;
+      }
+    });
+  }
+
+  Future<void> _savePreset() async {
+    final save = widget.onSavePreset;
+    if (save == null) return;
+    final controller = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('บันทึกเป็น Preset'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('เก็บหมวด · ความสำคัญ · เวลาเริ่ม–จบ ตอนนี้ไว้ใช้ซ้ำ'),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              decoration: const InputDecoration(
+                  labelText: 'ชื่อ Preset', hintText: 'เช่น Stream, ติวเข้ม'),
+              onSubmitted: (v) => Navigator.pop(ctx, v),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('ยกเลิก')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, controller.text),
+              child: const Text('บันทึก')),
+        ],
       ),
     );
+    final trimmed = name?.trim() ?? '';
+    if (trimmed.isEmpty) return;
+    final id = await save(trimmed, _draft);
+    if (!mounted) return;
+    setState(() {
+      _presets.add(Preset(
+        id: id,
+        name: trimmed,
+        categoryId: _categoryId,
+        importance: _importance,
+        startMinute: _timed ? _start : null,
+        durationMin: _timed ? _duration : null,
+      ));
+      _presetId = id;
+    });
+  }
+
+  Future<void> _deletePreset() async {
+    final del = widget.onDeletePreset;
+    final id = _presetId;
+    if (del == null || id == null) return;
+    await del(id);
+    if (!mounted) return;
+    setState(() {
+      _presets.removeWhere((p) => p.id == id);
+      _presetId = null;
+    });
+  }
+
+  Future<void> _addDate() async {
+    final d = await pickDay(context, _dates.isEmpty ? _day : _dates.last.day);
+    if (d == null) return;
+    final day = dayOnly(d);
+    if (_dates.any((x) => x.day == day)) return;
+    setState(() => _dates = [..._dates, ScheduledDate(day)]
+      ..sort((a, b) => a.day.compareTo(b.day)));
+  }
+
+  Future<void> _editDateTime(int i) async {
+    final d = _dates[i];
+    final r = await pickRange(
+        context, d.startMinute ?? _start, d.durationMin ?? _duration);
+    if (r == null) return;
+    setState(() {
+      _dates = [..._dates]
+        ..[i] = ScheduledDate(d.day, startMinute: r.$1, durationMin: r.$2);
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    final c = context.noir;
+    final problem = _problem;
+
     return AlertDialog(
-      title: const Text('เพิ่มงาน'),
+      title: Text(widget.editing ? 'แก้ไขงาน' : 'เพิ่มงาน'),
       content: SizedBox(
-        width: 440,
+        width: 460,
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // ----- Preset -----
+              Row(
+                children: [
+                  const Text('Preset'),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: DropdownButton<int?>(
+                      isExpanded: true,
+                      value: _presetId,
+                      items: [
+                        const DropdownMenuItem<int?>(value: null, child: Text('ไม่ใช้')),
+                        for (final p in _presets)
+                          DropdownMenuItem<int?>(value: p.id, child: Text(p.name)),
+                      ],
+                      onChanged: _applyPreset,
+                    ),
+                  ),
+                  if (_presetId != null && widget.onDeletePreset != null)
+                    IconButton(
+                      tooltip: 'ลบ Preset นี้ (งานเดิมไม่หาย)',
+                      icon: const Icon(Icons.delete_outline),
+                      onPressed: _deletePreset,
+                    ),
+                  if (widget.onSavePreset != null)
+                    IconButton(
+                      tooltip: 'บันทึกค่าตอนนี้เป็น Preset ใหม่',
+                      icon: const Icon(Icons.bookmark_add_outlined),
+                      onPressed: _savePreset,
+                    ),
+                ],
+              ),
               TextField(
                 key: const Key('activity-name'),
                 controller: _name,
-                autofocus: true,
-                decoration: const InputDecoration(
-                    labelText: 'ชื่องาน', hintText: 'เช่น ออกกำลังกาย, ติว DataCOM'),
+                autofocus: !widget.editing,
+                decoration: InputDecoration(
+                  labelText: 'ชื่องาน',
+                  hintText: _presetId == null ? 'เช่น ออกกำลังกาย' : 'เช่น RE4, Minecraft',
+                ),
                 onChanged: (_) => setState(() {}),
               ),
               const SizedBox(height: 12),
@@ -200,23 +379,16 @@ class _AddActivityDialogState extends State<_AddActivityDialog> {
                 onSelectionChanged: (s) => setState(() => _importance = s.first),
               ),
               const SizedBox(height: 8),
+
+              // ----- เวลา -----
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('ล็อกเวลา'),
                 subtitle: Text(_timed
-                    ? 'มีเวลาเริ่ม-จบ แสดงในตารางเวลา'
+                    ? 'มีเวลาเริ่ม–จบ แสดงในตารางเวลา'
                     : 'แบบลิสต์: แค่ต้องทำวันนั้น ไม่กำหนดเวลา'),
                 value: _timed,
                 onChanged: (v) => setState(() => _timed = v),
-              ),
-              PickerTile(
-                icon: Icons.event,
-                label: _repeat == RepeatKind.none ? 'วันที่' : 'เริ่มวันที่',
-                value: thaiShortDate(_day),
-                onTap: () async {
-                  final d = await pickDay(context, _day);
-                  if (d != null) setState(() => _day = d);
-                },
               ),
               if (_timed) ...[
                 PickerTile(
@@ -225,61 +397,161 @@ class _AddActivityDialogState extends State<_AddActivityDialog> {
                   value: fmtMinute(_start),
                   onTap: () async {
                     final m = await pickMinute(context, _start);
-                    if (m != null) setState(() => _start = m);
+                    if (m == null) return;
+                    // ขยับเวลาเริ่ม → เวลาจบเลื่อนตาม (ระยะเวลาเท่าเดิม)
+                    setState(() => _start = m);
                   },
                 ),
-                Row(
-                  children: [
-                    const Icon(Icons.timelapse),
-                    const SizedBox(width: 16),
-                    const Expanded(child: Text('ระยะเวลา')),
-                    DropdownButton<int>(
-                      value: _duration,
-                      items: [
-                        for (final d in {...durationChoices, _duration}.toList()..sort())
-                          DropdownMenuItem(value: d, child: Text(durationText(d))),
-                      ],
-                      onChanged: (v) => setState(() => _duration = v ?? _duration),
-                    ),
-                  ],
+                PickerTile(
+                  icon: Icons.flag_outlined,
+                  label: 'เวลาจบ',
+                  value: fmtMinute(_start + _duration),
+                  onTap: () async {
+                    final m = await pickMinute(context, (_start + _duration) % (24 * 60));
+                    if (m == null) return;
+                    setState(() => _duration = durationBetween(_start, m));
+                  },
                 ),
-                Text('${fmtMinute(_start)} – ${fmtMinute(_start + _duration)}',
-                    style: TextStyle(color: context.noir.muted, fontSize: 13)),
+                Text('รวม ${durationLabel(_start, _duration)}',
+                    style: TextStyle(color: c.muted, fontSize: 13)),
               ],
               const SizedBox(height: 12),
+
+              // ----- ทำซ้ำ -----
               const Text('ทำซ้ำ'),
               const SizedBox(height: 6),
-              SegmentedButton<RepeatKind>(
-                segments: const [
-                  ButtonSegment(value: RepeatKind.none, label: Text('ไม่ซ้ำ')),
-                  ButtonSegment(value: RepeatKind.daily, label: Text('ทุกวัน')),
-                  ButtonSegment(value: RepeatKind.weekly, label: Text('ทุกสัปดาห์')),
+              // ChoiceChip ห่อบรรทัดเองได้ → ไม่ล้นจอแคบ 420 px
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final (kind, label) in const [
+                    (RepeatKind.none, 'ครั้งเดียว'),
+                    (RepeatKind.daily, 'ทุกวัน'),
+                    (RepeatKind.weekly, 'ทุกสัปดาห์'),
+                    (RepeatKind.dates, 'เลือกวันเอง'),
+                  ])
+                    ChoiceChip(
+                      label: Text(label),
+                      selected: _repeat == kind,
+                      onSelected: (_) => setState(() {
+                        _repeat = kind;
+                        if (_repeat == RepeatKind.weekly && _weekdays.isEmpty) {
+                          _weekdays = {_day.weekday};
+                        }
+                        if (_repeat == RepeatKind.dates && _dates.isEmpty) {
+                          _dates = [ScheduledDate(_day)];
+                        }
+                      }),
+                    ),
                 ],
-                selected: {_repeat},
-                showSelectedIcon: false,
-                onSelectionChanged: (s) => setState(() {
-                  _repeat = s.first;
-                  if (_repeat == RepeatKind.weekly && _weekdays.isEmpty) {
-                    _weekdays = {_day.weekday};
-                  }
-                }),
               ),
-              if (_repeat == RepeatKind.weekly) ...[
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    for (var d = 1; d <= 7; d++)
-                      FilterChip(
-                        label: Text(thaiWeekdayShort[d - 1]),
-                        selected: _weekdays.contains(d),
-                        onSelected: (on) => setState(() {
-                          _weekdays = on ? {..._weekdays, d} : ({..._weekdays}..remove(d));
+              const SizedBox(height: 4),
+
+              if (_repeat != RepeatKind.dates)
+                PickerTile(
+                  icon: Icons.event,
+                  label: _repeat == RepeatKind.none ? 'วันที่' : 'เริ่มวันที่',
+                  value: thaiShortDate(_day),
+                  onTap: () async {
+                    final d = await pickDay(context, _day);
+                    if (d != null) setState(() => _day = dayOnly(d));
+                  },
+                ),
+
+              if (_repeat == RepeatKind.weekly)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      for (var d = 1; d <= 7; d++)
+                        FilterChip(
+                          label: Text(thaiWeekdayShort[d - 1]),
+                          selected: _weekdays.contains(d),
+                          onSelected: (on) => setState(() {
+                            _weekdays = on ? {..._weekdays, d} : ({..._weekdays}..remove(d));
+                          }),
+                        ),
+                    ],
+                  ),
+                ),
+
+              if (_repeat == RepeatKind.daily || _repeat == RepeatKind.weekly)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.event_busy),
+                  title: const Text('ถึงวันที่'),
+                  onTap: () async {
+                    final d = await pickDay(context, _endDate ?? _day.add(const Duration(days: 7)));
+                    if (d != null) setState(() => _endDate = dayOnly(d));
+                  },
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(_endDate == null ? 'ไม่กำหนด' : thaiShortDate(_endDate!),
+                          style: const TextStyle(fontWeight: FontWeight.w600)),
+                      if (_endDate != null)
+                        IconButton(
+                          tooltip: 'ไม่กำหนดวันสิ้นสุด',
+                          icon: const Icon(Icons.close, size: 18),
+                          onPressed: () => setState(() => _endDate = null),
+                        ),
+                    ],
+                  ),
+                ),
+
+              if (_repeat == RepeatKind.dates) ...[
+                const SizedBox(height: 4),
+                Text(
+                  _timed
+                      ? 'แตะ 🕑 เพื่อตั้งเวลาเฉพาะวันนั้น (ไม่ตั้ง = ใช้เวลาหลักด้านบน)'
+                      : 'เลือกได้หลายวัน',
+                  style: TextStyle(color: c.muted, fontSize: 12),
+                ),
+                for (var i = 0; i < _dates.length; i++)
+                  Row(
+                    children: [
+                      Expanded(child: Text(thaiShortDate(_dates[i].day))),
+                      if (_timed)
+                        TextButton.icon(
+                          onPressed: () => _editDateTime(i),
+                          icon: const Icon(Icons.schedule, size: 18),
+                          label: Text(
+                            _dates[i].customTime
+                                ? rangeText(_dates[i].startMinute!,
+                                    _dates[i].durationMin ?? _duration)
+                                : 'เวลาหลัก',
+                          ),
+                        ),
+                      if (_dates[i].customTime)
+                        IconButton(
+                          tooltip: 'กลับไปใช้เวลาหลัก',
+                          icon: const Icon(Icons.undo, size: 18),
+                          onPressed: () => setState(() {
+                            _dates = [..._dates]..[i] = ScheduledDate(_dates[i].day);
+                          }),
+                        ),
+                      IconButton(
+                        tooltip: 'เอาวันนี้ออก',
+                        icon: const Icon(Icons.remove_circle_outline, size: 20),
+                        onPressed: () => setState(() {
+                          _dates = [..._dates]..removeAt(i);
                         }),
                       ),
-                  ],
+                    ],
+                  ),
+                TextButton.icon(
+                  onPressed: _addDate,
+                  icon: const Icon(Icons.add),
+                  label: const Text('เพิ่มวัน'),
                 ),
+              ],
+
+              if (problem != null) ...[
+                const SizedBox(height: 8),
+                Text(problem, style: TextStyle(color: c.bad, fontSize: 12)),
               ],
             ],
           ),
@@ -291,12 +563,62 @@ class _AddActivityDialogState extends State<_AddActivityDialog> {
           child: const Text('ยกเลิก'),
         ),
         FilledButton(
-          onPressed: _valid ? _save : null,
-          child: const Text('เพิ่มงาน'),
+          onPressed: problem == null ? () => Navigator.pop(context, _draft) : null,
+          child: Text(widget.editing ? 'บันทึก' : 'เพิ่มงาน'),
         ),
       ],
     );
   }
+}
+
+/// กล่องแก้เวลาเฉพาะครั้งนี้ → (เริ่ม, ระยะเวลา)
+Future<(int, int)?> showOccurrenceTimeDialog(BuildContext context, Occurrence o) {
+  var start = minuteOf(o.startAt!);
+  var duration = o.endAt!.difference(o.startAt!).inMinutes;
+  return showDialog<(int, int)>(
+    context: context,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setLocal) => AlertDialog(
+        title: Text('แก้เวลา "${o.title}" เฉพาะ ${thaiShortDate(o.day)}'),
+        content: SizedBox(
+          width: 400,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              PickerTile(
+                icon: Icons.schedule,
+                label: 'เวลาเริ่ม',
+                value: fmtMinute(start),
+                onTap: () async {
+                  final m = await pickMinute(ctx, start);
+                  if (m != null) setLocal(() => start = m);
+                },
+              ),
+              PickerTile(
+                icon: Icons.flag_outlined,
+                label: 'เวลาจบ',
+                value: fmtMinute(start + duration),
+                onTap: () async {
+                  final m = await pickMinute(ctx, (start + duration) % (24 * 60));
+                  if (m != null) setLocal(() => duration = durationBetween(start, m));
+                },
+              ),
+              Text('รวม ${durationLabel(start, duration)} · วันอื่นของงานนี้ไม่เปลี่ยน',
+                  style: TextStyle(color: ctx.noir.muted, fontSize: 13)),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('ยกเลิก')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, (start, duration)),
+            child: const Text('บันทึก'),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 // ---------- กล่องยกเลิก (ต้องมีเหตุผล) ----------
@@ -463,21 +785,17 @@ class _RescheduleDialogState extends State<_RescheduleDialog> {
                   if (m != null) setState(() => _start = m);
                 },
               ),
-              Row(
-                children: [
-                  const Icon(Icons.timelapse),
-                  const SizedBox(width: 16),
-                  const Expanded(child: Text('ระยะเวลา')),
-                  DropdownButton<int>(
-                    value: _duration,
-                    items: [
-                      for (final d in {...durationChoices, _duration}.toList()..sort())
-                        DropdownMenuItem(value: d, child: Text(durationText(d))),
-                    ],
-                    onChanged: (v) => setState(() => _duration = v ?? _duration),
-                  ),
-                ],
+              PickerTile(
+                icon: Icons.flag_outlined,
+                label: 'เวลาจบ',
+                value: fmtMinute(_start + _duration),
+                onTap: () async {
+                  final m = await pickMinute(context, (_start + _duration) % (24 * 60));
+                  if (m != null) setState(() => _duration = durationBetween(_start, m));
+                },
               ),
+              Text('รวม ${durationLabel(_start, _duration)}',
+                  style: TextStyle(color: context.noir.muted, fontSize: 13)),
             ],
           ],
         ),

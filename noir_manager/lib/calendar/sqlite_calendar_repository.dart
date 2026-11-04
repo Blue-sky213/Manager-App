@@ -77,6 +77,40 @@ Future<void> createCalendarSchema(DatabaseExecutor db) async {
   }
 }
 
+/// ฐานข้อมูล v5: Preset + โหมดเลือกวันเอง (activity_date) + Preset ตั้งต้น "Stream"
+Future<void> createCalendarV5(DatabaseExecutor db) async {
+  await db.execute('''
+    CREATE TABLE preset (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      name         TEXT    NOT NULL,
+      category_id  INTEGER REFERENCES category(id) ON DELETE SET NULL,
+      importance   INTEGER NOT NULL DEFAULT 2,
+      start_minute INTEGER,
+      duration_min INTEGER
+    )''');
+  await db.execute(
+      'ALTER TABLE activity ADD COLUMN preset_id INTEGER REFERENCES preset(id) ON DELETE SET NULL');
+  // วันที่เลือกเอง + เวลาเฉพาะวัน (NULL = ใช้เวลาหลักของงาน)
+  await db.execute('''
+    CREATE TABLE activity_date (
+      activity_id  INTEGER NOT NULL REFERENCES activity(id) ON DELETE CASCADE,
+      day          TEXT    NOT NULL,
+      start_minute INTEGER,
+      duration_min INTEGER,
+      PRIMARY KEY (activity_id, day)
+    )''');
+
+  final stream = await db.query('category',
+      columns: ['id'], where: 'name = ?', whereArgs: ['สตรีม'], limit: 1);
+  await db.insert('preset', {
+    'name': 'Stream',
+    'category_id': stream.isEmpty ? null : stream.first['id'],
+    'importance': 3,
+    'start_minute': 20 * 60,
+    'duration_min': 4 * 60,
+  });
+}
+
 /// CalendarRepository ตัวจริง: อ่าน/เขียนไฟล์ SQLite
 class SqliteCalendarRepository extends CalendarRepository {
   SqliteCalendarRepository(this._db);
@@ -96,21 +130,119 @@ class SqliteCalendarRepository extends CalendarRepository {
     return rows.map(ActivityCategory.fromRow).toList();
   }
 
-  @override
-  Future<int> addActivity(NewActivity a) async {
-    final id = await _db.insert('activity', {
+  /// ค่าของแถว activity จากฟอร์ม
+  Map<String, Object?> _activityRow(NewActivity n) {
+    final a = n.toActivity();
+    return {
       'name': a.name,
       'category_id': a.categoryId,
       'importance': a.importance,
       'timed': a.timed ? 1 : 0,
-      'start_minute': a.timed ? a.startMinute : null,
-      'duration_min': a.timed ? a.durationMin : null,
+      'start_minute': a.startMinute,
+      'duration_min': a.durationMin,
       'repeat': a.repeat.name,
       'weekdays': weekdaysToText(a.weekdays),
-      'start_date': dayKey(a.day),
+      'start_date': dayKey(a.startDate),
+      'end_date': a.endDate == null ? null : dayKey(a.endDate!),
+      'preset_id': a.presetId,
+    };
+  }
+
+  Future<void> _writeDates(DatabaseExecutor db, int activityId, NewActivity n) async {
+    await db.delete('activity_date',
+        where: 'activity_id = ?', whereArgs: [activityId]);
+    if (n.repeat != RepeatKind.dates) return;
+    for (final d in n.dates) {
+      await db.insert(
+        'activity_date',
+        {
+          'activity_id': activityId,
+          'day': dayKey(d.day),
+          'start_minute': d.startMinute,
+          'duration_min': d.durationMin,
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
+  }
+
+  @override
+  Future<int> addActivity(NewActivity a) async {
+    late int id;
+    await _db.transaction((txn) async {
+      id = await txn.insert('activity', _activityRow(a));
+      await _writeDates(txn, id, a);
     });
     notifyListeners();
     return id;
+  }
+
+  @override
+  Future<Activity> activity(int activityId) async {
+    final row = (await _db.query('activity',
+            where: 'id = ?', whereArgs: [activityId], limit: 1))
+        .first;
+    final dates = await _db.query('activity_date',
+        where: 'activity_id = ?', whereArgs: [activityId], orderBy: 'day');
+    return Activity.fromRow(row, dates: {
+      for (final d in dates)
+        d['day'] as String: ScheduledDate(
+          DateTime.parse(d['day'] as String),
+          startMinute: d['start_minute'] as int?,
+          durationMin: d['duration_min'] as int?,
+        ),
+    });
+  }
+
+  @override
+  Future<void> updateActivity(int activityId, NewActivity a,
+      {DateTime? from}) async {
+    final fromKey = dayKey(from ?? DateTime.now());
+    await _db.transaction((txn) async {
+      await txn.update('activity', _activityRow(a),
+          where: 'id = ?', whereArgs: [activityId]);
+      await _writeDates(txn, activityId, a);
+      // ลบ "ครั้งที่ยังเป็นแผน" ตั้งแต่ from → เปิดดูวันนั้นอีกครั้งจะสร้างใหม่ตามค่าใหม่
+      await txn.delete('occurrence',
+          where: 'activity_id = ? AND origin_day >= ? AND status = ?',
+          whereArgs: [activityId, fromKey, OccurrenceStatus.planned.name]);
+    });
+    notifyListeners();
+  }
+
+  @override
+  Future<void> updateOccurrenceTime(
+      int occurrenceId, DateTime start, DateTime end) async {
+    await _db.update('occurrence',
+        {'start_at': start.toIso8601String(), 'end_at': end.toIso8601String()},
+        where: 'id = ?', whereArgs: [occurrenceId]);
+    notifyListeners();
+  }
+
+  @override
+  Future<List<Preset>> presets() async {
+    final rows = await _db.query('preset', orderBy: 'name');
+    return rows.map(Preset.fromRow).toList();
+  }
+
+  @override
+  Future<int> addPreset(String name, NewActivity v) async {
+    final id = await _db.insert('preset', {
+      'name': name,
+      'category_id': v.categoryId,
+      'importance': v.importance,
+      'start_minute': v.timed ? v.startMinute : null,
+      'duration_min': v.timed ? v.durationMin : null,
+    });
+    notifyListeners();
+    return id;
+  }
+
+  @override
+  Future<void> deletePreset(int presetId) async {
+    // งานที่ใช้ Preset นี้ไม่ถูกลบ แค่หลุดจากกลุ่ม (ON DELETE SET NULL)
+    await _db.delete('preset', where: 'id = ?', whereArgs: [presetId]);
+    notifyListeners();
   }
 
   @override
@@ -125,13 +257,26 @@ class SqliteCalendarRepository extends CalendarRepository {
 
     // 1) สร้าง "ครั้ง" ของงานที่ควรมีในวันนี้ (ถ้ามีอยู่แล้ว UNIQUE จะ IGNORE ให้)
     final acts = await _db.query('activity',
-        where: 'start_date <= ? AND (end_date IS NULL OR end_date >= ?)',
+        where: "repeat = 'dates' OR "
+            '(start_date <= ? AND (end_date IS NULL OR end_date >= ?))',
         whereArgs: [key, key]);
+    // วันที่เลือกเอง (เฉพาะของวันนี้) แยกตามกิจกรรม
+    final dateRows = await _db
+        .query('activity_date', where: 'day = ?', whereArgs: [key]);
+    final datesOf = {
+      for (final d in dateRows)
+        d['activity_id'] as int: ScheduledDate(day,
+            startMinute: d['start_minute'] as int?,
+            durationMin: d['duration_min'] as int?),
+    };
     final batch = _db.batch();
     for (final row in acts) {
-      final a = Activity.fromRow(row);
+      final id = row['id'] as int;
+      final a = Activity.fromRow(row,
+          dates: datesOf[id] == null ? const {} : {key: datesOf[id]!});
       if (!occursOn(a, day)) continue;
-      final start = a.timed ? atMinute(day, a.startMinute!) : null;
+      final time = timeFor(a, day);
+      final start = time == null ? null : atMinute(day, time.$1);
       batch.insert(
         'occurrence',
         {
@@ -139,7 +284,7 @@ class SqliteCalendarRepository extends CalendarRepository {
           'origin_day': key,
           'day': key,
           'start_at': start?.toIso8601String(),
-          'end_at': start?.add(Duration(minutes: a.durationMin!)).toIso8601String(),
+          'end_at': start?.add(Duration(minutes: time!.$2)).toIso8601String(),
           'status': OccurrenceStatus.planned.name,
         },
         conflictAlgorithm: ConflictAlgorithm.ignore,

@@ -45,45 +45,120 @@ Future<bool?> _resolveOverlap(
   }
 }
 
+/// วันที่ต้องเช็กเวลาทับ: เลือกวันเอง = ทุกวันที่เลือก · แบบอื่น = ครั้งแรก
+List<DateTime> _checkDays(Activity a) {
+  if (a.repeat == RepeatKind.dates) {
+    return [for (final d in a.dates.values) d.day]..sort();
+  }
+  final first = dayOnly(a.startDate);
+  return occursOn(a, first) ? [first] : const [];
+}
+
+/// เช็กเวลาทับทุกวันที่เกี่ยว: true = ไปต่อ · false = กลับไปแก้ฟอร์ม · null = ยกเลิก
+Future<bool?> _checkDraft(BuildContext context, CalendarRepository repo,
+    NewActivity draft, {int? activityId}) async {
+  if (!draft.timed) return true;
+  final a = draft.toActivity(id: activityId ?? 0);
+  for (final day in _checkDays(a)) {
+    final t = timeFor(a, day);
+    if (t == null || !context.mounted) continue;
+    final start = atMinute(day, t.$1);
+    final others = (await repo.occurrencesOn(day))
+        .where((o) => activityId == null || o.activityId != activityId)
+        .toList();
+    final clashes = findOverlaps(others, start, start.add(Duration(minutes: t.$2)));
+    if (clashes.isEmpty || !context.mounted) continue;
+    final choice = await askOverlap(context, clashes);
+    switch (choice) {
+      case null:
+        return null;
+      case OverlapChoice.pickAgain:
+        return false;
+      case OverlapChoice.allow:
+        break;
+      case OverlapChoice.moveOthersToInbox:
+        for (final o in clashes) {
+          await repo.sendToInbox(o.id);
+        }
+    }
+  }
+  return true;
+}
+
+Future<NewActivity?> _openForm(
+  BuildContext context,
+  CalendarRepository repo, {
+  required DateTime day,
+  NewActivity? initial,
+  bool editing = false,
+}) async {
+  final categories = await repo.categories();
+  final presets = await repo.presets();
+  if (!context.mounted) return null;
+  return showActivityDialog(
+    context,
+    day: day,
+    categories: categories,
+    presets: presets,
+    initial: initial,
+    editing: editing,
+    onSavePreset: repo.addPreset,
+    onDeletePreset: repo.deletePreset,
+  );
+}
+
 /// เพิ่มงานใหม่ (เริ่มที่วัน [day])
 Future<void> addActivityFlow(
     BuildContext context, CalendarRepository repo, DateTime day) async {
-  final categories = await repo.categories();
   NewActivity? draft;
   while (context.mounted) {
-    draft = await showAddActivityDialog(context,
-        day: day, categories: categories, initial: draft);
+    draft = await _openForm(context, repo, day: day, initial: draft);
     if (draft == null || !context.mounted) return;
-
-    if (draft.timed && occursOn(_probe(draft), draft.day)) {
-      final start = atMinute(draft.day, draft.startMinute!);
-      final ok = await _resolveOverlap(context, repo, draft.day, start,
-          start.add(Duration(minutes: draft.durationMin!)));
-      if (ok == null) return;
-      if (!ok) continue; // เปิดกล่องเดิมให้เลือกเวลาใหม่
-    }
-
+    final ok = await _checkDraft(context, repo, draft);
+    if (ok == null) return;
+    if (!ok) continue; // เปิดฟอร์มเดิมให้แก้เวลา
     await repo.addActivity(draft);
-    if (context.mounted) {
-      _toast(context, 'เพิ่ม "${draft.name}" แล้ว');
-    }
+    if (context.mounted) _toast(context, 'เพิ่ม "${draft.name}" แล้ว');
     return;
   }
 }
 
-/// สร้าง Activity ชั่วคราวจาก draft เพื่อเช็กว่าวันแรกมีงานจริงไหม (เช่น ทุกสัปดาห์ แต่วันแรกไม่ใช่วันที่เลือก)
-Activity _probe(NewActivity d) => Activity(
-      id: 0,
-      name: d.name,
-      categoryId: d.categoryId,
-      importance: d.importance,
-      timed: d.timed,
-      startMinute: d.startMinute,
-      durationMin: d.durationMin,
-      repeat: d.repeat,
-      weekdays: d.weekdays,
-      startDate: d.day,
-    );
+/// แก้ไขงาน (ทั้งแถว): ครั้งที่ยังเป็นแผนตั้งแต่วันนี้จะเปลี่ยนตาม · ที่ทำแล้วไม่ถูกแตะ
+Future<void> editActivityFlow(
+    BuildContext context, CalendarRepository repo, int activityId) async {
+  NewActivity? draft = (await repo.activity(activityId)).toDraft();
+  while (context.mounted) {
+    draft = await _openForm(context, repo,
+        day: draft!.day, initial: draft, editing: true);
+    if (draft == null || !context.mounted) return;
+    final ok = await _checkDraft(context, repo, draft, activityId: activityId);
+    if (ok == null) return;
+    if (!ok) continue;
+    await repo.updateActivity(activityId, draft);
+    if (context.mounted) _toast(context, 'บันทึก "${draft.name}" แล้ว');
+    return;
+  }
+}
+
+/// แก้เวลาเฉพาะครั้งนี้ (วันอื่นของงานเดียวกันไม่เปลี่ยน)
+Future<void> editOccurrenceTimeFlow(
+    BuildContext context, CalendarRepository repo, Occurrence o) async {
+  while (context.mounted) {
+    final r = await showOccurrenceTimeDialog(context, o);
+    if (r == null || !context.mounted) return;
+    final start = atMinute(o.day, r.$1);
+    final end = start.add(Duration(minutes: r.$2));
+    final ok = await _resolveOverlap(context, repo, o.day, start, end,
+        excludeId: o.id);
+    if (ok == null) return;
+    if (!ok) continue;
+    await repo.updateOccurrenceTime(o.id, start, end);
+    if (context.mounted) {
+      _toast(context, '"${o.title}" ${thaiShortDate(o.day)} → ${fmtTime(start)}–${fmtTime(end)}');
+    }
+    return;
+  }
+}
 
 /// เลื่อนงาน (หรือเลือกวันแทนให้งานใน Reminder Inbox)
 Future<void> rescheduleFlow(
@@ -156,6 +231,8 @@ Future<void> openOccurrenceActions(
           const Divider(height: 1),
           if (o.status == OccurrenceStatus.planned) ...[
             _tile(ctx, 'done', Icons.check_circle_outline, 'ทำแล้ว'),
+            if (o.timed)
+              _tile(ctx, 'time', Icons.schedule, 'แก้เวลาเฉพาะวันนี้'),
             _tile(ctx, 'move', Icons.redo, 'เลื่อน'),
             _tile(ctx, 'cancel', Icons.block, 'ยกเลิก (ต้องใส่เหตุผล)'),
           ],
@@ -170,6 +247,8 @@ Future<void> openOccurrenceActions(
               leading: Icon(Icons.info_outline),
               title: Text('ครั้งนี้ถูกเลื่อนไปแล้ว ดูที่วันใหม่'),
             ),
+          _tile(ctx, 'edit', Icons.edit_outlined,
+              o.repeats ? 'แก้ไขงาน (ทุกครั้งจากนี้ไป)' : 'แก้ไขงาน'),
           _tile(ctx, 'delete', Icons.delete_outline,
               o.repeats ? 'ลบงานซ้ำนี้ทั้งหมด' : 'ลบงานนี้'),
           const SizedBox(height: 8),
@@ -184,6 +263,10 @@ Future<void> openOccurrenceActions(
       await repo.setDone(o.id, true);
     case 'undo':
       await repo.setDone(o.id, false);
+    case 'time':
+      await editOccurrenceTimeFlow(context, repo, o);
+    case 'edit':
+      await editActivityFlow(context, repo, o.activityId);
     case 'move':
       await rescheduleFlow(context, repo, o);
     case 'schedule':

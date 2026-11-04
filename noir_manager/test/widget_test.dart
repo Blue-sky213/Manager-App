@@ -152,4 +152,47 @@ void main() {
     expect(find.text('Reminder Inbox'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('แก้ไขงาน: เปลี่ยนชื่อแล้วหน้าวันนี้เห็นชื่อใหม่', (tester) async {
+    setScreen(tester, const Size(1280, 1400));
+    final calendar = MemoryCalendarRepository();
+    await calendar.addActivity(NewActivity(
+      name: 'RE4',
+      categoryId: 3,
+      importance: 3,
+      timed: true,
+      day: DateTime.now(),
+      startMinute: 20 * 60,
+      durationMin: 240,
+    ));
+    await tester.pumpWidget(buildApp(calendar: calendar));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('RE4'));
+    await tester.pumpAndSettle();
+    expect(find.text('แก้เวลาเฉพาะวันนี้'), findsOneWidget);
+    await tester.tap(find.text('แก้ไขงาน'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('เวลาจบ'), findsOneWidget);
+    expect(find.text('00:00'), findsWidgets); // 20:00 + 4 ชม.
+    await tester.enterText(find.byKey(const Key('activity-name')), 'Minecraft');
+    await tester.tap(find.widgetWithText(FilledButton, 'บันทึก'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Minecraft'), findsWidgets);
+    expect(find.text('RE4'), findsNothing);
+  });
+
+  testWidgets('ฟอร์มเพิ่มงาน + เลือกวันเอง ใช้ได้ที่ 420x640', (tester) async {
+    setScreen(tester, const Size(420, 640));
+    await tester.pumpWidget(buildApp());
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('เพิ่มงาน').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('เลือกวันเอง'));
+    await tester.pumpAndSettle();
+    expect(find.text('เพิ่มวัน'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }

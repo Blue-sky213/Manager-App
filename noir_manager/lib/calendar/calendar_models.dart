@@ -50,9 +50,54 @@ class ActivityCategory {
       );
 }
 
+// ---------- Preset (ชุดค่าที่บันทึกไว้ + กลุ่ม) ----------
+
+/// Preset เช่น "Stream": หมวด + ความสำคัญ + เวลาเริ่ม–จบที่ใช้บ่อย
+/// งานหลายหัวข้อ (RE4, Minecraft, Valorant) ใช้ Preset เดียวกัน = อยู่กลุ่มเดียวกัน
+class Preset {
+  const Preset({
+    required this.id,
+    required this.name,
+    required this.categoryId,
+    required this.importance,
+    required this.startMinute,
+    required this.durationMin,
+  });
+
+  final int id;
+  final String name;
+  final int? categoryId;
+  final int importance;
+
+  /// null = งานแบบลิสต์ (ไม่ล็อกเวลา)
+  final int? startMinute;
+  final int? durationMin;
+
+  factory Preset.fromRow(Map<String, Object?> r) => Preset(
+        id: r['id'] as int,
+        name: r['name'] as String,
+        categoryId: r['category_id'] as int?,
+        importance: r['importance'] as int,
+        startMinute: r['start_minute'] as int?,
+        durationMin: r['duration_min'] as int?,
+      );
+}
+
 // ---------- กิจกรรม (ต้นแบบ) ----------
 
-enum RepeatKind { none, daily, weekly }
+/// none = ครั้งเดียว · daily = ทุกวัน · weekly = ทุกสัปดาห์ (เลือกวัน) · dates = เลือกวันเอง
+enum RepeatKind { none, daily, weekly, dates }
+
+/// 1 วันในโหมด "เลือกวันเอง" · เวลา null = ใช้เวลาหลักของงาน
+class ScheduledDate {
+  const ScheduledDate(this.day, {this.startMinute, this.durationMin});
+
+  final DateTime day;
+  final int? startMinute;
+  final int? durationMin;
+
+  bool get customTime => startMinute != null;
+}
 
 class Activity {
   const Activity({
@@ -66,6 +111,9 @@ class Activity {
     required this.repeat,
     required this.weekdays,
     required this.startDate,
+    this.endDate,
+    this.presetId,
+    this.dates = const {},
   });
 
   final int id;
@@ -88,7 +136,18 @@ class Activity {
   /// วันแรกที่เริ่มมีงานนี้
   final DateTime startDate;
 
-  factory Activity.fromRow(Map<String, Object?> r) => Activity(
+  /// วันสุดท้าย (null = ไม่มีกำหนด) ใช้กับทุกวัน / ทุกสัปดาห์
+  final DateTime? endDate;
+
+  /// อยู่ในกลุ่ม Preset ไหน (null = ไม่มี)
+  final int? presetId;
+
+  /// โหมดเลือกวันเอง: dayKey → วันนั้น (พร้อมเวลาเฉพาะวัน ถ้ามี)
+  final Map<String, ScheduledDate> dates;
+
+  factory Activity.fromRow(Map<String, Object?> r,
+          {Map<String, ScheduledDate> dates = const {}}) =>
+      Activity(
         id: r['id'] as int,
         name: r['name'] as String,
         categoryId: r['category_id'] as int?,
@@ -99,6 +158,27 @@ class Activity {
         repeat: RepeatKind.values.byName(r['repeat'] as String),
         weekdays: parseWeekdays(r['weekdays'] as String),
         startDate: DateTime.parse(r['start_date'] as String),
+        endDate: r['end_date'] == null
+            ? null
+            : DateTime.parse(r['end_date'] as String),
+        presetId: r['preset_id'] as int?,
+        dates: dates,
+      );
+
+  /// แปลงกลับเป็นฟอร์ม (ใช้ตอนกด "แก้ไขงาน")
+  NewActivity toDraft() => NewActivity(
+        name: name,
+        categoryId: categoryId,
+        importance: importance,
+        timed: timed,
+        day: startDate,
+        startMinute: startMinute,
+        durationMin: durationMin,
+        repeat: repeat,
+        weekdays: weekdays,
+        endDate: endDate,
+        presetId: presetId,
+        dates: (dates.values.toList()..sort((a, b) => a.day.compareTo(b.day))),
       );
 }
 
@@ -111,15 +191,28 @@ String weekdaysToText(Set<int> days) => (days.toList()..sort()).join(',');
 /// กิจกรรมนี้มีงานในวัน [day] ไหม
 bool occursOn(Activity a, DateTime day) {
   final d = dayOnly(day);
+  if (a.repeat == RepeatKind.dates) return a.dates.containsKey(dayKey(d));
   if (d.isBefore(dayOnly(a.startDate))) return false;
+  if (a.endDate != null && d.isAfter(dayOnly(a.endDate!))) return false;
   return switch (a.repeat) {
     RepeatKind.none => d == dayOnly(a.startDate),
     RepeatKind.daily => true,
     RepeatKind.weekly => a.weekdays.contains(d.weekday),
+    RepeatKind.dates => false, // จัดการด้านบนแล้ว
   };
 }
 
-/// ข้อมูลตอน "เพิ่มงานใหม่" (ยังไม่มี id)
+/// เวลาเริ่ม/ระยะเวลาของงานในวัน [day] (วันที่ตั้งเวลาเฉพาะไว้ ใช้เวลานั้น)
+(int, int)? timeFor(Activity a, DateTime day) {
+  if (!a.timed) return null;
+  final custom = a.dates[dayKey(day)];
+  if (custom != null && custom.customTime) {
+    return (custom.startMinute!, custom.durationMin ?? a.durationMin!);
+  }
+  return (a.startMinute!, a.durationMin!);
+}
+
+/// ข้อมูลในฟอร์ม "เพิ่มงาน / แก้ไขงาน" (ยังไม่มี id)
 class NewActivity {
   const NewActivity({
     required this.name,
@@ -131,18 +224,58 @@ class NewActivity {
     this.durationMin,
     this.repeat = RepeatKind.none,
     this.weekdays = const {},
+    this.endDate,
+    this.presetId,
+    this.dates = const [],
   });
 
   final String name;
   final int? categoryId;
   final int importance;
   final bool timed;
+
+  /// วันที่ (ครั้งเดียว) หรือวันเริ่ม (งานซ้ำ)
   final DateTime day;
   final int? startMinute;
   final int? durationMin;
   final RepeatKind repeat;
   final Set<int> weekdays;
+  final DateTime? endDate;
+  final int? presetId;
+
+  /// ใช้เมื่อ repeat = dates
+  final List<ScheduledDate> dates;
+
+  /// วันแรกจริงของงาน (โหมดเลือกวันเอง = วันที่เร็วที่สุดในรายการ)
+  DateTime get firstDay => repeat == RepeatKind.dates && dates.isNotEmpty
+      ? dates.map((d) => dayOnly(d.day)).reduce((a, b) => a.isBefore(b) ? a : b)
+      : dayOnly(day);
+
+  /// สร้าง Activity ชั่วคราว (id = 0) เพื่อใช้กฎ occursOn / timeFor ก่อนบันทึกจริง
+  Activity toActivity({int id = 0}) => Activity(
+        id: id,
+        name: name,
+        categoryId: categoryId,
+        importance: importance,
+        timed: timed,
+        startMinute: timed ? startMinute : null,
+        durationMin: timed ? durationMin : null,
+        repeat: repeat,
+        weekdays: repeat == RepeatKind.weekly ? weekdays : const {},
+        startDate: firstDay,
+        endDate: repeat == RepeatKind.daily || repeat == RepeatKind.weekly
+            ? endDate
+            : null,
+        presetId: presetId,
+        dates: repeat == RepeatKind.dates
+            ? {for (final d in dates) dayKey(d.day): d}
+            : const {},
+      );
 }
+
+/// ข้อความเวลา เช่น "20:00–00:00 (4 ชม.)"
+String rangeText(int startMinute, int durationMin) =>
+    '${fmtMinute(startMinute)}–${fmtMinute(startMinute + durationMin)}';
 
 // ---------- งาน 1 ครั้ง ----------
 
