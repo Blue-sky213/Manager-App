@@ -72,24 +72,58 @@ class Subject {
 }
 
 /// บทของวิชา เช่น "บท 1 · Interface & Media"
+/// ประเภทบท: ใช้เลือกแม่แบบรอบติว
+enum ChapterKind { theory, practice, mixed }
+
+/// สถานะบท (Learn → Assess → Review): ยังไม่เริ่ม → กำลังติว → ติวจบ (รอประเมิน) → ประเมินแล้ว
+enum ChapterStatus { todo, learning, learned, assessed }
+
+String chapterKindLabel(ChapterKind k) => switch (k) {
+      ChapterKind.theory => 'ทฤษฎี',
+      ChapterKind.practice => 'ปฏิบัติ',
+      ChapterKind.mixed => 'ผสม',
+    };
+
+String chapterStatusLabel(ChapterStatus s) => switch (s) {
+      ChapterStatus.todo => 'ยังไม่เริ่ม',
+      ChapterStatus.learning => 'กำลังติว',
+      ChapterStatus.learned => 'ติวจบ · รอประเมิน',
+      ChapterStatus.assessed => 'ประเมินแล้ว',
+    };
+
 class Chapter {
   const Chapter({
     required this.id,
     required this.subjectId,
     required this.name,
     required this.sortOrder,
+    this.kind = ChapterKind.theory,
+    this.status = ChapterStatus.todo,
   });
 
   final int id;
   final int subjectId;
   final String name;
   final int sortOrder;
+  final ChapterKind kind;
+  final ChapterStatus status;
+
+  Chapter copyWith({String? name, ChapterKind? kind, ChapterStatus? status}) => Chapter(
+        id: id,
+        subjectId: subjectId,
+        name: name ?? this.name,
+        sortOrder: sortOrder,
+        kind: kind ?? this.kind,
+        status: status ?? this.status,
+      );
 
   factory Chapter.fromRow(Map<String, Object?> row) => Chapter(
         id: row['id'] as int,
         subjectId: row['subject_id'] as int,
         name: row['name'] as String,
         sortOrder: row['sort_order'] as int,
+        kind: ChapterKind.values.asNameMap()[row['kind']] ?? ChapterKind.theory,
+        status: ChapterStatus.values.asNameMap()[row['status']] ?? ChapterStatus.todo,
       );
 }
 

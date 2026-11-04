@@ -44,6 +44,7 @@ class MemoryCalendarRepository extends CalendarRepository {
       subjectId: a.subjectId,
       actualStart: o.actualStart,
       actualEnd: o.actualEnd,
+      kind: a.kind,
     );
   }
 
@@ -121,6 +122,7 @@ class MemoryCalendarRepository extends CalendarRepository {
           endDate: d.endDate,
           dates: d.dates,
           subjectId: d.subjectId,
+          kind: d.kind,
         ).toActivity(id: e.key);
       }
     }
@@ -256,6 +258,7 @@ class MemoryCalendarRepository extends CalendarRepository {
       presetId: d.presetId,
       dates: d.dates,
       subjectId: d.subjectId,
+      kind: d.kind,
     ).toActivity(id: activityId);
     final from = dayOnly(fromDay);
     for (final o in _occs) {

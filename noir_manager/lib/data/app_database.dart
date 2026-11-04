@@ -10,7 +10,7 @@ import 'seed_data.dart';
 import 'study_repository.dart';
 
 /// เวอร์ชันโครงตาราง: ถ้าวันหลังเพิ่มตาราง/คอลัมน์ ให้เพิ่มเลขนี้ + เขียน onUpgrade
-const int _schemaVersion = 8; // v2 setting · v3 cleared_at · v4 ปฏิทิน · v5 Preset · v6 วิชาง่าย 2 รอบ · v7 คาบผูกวิชา + เวลาจริง · v8 แผนการเรียน
+const int _schemaVersion = 9; // v2 setting · v3 cleared_at · v4 ปฏิทิน · v5 Preset · v6 วิชาง่าย 2 รอบ · v7 คาบผูกวิชา + เวลาจริง · v8 แผนการเรียน · v9 เรียน/ติว + ประเภท/สถานะบท
 
 /// เปิด (หรือสร้างครั้งแรก) ไฟล์ฐานข้อมูล noir_manager.db
 Future<Database> openAppDatabase() async {
@@ -39,6 +39,7 @@ Future<Database> openAppDatabase() async {
       await createCalendarV5(db);
       await createCalendarV7(db);
       await createStudyPlanV8(db);
+      await createTutorV9(db);
       await seedStudyData(db);
     },
     // เครื่องที่มีไฟล์ v1 อยู่แล้ว (เครื่องนัวร์): เพิ่มเฉพาะส่วนที่ขาด ข้อมูลเดิมไม่หาย
@@ -56,6 +57,7 @@ Future<Database> openAppDatabase() async {
       }
       if (oldVersion < 7) await createCalendarV7(db);
       if (oldVersion < 8) await createStudyPlanV8(db);
+      if (oldVersion < 9) await createTutorV9(db);
     },
   );
 }
@@ -125,6 +127,17 @@ Future<void> createStudyPlanV8(DatabaseExecutor db) async {
                               'สอบปลายภาค · ' || s.name)
       LIMIT 1)
     WHERE subject_id IS NULL''');
+}
+
+/// v9: บทมีประเภท (ทฤษฎี/ปฏิบัติ/ผสม) + สถานะ · งานแยกประเภท เรียน / สอบ / ติว
+Future<void> createTutorV9(DatabaseExecutor db) async {
+  await addColumnIfMissing(db, 'chapter', 'kind', "TEXT NOT NULL DEFAULT 'theory'");
+  await addColumnIfMissing(db, 'chapter', 'status', "TEXT NOT NULL DEFAULT 'todo'");
+  // งานเดิมที่ผูกวิชา: ชื่อ "สอบ…" = exam · ที่เหลือ = class
+  await db.execute('''
+    UPDATE activity SET kind = CASE
+      WHEN name LIKE 'สอบ%' THEN 'exam' ELSE 'class' END
+    WHERE subject_id IS NOT NULL AND kind = 'todo' ''');
 }
 
 /// ตารางตั้งค่าแบบ key → value เช่น grading_mode → ez / advanced

@@ -95,6 +95,7 @@ class _ClassScheduleCardState extends State<ClassScheduleCard>
       weekdays: draft.weekdays,
       endDate: draft.to,
       subjectId: widget.subject.id,
+      kind: ActivityKind.classSession,
     ));
     if (clashes.isNotEmpty && mounted) {
       ScaffoldMessenger.of(context)

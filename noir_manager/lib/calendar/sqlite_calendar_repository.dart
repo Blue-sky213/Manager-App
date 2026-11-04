@@ -137,7 +137,7 @@ class SqliteCalendarRepository extends CalendarRepository {
 
   /// SELECT ที่ใช้ซ้ำ: งานแต่ละครั้ง + ชื่อ/หมวด/ความสำคัญจากกิจกรรมต้นแบบ
   static const _occurrenceSelect = '''
-    SELECT o.*, a.name AS a_name, a.category_id, a.importance, a.repeat, a.subject_id
+    SELECT o.*, a.name AS a_name, a.category_id, a.importance, a.repeat, a.subject_id, a.kind AS a_kind
     FROM occurrence o
     JOIN activity a ON a.id = o.activity_id
   ''';
@@ -164,6 +164,7 @@ class SqliteCalendarRepository extends CalendarRepository {
       'end_date': a.endDate == null ? null : dayKey(a.endDate!),
       'preset_id': a.presetId,
       'subject_id': a.subjectId,
+      'kind': activityKindDb(a.kind),
     };
   }
 

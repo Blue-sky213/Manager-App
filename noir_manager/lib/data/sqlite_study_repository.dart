@@ -80,6 +80,18 @@ class SqliteStudyRepository implements StudyRepository {
   }
 
   @override
+  Future<void> setChapterKind(int chapterId, ChapterKind kind) async {
+    await _db.update('chapter', {'kind': kind.name},
+        where: 'id = ?', whereArgs: [chapterId]);
+  }
+
+  @override
+  Future<void> setChapterStatus(int chapterId, ChapterStatus status) async {
+    await _db.update('chapter', {'status': status.name},
+        where: 'id = ?', whereArgs: [chapterId]);
+  }
+
+  @override
   Future<void> renameChapter(int chapterId, String name) async {
     await _db.update('chapter', {'name': name},
         where: 'id = ?', whereArgs: [chapterId]);

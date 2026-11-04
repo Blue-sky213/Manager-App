@@ -254,6 +254,7 @@ Future<bool> loadDemoTerm(StudyRepository study, CalendarRepository calendar) as
           weekdays: {c.weekday},
           endDate: to,
           subjectId: id,
+          kind: ActivityKind.classSession,
         ));
       }
     }
@@ -270,6 +271,7 @@ Future<bool> loadDemoTerm(StudyRepository study, CalendarRepository calendar) as
         startMinute: exam.$2,
         durationMin: exam.$3,
         subjectId: id,
+        kind: ActivityKind.exam,
       ));
     }
   }

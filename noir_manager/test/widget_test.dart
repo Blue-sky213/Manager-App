@@ -50,7 +50,7 @@ void main() {
 
   testWidgets('หน้าวิชา: แสดง DaVinci และบันทึกคะแนนหัวข้อย่อยได้',
       (tester) async {
-    setScreen(tester, const Size(1280, 1400));
+    setScreen(tester, const Size(1280, 2600)); // หน้าวิชายาวขึ้น (การ์ดตารางเรียน + รอบติว)
     await tester.pumpWidget(buildApp());
     await tester.pumpAndSettle();
 
@@ -91,7 +91,7 @@ void main() {
   });
 
   testWidgets('แตะหัวบท = ยุบ / ขยาย และปุ่มยุบทุกบท', (tester) async {
-    setScreen(tester, const Size(1280, 1400));
+    setScreen(tester, const Size(1280, 2600)); // หน้าวิชายาวขึ้น (การ์ดตารางเรียน + รอบติว)
     await tester.pumpWidget(buildApp());
     await tester.pumpAndSettle();
     await tester.tap(find.text('วิชา').first);

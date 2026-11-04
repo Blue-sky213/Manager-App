@@ -123,12 +123,19 @@ class MemoryStudyRepository implements StudyRepository {
   Future<void> renameChapter(int chapterId, String name) async {
     final i = _chapters.indexWhere((c) => c.id == chapterId);
     final old = _chapters[i];
-    _chapters[i] = Chapter(
-      id: old.id,
-      subjectId: old.subjectId,
-      name: name,
-      sortOrder: old.sortOrder,
-    );
+    _chapters[i] = old.copyWith(name: name);
+  }
+
+  @override
+  Future<void> setChapterKind(int chapterId, ChapterKind kind) async {
+    final i = _chapters.indexWhere((c) => c.id == chapterId);
+    _chapters[i] = _chapters[i].copyWith(kind: kind);
+  }
+
+  @override
+  Future<void> setChapterStatus(int chapterId, ChapterStatus status) async {
+    final i = _chapters.indexWhere((c) => c.id == chapterId);
+    _chapters[i] = _chapters[i].copyWith(status: status);
   }
 
   @override

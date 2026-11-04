@@ -85,6 +85,23 @@ class Preset {
 
 // ---------- กิจกรรม (ต้นแบบ) ----------
 
+/// ประเภทงาน: ทั่วไป · คาบเรียน · สอบ · รอบติว
+enum ActivityKind { todo, classSession, exam, tutor }
+
+ActivityKind activityKindOf(Object? raw) => switch (raw) {
+      'class' => ActivityKind.classSession,
+      'exam' => ActivityKind.exam,
+      'tutor' => ActivityKind.tutor,
+      _ => ActivityKind.todo,
+    };
+
+String activityKindDb(ActivityKind k) => switch (k) {
+      ActivityKind.classSession => 'class',
+      ActivityKind.exam => 'exam',
+      ActivityKind.tutor => 'tutor',
+      ActivityKind.todo => 'todo',
+    };
+
 /// none = ครั้งเดียว · daily = ทุกวัน · weekly = ทุกสัปดาห์ (เลือกวัน) · dates = เลือกวันเอง
 enum RepeatKind { none, daily, weekly, dates }
 
@@ -115,10 +132,12 @@ class Activity {
     this.presetId,
     this.dates = const {},
     this.subjectId,
+    this.kind = ActivityKind.todo,
   });
 
   /// ผูกกับวิชาในหน้าวิชา (คาบเรียน) · null = งานทั่วไป
   final int? subjectId;
+  final ActivityKind kind;
 
   final int id;
   final String name;
@@ -168,6 +187,7 @@ class Activity {
         presetId: r['preset_id'] as int?,
         dates: dates,
         subjectId: r['subject_id'] as int?,
+        kind: activityKindOf(r['kind']),
       );
 
   /// แปลงกลับเป็นฟอร์ม (ใช้ตอนกด "แก้ไขงาน")
@@ -185,6 +205,7 @@ class Activity {
         presetId: presetId,
         dates: (dates.values.toList()..sort((a, b) => a.day.compareTo(b.day))),
         subjectId: subjectId,
+        kind: kind,
       );
 }
 
@@ -234,9 +255,11 @@ class NewActivity {
     this.presetId,
     this.dates = const [],
     this.subjectId,
+    this.kind = ActivityKind.todo,
   });
 
   final int? subjectId;
+  final ActivityKind kind;
 
   final String name;
   final int? categoryId;
@@ -280,6 +303,7 @@ class NewActivity {
             ? {for (final d in dates) dayKey(d.day): d}
             : const {},
         subjectId: subjectId,
+        kind: kind,
       );
 }
 
@@ -308,7 +332,10 @@ class Occurrence {
     this.subjectId,
     this.actualStart,
     this.actualEnd,
+    this.kind = ActivityKind.todo,
   });
+
+  final ActivityKind kind;
 
   /// วิชาที่ผูกไว้ (คาบเรียน)
   final int? subjectId;
@@ -371,6 +398,7 @@ class Occurrence {
         actualEnd: r['actual_end'] == null
             ? null
             : DateTime.parse(r['actual_end'] as String),
+        kind: activityKindOf(r['a_kind']),
       );
 }
 

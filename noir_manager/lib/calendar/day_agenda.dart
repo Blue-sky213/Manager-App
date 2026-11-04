@@ -164,7 +164,10 @@ class _OccurrenceRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.noir;
-    final (bg, fg) = categoryColors(c, category?.colorKey);
+    final (rawBg, fg) = categoryColors(c, category?.colorKey);
+    // รอบติว = พื้นจาง + กรอบ · คาบเรียน/สอบ = พื้นทึบ
+    final tutor = o.kind == ActivityKind.tutor;
+    final bg = tutor ? rawBg.withValues(alpha: 0.35) : rawBg;
     final faded = !o.active;
     final status = _statusText(o);
     final icon = _statusIcon(o.status);
@@ -208,7 +211,9 @@ class _OccurrenceRow extends StatelessWidget {
                 // Material ห้ามใส่ทั้ง borderRadius และ shape → ใช้ shape อย่างเดียว
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
-                  side: clash ? BorderSide(color: c.bad, width: 2) : BorderSide.none,
+                  side: clash
+                      ? BorderSide(color: c.bad, width: 2)
+                      : (tutor ? BorderSide(color: fg.withValues(alpha: 0.6), width: 1.5) : BorderSide.none),
                 ),
                 child: InkWell(
                   borderRadius: BorderRadius.circular(8),
@@ -234,6 +239,8 @@ class _OccurrenceRow extends StatelessWidget {
                               Text(
                                 [
                                   if (clash) '⚠ ทับเวลา',
+                                  if (o.kind == ActivityKind.exam) 'สอบ',
+                                  if (tutor) 'ติว',
                                   durationText(minutes),
                                   if (category != null) category!.name,
                                   if (o.importance == 3) 'สำคัญ',

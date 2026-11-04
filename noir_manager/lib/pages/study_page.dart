@@ -8,6 +8,7 @@ import '../data/study_scope.dart';
 import '../study/advanced_rules.dart';
 import '../study/class_schedule_card.dart';
 import '../study/curriculum_map.dart';
+import '../study/tutor_card.dart';
 import '../study/mastery.dart';
 import '../study/score_history_dialog.dart';
 import '../study/subtopic_dialog.dart';
@@ -258,6 +259,61 @@ class _StudyPageState extends State<StudyPage> {
         confirmLabel: 'บันทึก');
     if (name == null) return;
     await _repo!.renameChapter(chapter.id, name);
+    await _reload();
+  }
+
+  Future<void> _chapterKind(Chapter chapter) async {
+    final k = await showDialog<ChapterKind>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: Text('ประเภทบท · ${chapter.name}'),
+        children: [
+          for (final (kind, detail) in const [
+            (ChapterKind.theory, 'อ่าน · ทำความเข้าใจ · ทดสอบตัวเอง'),
+            (ChapterKind.practice, 'ดูตัวอย่าง → ลงมือทำ · คละโจทย์'),
+            (ChapterKind.mixed, 'ทฤษฎีครึ่งแรก → ลงมือทำครึ่งหลัง'),
+          ])
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(ctx, kind),
+              child: ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(kind == chapter.kind
+                    ? Icons.radio_button_checked
+                    : Icons.radio_button_unchecked),
+                title: Text(chapterKindLabel(kind)),
+                subtitle: Text(detail),
+              ),
+            ),
+        ],
+      ),
+    );
+    if (k == null) return;
+    await _repo!.setChapterKind(chapter.id, k);
+    await _reload();
+  }
+
+  Future<void> _chapterStatus(Chapter chapter) async {
+    final st = await showDialog<ChapterStatus>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: Text('สถานะบท · ${chapter.name}'),
+        children: [
+          for (final s in ChapterStatus.values)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(ctx, s),
+              child: ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(s == chapter.status
+                    ? Icons.radio_button_checked
+                    : Icons.radio_button_unchecked),
+                title: Text(chapterStatusLabel(s)),
+              ),
+            ),
+        ],
+      ),
+    );
+    if (st == null) return;
+    await _repo!.setChapterStatus(chapter.id, st);
     await _reload();
   }
 
@@ -539,6 +595,8 @@ class _StudyPageState extends State<StudyPage> {
           ),
           const SizedBox(height: 12),
           ClassScheduleCard(subject: subject),
+          const SizedBox(height: 12),
+          TutorCard(subject: subject, chapters: _chapters),
           const SizedBox(height: 16),
           const _Legend(),
           const SizedBox(height: 12),
@@ -597,6 +655,8 @@ class _StudyPageState extends State<StudyPage> {
               onAddSubtopic: () => _addSubtopic(ch.chapter),
               onRename: () => _renameChapter(ch.chapter),
               onDelete: () => _deleteChapter(ch.chapter),
+              onKind: () => _chapterKind(ch.chapter),
+              onStatus: () => _chapterStatus(ch.chapter),
               onOpenSubtopic: _openSubtopic,
               mode: _mode,
             ),
@@ -644,6 +704,8 @@ class _ChapterCard extends StatelessWidget {
     required this.onAddSubtopic,
     required this.onRename,
     required this.onDelete,
+    required this.onKind,
+    required this.onStatus,
     required this.onOpenSubtopic,
     required this.mode,
     required this.collapsed,
@@ -657,6 +719,8 @@ class _ChapterCard extends StatelessWidget {
   final VoidCallback onAddSubtopic;
   final VoidCallback onRename;
   final VoidCallback onDelete;
+  final VoidCallback onKind;
+  final VoidCallback onStatus;
   final ValueChanged<Subtopic> onOpenSubtopic;
 
   @override
@@ -691,6 +755,13 @@ class _ChapterCard extends StatelessWidget {
                             : 'ประเมินแล้ว $assessed/${topics.length} หัวข้อ',
                         style: TextStyle(fontSize: 13, color: c.muted),
                       ),
+                      Text(
+                        '${chapterKindLabel(data.chapter.kind)} · ${chapterStatusLabel(data.chapter.status)}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: data.chapter.status == ChapterStatus.learning ? c.accent : c.muted,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -702,6 +773,10 @@ class _ChapterCard extends StatelessWidget {
                         onAddSubtopic();
                       case 'rename':
                         onRename();
+                      case 'kind':
+                        onKind();
+                      case 'status':
+                        onStatus();
                       default:
                         onDelete();
                     }
@@ -709,6 +784,8 @@ class _ChapterCard extends StatelessWidget {
                   itemBuilder: (_) => const [
                     PopupMenuItem(value: 'add', child: Text('เพิ่มหัวข้อย่อย')),
                     PopupMenuItem(value: 'rename', child: Text('เปลี่ยนชื่อบท')),
+                    PopupMenuItem(value: 'kind', child: Text('ประเภทบท: ทฤษฎี / ปฏิบัติ / ผสม')),
+                    PopupMenuItem(value: 'status', child: Text('สถานะบท')),
                     PopupMenuItem(value: 'delete', child: Text('ลบบทนี้')),
                   ],
                 ),

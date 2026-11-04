@@ -23,6 +23,8 @@ abstract class StudyRepository {
   Future<int> addChapter(int subjectId, String name);
   Future<void> renameChapter(int chapterId, String name);
   Future<void> deleteChapter(int chapterId);
+  Future<void> setChapterKind(int chapterId, ChapterKind kind);
+  Future<void> setChapterStatus(int chapterId, ChapterStatus status);
 
   Future<int> addSubtopic(int chapterId, String name);
   Future<void> renameSubtopic(int subtopicId, String name);

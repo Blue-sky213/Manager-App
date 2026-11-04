@@ -4,6 +4,9 @@ library;
 
 import 'package:flutter/material.dart';
 
+import '../data/study_models.dart';
+import '../data/study_scope.dart';
+import '../study/tutor_plan.dart';
 import '../utils/thai_date.dart';
 import '../widgets/dialogs.dart';
 import 'calendar_models.dart';
@@ -269,8 +272,12 @@ Future<void> openOccurrenceActions(
   switch (action) {
     case 'done':
       await repo.setDone(o.id, true);
+      // รอบติว → ถามว่าบทที่ติวจบหรือยัง (รอบหน้าจะได้ไล่บทถัดไป)
+      if (o.kind == ActivityKind.tutor && o.subjectId != null && context.mounted) {
+        await _askChapterProgress(context, o.subjectId!);
+      }
       // คาบเรียน → ถามเวลาเลิกจริงต่อเลย (ทำสถิติ)
-      if (o.subjectId != null && o.timed && context.mounted) {
+      else if (o.subjectId != null && o.timed && context.mounted) {
         final end = await askActualEnd(context, o);
         if (end != null) await repo.setActualTimes(o.id, end: end);
       }
@@ -310,4 +317,30 @@ Future<void> editLifeBaseFlow(BuildContext context, CalendarRepository repo) asy
   if (!context.mounted) return;
   final updated = await showLifeBaseDialog(context, current);
   if (updated != null) await repo.setLifeBase(updated);
+}
+
+
+/// หลังติวเสร็จ: บทที่ติวอยู่ "จบแล้ว" หรือ "ยังไม่จบ" → อัปเดตสถานะบท
+Future<void> _askChapterProgress(BuildContext context, int subjectId) async {
+  final study = StudyScope.of(context);
+  final chapters = await study.chapters(subjectId);
+  final ch = nextChapter(chapters);
+  if (ch == null || !context.mounted) return;
+  final done = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('ติวไปถึงไหนแล้ว?'),
+      content: Text('${ch.name}\nจบบทแล้ว → รอบหน้าไล่บทถัดไป · ยังไม่จบ → รอบหน้าติวบทนี้ต่อ'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('ข้าม')),
+        OutlinedButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('ยังไม่จบ')),
+        FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('จบบทแล้ว')),
+      ],
+    ),
+  );
+  if (done == null) return;
+  await study.setChapterStatus(ch.id, done ? ChapterStatus.learned : ChapterStatus.learning);
+  if (context.mounted) {
+    _toast(context, done ? '${ch.name} → ติวจบ · ทำแบบทดสอบแล้วใส่คะแนนได้เลย' : '${ch.name} → กำลังติว');
+  }
 }
