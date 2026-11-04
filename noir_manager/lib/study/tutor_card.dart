@@ -10,6 +10,7 @@ import '../data/study_repository.dart';
 import '../data/study_scope.dart';
 import '../theme/noir_colors.dart';
 import '../utils/thai_date.dart';
+import 'subject_colors.dart';
 import 'tutor_plan.dart';
 
 /// ความยาวรอบติวที่ตั้งได้ (นาที)
@@ -78,6 +79,9 @@ class _TutorCardState extends State<TutorCard> with CalendarListener<TutorCard> 
         if (o.kind == ActivityKind.classSession) dayOnly(o.day),
     };
     final plan = planTutor(widget.chapters, _minutes);
+    final colors = await loadSubjectColors(_settings!);
+    final names = {for (final s in await _settings!.subjects()) s.id: s.name};
+    if (!mounted) return;
     final picked = await pickFreeSlot(
       context,
       repo,
@@ -85,6 +89,8 @@ class _TutorCardState extends State<TutorCard> with CalendarListener<TutorCard> 
       minutes: _minutes,
       days: [for (var i = 0; i < 7; i++) DateTime(today.year, today.month, today.day + i)],
       avoidDays: classDays,
+      subjectColors: colors,
+      subjectNames: names,
       note: plan.chapter == null
           ? 'รอบนี้: ทวนหัวข้อที่ยังไม่ดี ${plan.review.length} หัวข้อ'
           : 'รอบนี้: ${plan.chapter!.name}'

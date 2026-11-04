@@ -184,13 +184,16 @@ class WeekTimeline extends StatelessWidget {
                   child: Opacity(
                     opacity: o.active ? 1 : 0.45,
                     child: Material(
-                      color: bg,
+                      // รอบติว = พื้นจาง + กรอบ (แยกจากคาบเรียน)
+                      color: o.kind == ActivityKind.tutor ? bg.withValues(alpha: 0.35) : bg,
                       clipBehavior: Clip.antiAlias,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(6),
                         side: clashes.contains(o.id)
                             ? BorderSide(color: c.bad, width: 2)
-                            : BorderSide.none,
+                            : (o.kind == ActivityKind.tutor
+                                ? BorderSide(color: fg.withValues(alpha: 0.6), width: 1.5)
+                                : BorderSide.none),
                       ),
                       child: InkWell(
                         onTap: () => onTapOccurrence(o),

@@ -8,6 +8,7 @@ import '../data/study_scope.dart';
 import '../study/advanced_rules.dart';
 import '../study/class_schedule_card.dart';
 import '../study/curriculum_map.dart';
+import '../study/subject_colors.dart';
 import '../study/tutor_card.dart';
 import '../study/mastery.dart';
 import '../study/score_history_dialog.dart';
@@ -242,6 +243,39 @@ class _StudyPageState extends State<StudyPage> {
     await _repo!.setSubjectPlan(subject.id,
         code: code.text.trim(), credits: credits.text.trim(), year: year, term: term);
     await _reload();
+  }
+
+  /// สีประจำวิชา (ใช้ในไทม์ไลน์หาเวลาติว)
+  Future<void> _pickColor(Subject subject) async {
+    final key = subjectColorKey(subject.id);
+    final current = int.tryParse(await _repo!.getSetting(key) ?? '') ?? subject.id;
+    if (!mounted) return;
+    final picked = await showDialog<int>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('สีวิชา · ${subject.name}'),
+        content: Wrap(spacing: 10, runSpacing: 10, children: [
+          for (var i = 0; i < subjectPalette.length; i++)
+            InkWell(
+              customBorder: const CircleBorder(),
+              onTap: () => Navigator.pop(ctx, i),
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: subjectPalette[i],
+                  shape: BoxShape.circle,
+                  border: i == current % subjectPalette.length
+                      ? Border.all(color: Colors.white, width: 3)
+                      : null,
+                ),
+              ),
+            ),
+        ]),
+      ),
+    );
+    if (picked == null) return;
+    await _repo!.setSetting(key, '$picked');
   }
 
   Future<void> _deleteSubject(Subject subject) async {
@@ -544,6 +578,8 @@ class _StudyPageState extends State<StudyPage> {
                       _loadDemo();
                     case 'plan':
                       _editPlan(subject);
+                    case 'color':
+                      _pickColor(subject);
                     default:
                       _deleteSubject(subject);
                   }
@@ -553,6 +589,7 @@ class _StudyPageState extends State<StudyPage> {
                   PopupMenuItem(value: 'importance', child: Text('เปลี่ยนความสำคัญ')),
                   PopupMenuItem(value: 'sessions', child: Text('รอบติวต่อสัปดาห์')),
                   PopupMenuItem(value: 'plan', child: Text('ปี / เทอม ในแผนการเรียน')),
+                  PopupMenuItem(value: 'color', child: Text('สีวิชา')),
                   PopupMenuItem(value: 'delete', child: Text('ลบวิชา')),
                   PopupMenuDivider(),
                   PopupMenuItem(value: 'demo', child: Text('ใส่ตัวอย่าง: แผน 4 ปี')),

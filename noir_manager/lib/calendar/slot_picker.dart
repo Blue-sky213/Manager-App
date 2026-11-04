@@ -4,6 +4,7 @@ library;
 
 import 'package:flutter/material.dart';
 
+import '../study/subject_colors.dart';
 import '../theme/noir_colors.dart';
 import '../utils/thai_date.dart';
 import 'calendar_models.dart';
@@ -13,6 +14,12 @@ import 'free_slots.dart';
 
 /// ผลที่เลือก: วัน · นาทีเริ่ม · ความยาว
 typedef PickedSlot = ({DateTime day, int start, int minutes});
+
+/// ระบายสีงานในไทม์ไลน์ตามอะไร
+enum SlotColorMode { subject, importance }
+
+const double _rowH = 30;
+const double _labelW = 96;
 
 Future<PickedSlot?> pickFreeSlot(
   BuildContext context,
@@ -24,6 +31,8 @@ Future<PickedSlot?> pickFreeSlot(
   int bufferAfter = 10,
   Set<DateTime> avoidDays = const {},
   String? note,
+  Map<int, Color> subjectColors = const {},
+  Map<int, String> subjectNames = const {},
 }) async {
   final lifeBase = await repo.lifeBase();
   final now = DateTime.now();
@@ -38,7 +47,10 @@ Future<PickedSlot?> pickFreeSlot(
       final e = (s + x.endAt!.difference(x.startAt!).inMinutes).clamp(s, 24 * 60);
       // รอบติวมีพักเงียบหลังจบ → กันเวลาต่อท้ายงานติวไว้ด้วย
       final pad = x.kind == ActivityKind.tutor ? bufferAfter : 0;
-      list.add(Busy(s, (e + pad).clamp(s, 24 * 60), x.title));
+      list.add(Busy(s, (e + pad).clamp(s, 24 * 60), x.title,
+          subjectId: x.subjectId,
+          importance: x.importance,
+          tutor: x.kind == ActivityKind.tutor));
     }
     final lb = lifeBase[day.weekday - 1];
     var from = lb.wakeMinute;
@@ -48,7 +60,6 @@ Future<PickedSlot?> pickFreeSlot(
       if (nowMin > from) from = nowMin;
     }
     busy[i] = list;
-    // ต้องมีที่ให้ทั้งรอบติว + พักเงียบ
     gaps[i] = from < to ? freeGaps(list, from, to) : const [];
   }
   if (!context.mounted) return null;
@@ -61,6 +72,7 @@ Future<PickedSlot?> pickFreeSlot(
   int? row;
   var start = preferStart;
   var initialized = false;
+  var mode = SlotColorMode.subject;
 
   return showDialog<PickedSlot>(
     context: context,
@@ -83,39 +95,60 @@ Future<PickedSlot?> pickFreeSlot(
       }
       final hits = row == null ? const <Busy>[] : clashesAt(busy[row]!, start, len);
 
-      Widget timelineRow(int i) => Row(children: [
-            SizedBox(
-              width: 96,
-              child: Text(rowName(i),
-                  style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: i == row ? FontWeight.w600 : FontWeight.w400,
-                      color: i == row ? c.accent : c.muted)),
-            ),
-            Expanded(
-              child: LayoutBuilder(builder: (ctx, box) {
-                final ppm = box.maxWidth / (axisTo - axisFrom);
-                double x(int m) => (m - axisFrom) * ppm;
-                return SizedBox(
-                  height: 30,
+      Color colorOf(Busy b) => switch (mode) {
+            SlotColorMode.subject =>
+              b.subjectId == null ? c.line2 : (subjectColors[b.subjectId] ?? c.line2),
+            SlotColorMode.importance => importancePalette[b.importance] ?? c.line2,
+          };
+
+      // ลากเมาส์ค้าง (หรือนิ้ว) ได้ต่อเนื่อง: แปลงตำแหน่ง → (แถว, นาที) ปัดทีละ 5 นาที
+      void dragTo(Offset local, double trackW) {
+        final ppm = trackW / (axisTo - axisFrom);
+        final i = (local.dy ~/ _rowH).clamp(0, days.length - 1);
+        final at = axisFrom + ((local.dx - _labelW) / ppm).round();
+        final s = (((at - len ~/ 2) / 5).round() * 5).clamp(axisFrom, axisTo - len);
+        if (i != row || s != start) {
+          setLocal(() {
+            row = i;
+            start = s;
+          });
+        }
+      }
+
+      Widget timeline() => LayoutBuilder(builder: (ctx, box) {
+            final trackW = box.maxWidth - _labelW;
+            final ppm = trackW / (axisTo - axisFrom);
+            double x(int m) => _labelW + (m - axisFrom) * ppm;
+            return MouseRegion(
+              cursor: SystemMouseCursors.grab,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onPanDown: (d) => dragTo(d.localPosition, trackW),
+                onPanUpdate: (d) => dragTo(d.localPosition, trackW),
+                child: SizedBox(
+                  height: _rowH * days.length,
                   child: Stack(children: [
-                    for (final g in gaps[i]!)
+                    for (var i = 0; i < days.length; i++) ...[
                       Positioned(
-                        left: x(g.start),
-                        width: (g.length * ppm - 2).clamp(0.0, double.infinity),
-                        top: 3,
-                        bottom: 3,
-                        child: GestureDetector(
-                          onTapDown: g.length < len
-                              ? null
-                              : (t) {
-                                  final at = g.start + (t.localPosition.dx / ppm).round();
-                                  final s = (((at - len ~/ 2) ~/ 15) * 15).clamp(g.start, g.end - len);
-                                  setLocal(() {
-                                    row = i;
-                                    start = s;
-                                  });
-                                },
+                        left: 0,
+                        top: i * _rowH,
+                        width: _labelW,
+                        height: _rowH,
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(rowName(i),
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: i == row ? FontWeight.w600 : FontWeight.w400,
+                                  color: i == row ? c.accent : c.muted)),
+                        ),
+                      ),
+                      for (final g in gaps[i]!)
+                        Positioned(
+                          left: x(g.start),
+                          width: (g.length * ppm - 2).clamp(0.0, double.infinity),
+                          top: i * _rowH + 3,
+                          height: _rowH - 6,
                           child: Container(
                             decoration: BoxDecoration(
                               color: g.length >= len ? c.greenBg : c.surface,
@@ -125,36 +158,46 @@ Future<PickedSlot?> pickFreeSlot(
                             ),
                           ),
                         ),
-                      ),
-                    for (final b in busy[i]!)
-                      Positioned(
-                        left: x(b.start),
-                        width: ((b.end - b.start) * ppm - 2).clamp(0.0, double.infinity),
-                        top: 3,
-                        bottom: 3,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
-                          alignment: Alignment.centerLeft,
-                          decoration: BoxDecoration(
-                              color: c.line2, borderRadius: BorderRadius.circular(5)),
-                          child: Text(b.title.replaceFirst('เรียน · ', ''),
-                              maxLines: 1,
-                              overflow: TextOverflow.clip,
-                              style: TextStyle(fontSize: 10, color: c.muted)),
+                      for (final b in busy[i]!)
+                        Positioned(
+                          left: x(b.start),
+                          width: ((b.end - b.start) * ppm - 2).clamp(0.0, double.infinity),
+                          top: i * _rowH + 3,
+                          height: _rowH - 6,
+                          // ชี้เมาส์ค้าง = เห็นชื่อเต็ม + เวลา (กล่องเล็กตัวหนังสือถูกตัด)
+                          child: Tooltip(
+                            message: '${b.title}\n${rangeText(b.start, b.end - b.start)}',
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 4),
+                              alignment: Alignment.centerLeft,
+                              decoration: BoxDecoration(
+                                color: b.tutor ? colorOf(b).withValues(alpha: 0.45) : colorOf(b),
+                                borderRadius: BorderRadius.circular(5),
+                                border: b.tutor ? Border.all(color: colorOf(b), width: 1.5) : null,
+                              ),
+                              child: Text(
+                                b.title.replaceFirst('เรียน · ', '').replaceFirst('ติว · ', 'ติว '),
+                                maxLines: 1,
+                                overflow: TextOverflow.clip,
+                                style: TextStyle(fontSize: 10, color: onColor(colorOf(b))),
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
-                    if (i == row)
+                    ],
+                    if (row != null)
                       Positioned(
                         left: x(start),
                         width: len * ppm,
-                        top: 1,
-                        bottom: 1,
+                        top: row! * _rowH + 1,
+                        height: _rowH - 2,
                         child: IgnorePointer(
                           child: Container(
                             alignment: Alignment.center,
                             decoration: BoxDecoration(
                               color: hits.isEmpty ? c.accent : c.bad,
                               borderRadius: BorderRadius.circular(5),
+                              boxShadow: const [BoxShadow(blurRadius: 6, color: Colors.black38)],
                             ),
                             child: Text(rangeText(start, len),
                                 maxLines: 1,
@@ -165,15 +208,89 @@ Future<PickedSlot?> pickFreeSlot(
                         ),
                       ),
                   ]),
-                );
-              }),
-            ),
-          ]);
+                ),
+              ),
+            );
+          });
+
+      // คำอธิบายสี มุมขวาบนของไทม์ไลน์
+      Widget legend() {
+        final entries = <(Color, String)>[];
+        if (mode == SlotColorMode.subject) {
+          final ids = {
+            for (final l in busy.values)
+              for (final b in l)
+                if (b.subjectId != null) b.subjectId!,
+          };
+          for (final id in ids) {
+            entries.add((subjectColors[id] ?? c.line2, subjectNames[id] ?? 'วิชา $id'));
+          }
+          entries.add((c.line2, 'งานอื่น'));
+        } else {
+          for (final i in [3, 2, 1]) {
+            entries.add((importancePalette[i]!, importanceNames[i]!));
+          }
+        }
+        return Container(
+          constraints: const BoxConstraints(maxWidth: 220),
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: c.surface2.withValues(alpha: 0.95),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: c.line2),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final (color, name) in entries)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 1),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(3)),
+                    ),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 11, color: c.text)),
+                    ),
+                  ]),
+                ),
+              const SizedBox(height: 2),
+              Row(mainAxisSize: MainAxisSize.min, children: [
+                Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                      color: c.greenBg,
+                      border: Border.all(color: c.good),
+                      borderRadius: BorderRadius.circular(3)),
+                ),
+                const SizedBox(width: 6),
+                Text('ว่างพอ', style: TextStyle(fontSize: 11, color: c.text)),
+                const SizedBox(width: 10),
+                Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(color: c.accent, borderRadius: BorderRadius.circular(3)),
+                ),
+                const SizedBox(width: 6),
+                Text('ที่เลือก', style: TextStyle(fontSize: 11, color: c.text)),
+              ]),
+            ],
+          ),
+        );
+      }
 
       return AlertDialog(
         title: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis),
         content: SizedBox(
-          width: wide ? 900 : 420,
+          width: wide ? 960 : 420,
           child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -182,15 +299,36 @@ Future<PickedSlot?> pickFreeSlot(
                 if (note != null) Text(note, style: TextStyle(fontSize: 13, color: c.muted)),
                 if (wide) ...[
                   const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Text('สีตาม', style: TextStyle(fontSize: 13, color: c.muted)),
+                      SegmentedButton<SlotColorMode>(
+                        style: const ButtonStyle(visualDensity: VisualDensity.compact),
+                        segments: const [
+                          ButtonSegment(value: SlotColorMode.subject, label: Text('วิชา')),
+                          ButtonSegment(value: SlotColorMode.importance, label: Text('ความสำคัญ')),
+                        ],
+                        selected: {mode},
+                        showSelectedIcon: false,
+                        onSelectionChanged: (v) => setLocal(() => mode = v.first),
+                      ),
+                      Text('· ลากเมาส์ค้างเพื่อเลื่อน · ชี้ที่กล่องเพื่อดูชื่อเต็ม',
+                          style: TextStyle(fontSize: 12, color: c.muted)),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration:
                         BoxDecoration(color: c.surface, borderRadius: BorderRadius.circular(10)),
-                    child: Column(children: [for (var i = 0; i < days.length; i++) timelineRow(i)]),
+                    child: Stack(children: [
+                      timeline(),
+                      Positioned(top: 0, right: 0, child: IgnorePointer(child: legend())),
+                    ]),
                   ),
-                  const SizedBox(height: 4),
-                  Text('🟩 ว่างพอ (แตะเพื่อวาง) · ⬛ มีงานแล้ว · เผื่อพักเงียบ $bufferAfter นาทีหลังติว',
-                      style: TextStyle(fontSize: 12, color: c.muted)),
                 ],
                 const SizedBox(height: 12),
                 Text('ช่วงว่างแนะนำ', style: TextStyle(fontWeight: FontWeight.w600, color: c.text)),
@@ -245,11 +383,11 @@ Future<PickedSlot?> pickFreeSlot(
                       onSelected: (_) => setLocal(() => len = m),
                     ),
                   ActionChip(
-                      label: const Text('−30 นาที'),
-                      onPressed: () => setLocal(() => start = (start - 30).clamp(0, 24 * 60 - len))),
+                      label: const Text('−15 นาที'),
+                      onPressed: () => setLocal(() => start = (start - 15).clamp(0, 24 * 60 - len))),
                   ActionChip(
-                      label: const Text('+30 นาที'),
-                      onPressed: () => setLocal(() => start = (start + 30).clamp(0, 24 * 60 - len))),
+                      label: const Text('+15 นาที'),
+                      onPressed: () => setLocal(() => start = (start + 15).clamp(0, 24 * 60 - len))),
                 ]),
                 const SizedBox(height: 8),
                 if (row != null)

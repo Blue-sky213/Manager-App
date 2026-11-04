@@ -4,10 +4,16 @@ library;
 
 /// ช่วงเวลาที่มีงานแล้ว
 class Busy {
-  const Busy(this.start, this.end, this.title);
+  const Busy(this.start, this.end, this.title,
+      {this.subjectId, this.importance = 2, this.tutor = false});
   final int start;
   final int end;
   final String title;
+
+  /// ใช้ระบายสีในไทม์ไลน์ (สีตามวิชา / ตามความสำคัญ)
+  final int? subjectId;
+  final int importance;
+  final bool tutor;
 }
 
 /// ช่วงว่าง 1 ช่วงในวันนั้น
