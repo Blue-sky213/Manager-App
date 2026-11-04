@@ -5,6 +5,9 @@ import '../calendar/calendar_listener.dart';
 import '../calendar/calendar_models.dart';
 import '../calendar/calendar_ui.dart';
 import '../calendar/day_agenda.dart';
+import '../calendar/week_views.dart';
+import '../data/study_repository.dart';
+import '../data/study_scope.dart';
 import '../theme/noir_colors.dart';
 import '../utils/thai_date.dart';
 
@@ -29,6 +32,9 @@ List<DateTime> monthGridDays(DateTime month) {
   ];
 }
 
+/// มุมมองสัปดาห์ 3 แบบ (นัวร์เลือกได้ จำไว้ใน setting `week_style`)
+enum WeekStyle { timeline, list, cards }
+
 /// หน้า "ปฏิทิน": สลับดู วัน / สัปดาห์ / เดือน / ปี → เลือกวัน → ดู/เพิ่ม/เลื่อน/ยกเลิกงาน
 class CalendarPage extends StatefulWidget {
   const CalendarPage({super.key});
@@ -40,25 +46,35 @@ class CalendarPage extends StatefulWidget {
 class _CalendarPageState extends State<CalendarPage> with CalendarListener<CalendarPage> {
   bool _loading = true;
   CalView _view = CalView.week;
+  WeekStyle _weekStyle = WeekStyle.timeline;
+  StudyRepository? _settings;
 
   /// ในมุมมองปี: แตะหัว "พ.ศ." → เลือกปีจากตาราง 16 ปี (แบบปฏิทิน Windows)
   bool _pickYear = false;
   DateTime _selected = dayOnly(DateTime.now());
   List<Occurrence> _items = [];
 
-  /// งานของแต่ละวันที่เห็นบนจอ (ใช้วาดจุดสีในสัปดาห์/เดือน)
+  /// งานของแต่ละวันที่เห็นบนจอ (ใช้วาดสัปดาห์ / จุดสีในเดือน)
   Map<DateTime, List<Occurrence>> _byDay = {};
   List<LifeBaseDay> _lifeBase = defaultLifeBase();
   Map<int, ActivityCategory> _categories = {};
 
   DateTime get _monday => _selected.subtract(Duration(days: _selected.weekday - 1));
+  List<DateTime> get _weekDays =>
+      [for (var i = 0; i < 7; i++) DateTime(_monday.year, _monday.month, _monday.day + i)];
 
-  /// วันที่ต้องโหลดจุดสี ตามมุมมองตอนนี้
+  /// วันที่ต้องโหลด ตามมุมมองตอนนี้
   List<DateTime> get _visibleDays => switch (_view) {
-        CalView.week => [for (var i = 0; i < 7; i++) _monday.add(Duration(days: i))],
+        CalView.week => _weekDays,
         CalView.month => monthGridDays(_selected),
         _ => const [],
       };
+
+  @override
+  void didChangeDependencies() {
+    _settings = StudyScope.of(context); // ต้องมีก่อน super เพราะ super จะเรียก reload()
+    super.didChangeDependencies();
+  }
 
   @override
   Future<void> reload() async {
@@ -72,12 +88,15 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
     final items = byDay[day] ?? await repo.occurrencesOn(day);
     final lifeBase = await repo.lifeBase();
     final cats = await repo.categories();
+    final style = await _settings?.getSetting('week_style');
     if (!mounted || day != _selected || view != _view) return; // ผู้ใช้กดเปลี่ยนระหว่างโหลด
     setState(() {
       _items = items;
       _byDay = byDay;
       _lifeBase = lifeBase;
       _categories = {for (final c in cats) c.id: c};
+      _weekStyle = WeekStyle.values
+          .firstWhere((w) => w.name == style, orElse: () => _weekStyle);
       _loading = false;
     });
   }
@@ -91,17 +110,22 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
     reload();
   }
 
+  void _setWeekStyle(WeekStyle w) {
+    setState(() => _weekStyle = w);
+    _settings?.setSetting('week_style', w.name);
+  }
+
   /// ◀ ▶ เลื่อนตามมุมมอง
   void _step(int dir) => _pickYear
       ? setState(() => _selected = addMonths(_selected, 10 * 12 * dir))
       : _go(
-        day: switch (_view) {
-          CalView.day => _selected.add(Duration(days: dir)),
-          CalView.week => _selected.add(Duration(days: 7 * dir)),
-          CalView.month => addMonths(_selected, dir),
-          CalView.year => addMonths(_selected, 12 * dir),
-        },
-      );
+          day: switch (_view) {
+            CalView.day => _selected.add(Duration(days: dir)),
+            CalView.week => _selected.add(Duration(days: 7 * dir)),
+            CalView.month => addMonths(_selected, dir),
+            CalView.year => addMonths(_selected, 12 * dir),
+          },
+        );
 
   String get _title {
     switch (_view) {
@@ -148,141 +172,245 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
   Widget build(BuildContext context) {
     final c = context.noir;
     if (_loading) return const Center(child: CircularProgressIndicator());
-    final repo = calendar!;
     final today = dayOnly(DateTime.now());
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(24, 28, 24, 32),
-      children: [
-        Text('Calendar Core', style: TextStyle(fontSize: 13, color: c.muted)),
-        const SizedBox(height: 4),
-        Text('ปฏิทิน',
-            style: TextStyle(fontSize: 28, fontWeight: FontWeight.w600, color: c.text)),
-        const SizedBox(height: 16),
-
-        // สลับมุมมอง
-        SegmentedButton<CalView>(
-          segments: const [
-            ButtonSegment(value: CalView.day, label: Text('วัน')),
-            ButtonSegment(value: CalView.week, label: Text('สัปดาห์')),
-            ButtonSegment(value: CalView.month, label: Text('เดือน')),
-            ButtonSegment(value: CalView.year, label: Text('ปี')),
-          ],
-          selected: {_view},
-          showSelectedIcon: false,
-          onSelectionChanged: (s) => _go(view: s.first),
-        ),
-        const SizedBox(height: 12),
-
-        // ◀ ชื่อช่วง ▶
-        Row(
-          children: [
-            IconButton(
-              tooltip: _stepTips.$1,
-              icon: const Icon(Icons.chevron_left),
-              onPressed: () => _step(-1),
-            ),
-            Expanded(
-              child: TextButton(
-                onPressed: _zoomOut,
-                style: TextButton.styleFrom(foregroundColor: c.text),
-                child: Text(
-                  _title,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-              ),
-            ),
-            IconButton(
-              tooltip: _stepTips.$2,
-              icon: const Icon(Icons.chevron_right),
-              onPressed: () => _step(1),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-
-        if (_view == CalView.week) _weekRow(today),
-        if (_view == CalView.month) _monthGrid(today),
-        if (_view == CalView.year) _pickYear ? _decadeGrid(today) : _yearGrid(today),
-
-        if (_view != CalView.year) ...[
-          const SizedBox(height: 16),
+    return LayoutBuilder(builder: (context, box) {
+      final wide = box.maxWidth >= 1000;
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(24, 28, 24, 32),
+        children: [
+          Text('Calendar Core', style: TextStyle(fontSize: 13, color: c.muted)),
+          const SizedBox(height: 4),
           Wrap(
             alignment: WrapAlignment.spaceBetween,
             crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 8,
-            runSpacing: 8,
+            spacing: 12,
+            runSpacing: 12,
             children: [
-              Text(thaiShortDate(_selected),
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: c.text)),
-              Wrap(
-                spacing: 8,
-                children: [
-                  if (_selected != today)
-                    OutlinedButton(
-                      onPressed: () => _go(day: today),
-                      style: OutlinedButton.styleFrom(
-                        minimumSize: const Size(0, 44),
-                        foregroundColor: c.text,
-                        side: BorderSide(color: c.line2),
-                      ),
-                      child: const Text('กลับวันนี้'),
-                    ),
-                  FilledButton.icon(
-                    onPressed: () => addActivityFlow(context, repo, _selected),
-                    icon: const Icon(Icons.add),
-                    label: const Text('เพิ่มงาน'),
-                    style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
-                  ),
+              Text('ปฏิทิน',
+                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.w600, color: c.text)),
+              // สลับมุมมอง: ปุ่มเล็ก ไม่ยืดเต็มจอ
+              SegmentedButton<CalView>(
+                style: const ButtonStyle(visualDensity: VisualDensity.compact),
+                segments: const [
+                  ButtonSegment(value: CalView.day, label: Text('วัน')),
+                  ButtonSegment(value: CalView.week, label: Text('สัปดาห์')),
+                  ButtonSegment(value: CalView.month, label: Text('เดือน')),
+                  ButtonSegment(value: CalView.year, label: Text('ปี')),
                 ],
+                selected: {_view},
+                showSelectedIcon: false,
+                onSelectionChanged: (s) => _go(view: s.first),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          DayAgenda(
-            items: _items,
-            categories: _categories,
-            lifeBase: _lifeBase[_selected.weekday - 1],
-            onTap: (o) => openOccurrenceActions(context, repo, o),
-          ),
-        ] else ...[
-          const SizedBox(height: 12),
-          Text(_pickYear ? 'แตะปีเพื่อเปิดปีนั้น' : 'แตะเดือนเพื่อเปิดดูแบบเดือน · แตะ "พ.ศ." เพื่อเลือกปี',
-              textAlign: TextAlign.center, style: TextStyle(color: c.muted)),
+          const SizedBox(height: 16),
+          ...switch (_view) {
+            CalView.day => [_navRow(), const SizedBox(height: 8), _agenda(today)],
+            CalView.week => _weekBody(today, box.maxWidth),
+            CalView.month => wide
+                ? [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(
+                          width: 360,
+                          child: Column(children: [_navRow(), _monthGrid(today)]),
+                        ),
+                        const SizedBox(width: 24),
+                        Expanded(child: _agenda(today)),
+                      ],
+                    ),
+                  ]
+                : [
+                    _navRow(),
+                    Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 420),
+                        child: _monthGrid(today),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    _agenda(today),
+                  ],
+            CalView.year => [
+                _navRow(),
+                const SizedBox(height: 8),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 640),
+                  child: _pickYear ? _decadeGrid(today) : _yearGrid(today),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  _pickYear
+                      ? 'แตะปีเพื่อเปิดปีนั้น'
+                      : 'แตะเดือนเพื่อเปิดดูแบบเดือน · แตะ "พ.ศ." เพื่อเลือกปี',
+                  style: TextStyle(color: c.muted),
+                ),
+              ],
+          },
         ],
+      );
+    });
+  }
+
+  /// ◀ ชื่อช่วง ▶ (แตะชื่อ = ซูมออก)
+  Widget _navRow() => Row(
+        children: [
+          IconButton(
+            tooltip: _stepTips.$1,
+            icon: const Icon(Icons.chevron_left),
+            onPressed: () => _step(-1),
+          ),
+          Expanded(
+            child: TextButton(
+              onPressed: _zoomOut,
+              style: TextButton.styleFrom(foregroundColor: context.noir.text),
+              child: Text(_title,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontWeight: FontWeight.w600)),
+            ),
+          ),
+          IconButton(
+            tooltip: _stepTips.$2,
+            icon: const Icon(Icons.chevron_right),
+            onPressed: () => _step(1),
+          ),
+        ],
+      );
+
+  /// หัววันที่เลือก + ปุ่ม แล้วตามด้วยตารางเวลาของวันนั้น
+  Widget _agenda(DateTime today) {
+    final c = context.noir;
+    final repo = calendar!;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            Text(thaiShortDate(_selected),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: c.text)),
+            _actions(today),
+          ],
+        ),
+        const SizedBox(height: 12),
+        DayAgenda(
+          items: _items,
+          categories: _categories,
+          lifeBase: _lifeBase[_selected.weekday - 1],
+          onTap: (o) => openOccurrenceActions(context, repo, o),
+        ),
       ],
     );
   }
 
-  /// สีของงานในวันนั้น (ไม่นับที่ยกเลิก/เลื่อนออก)
-  List<Color> _dots(DateTime d) {
+  Widget _actions(DateTime today) {
     final c = context.noir;
+    final repo = calendar!;
+    return Wrap(
+      spacing: 8,
+      children: [
+        if (_selected != today)
+          OutlinedButton(
+            onPressed: () => _go(day: today),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(0, 44),
+              foregroundColor: c.text,
+              side: BorderSide(color: c.line2),
+            ),
+            child: const Text('กลับวันนี้'),
+          ),
+        FilledButton.icon(
+          onPressed: () => addActivityFlow(context, repo, _selected),
+          icon: const Icon(Icons.add),
+          label: const Text('เพิ่มงาน'),
+          style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
+        ),
+      ],
+    );
+  }
+
+  // ---------- สัปดาห์ ----------
+
+  List<Widget> _weekBody(DateTime today, double width) {
+    final c = context.noir;
+    final narrow = width < 720;
+    // จอแคบ: A กับ C อ่านไม่ออก → ใช้ B อัตโนมัติ
+    final style = narrow ? WeekStyle.list : _weekStyle;
+    void onOcc(Occurrence o) => openOccurrenceActions(context, calendar!, o);
+    void onDay(DateTime d) => _go(day: d, view: CalView.day);
+
     return [
-      for (final o in _byDay[d] ?? const <Occurrence>[])
-        if (o.active) categoryColors(c, _categories[o.categoryId]?.colorKey).$2,
+      _navRow(),
+      const SizedBox(height: 8),
+      Wrap(
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          if (narrow)
+            Text('จอแคบ: แสดงแบบลิสต์', style: TextStyle(color: c.muted, fontSize: 13))
+          else
+            SegmentedButton<WeekStyle>(
+              style: const ButtonStyle(visualDensity: VisualDensity.compact),
+              segments: const [
+                ButtonSegment(
+                    value: WeekStyle.timeline,
+                    icon: Icon(Icons.view_week_outlined),
+                    label: Text('A ตารางเวลา')),
+                ButtonSegment(
+                    value: WeekStyle.list,
+                    icon: Icon(Icons.view_agenda_outlined),
+                    label: Text('B ลิสต์')),
+                ButtonSegment(
+                    value: WeekStyle.cards,
+                    icon: Icon(Icons.view_column_outlined),
+                    label: Text('C การ์ด')),
+              ],
+              selected: {style},
+              showSelectedIcon: false,
+              onSelectionChanged: (s) => _setWeekStyle(s.first),
+            ),
+          _actions(today),
+        ],
+      ),
+      const SizedBox(height: 12),
+      switch (style) {
+        WeekStyle.timeline => WeekTimeline(
+            days: _weekDays,
+            byDay: _byDay,
+            categories: _categories,
+            lifeBase: _lifeBase,
+            today: today,
+            onTapOccurrence: onOcc,
+            onTapDay: onDay,
+          ),
+        WeekStyle.list => WeekList(
+            days: _weekDays,
+            byDay: _byDay,
+            categories: _categories,
+            today: today,
+            onTapOccurrence: onOcc,
+            onTapDay: onDay,
+          ),
+        WeekStyle.cards => WeekCards(
+            days: _weekDays,
+            byDay: _byDay,
+            categories: _categories,
+            today: today,
+            onTapOccurrence: onOcc,
+            onTapDay: onDay,
+          ),
+      },
     ];
   }
 
-  Widget _weekRow(DateTime today) => Row(
-        children: [
-          for (var i = 0; i < 7; i++)
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2),
-                child: _DayCell(
-                  day: _monday.add(Duration(days: i)),
-                  topLabel: thaiWeekdayShort[i],
-                  selected: _monday.add(Duration(days: i)) == _selected,
-                  isToday: _monday.add(Duration(days: i)) == today,
-                  dimmed: false,
-                  dots: _dots(_monday.add(Duration(days: i))),
-                  onTap: () => _go(day: _monday.add(Duration(days: i))),
-                ),
-              ),
-            ),
-        ],
-      );
+  // ---------- เดือน (มินิมอล) ----------
 
   Widget _monthGrid(DateTime today) {
     final c = context.noir;
@@ -301,30 +429,35 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
         ),
         const SizedBox(height: 4),
         for (var r = 0; r < days.length ~/ 7; r++)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: Row(
-              children: [
-                for (final d in days.sublist(r * 7, r * 7 + 7))
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 2),
-                      child: _DayCell(
-                        day: d,
-                        selected: d == _selected,
-                        isToday: d == today,
-                        dimmed: d.month != _selected.month,
-                        dots: _dots(d),
-                        onTap: () => _go(day: d),
-                      ),
-                    ),
+          Row(
+            children: [
+              for (final d in days.sublist(r * 7, r * 7 + 7))
+                Expanded(
+                  child: _MiniDay(
+                    day: d,
+                    selected: d == _selected,
+                    isToday: d == today,
+                    dimmed: d.month != _selected.month,
+                    dots: _dots(d),
+                    onTap: () => _go(day: d),
                   ),
-              ],
-            ),
+                ),
+            ],
           ),
       ],
     );
   }
+
+  /// สีของงานในวันนั้น (ไม่นับที่ยกเลิก/เลื่อนออก)
+  List<Color> _dots(DateTime d) {
+    final c = context.noir;
+    return [
+      for (final o in _byDay[d] ?? const <Occurrence>[])
+        if (o.active) categoryColors(c, _categories[o.categoryId]?.colorKey).$2,
+    ];
+  }
+
+  // ---------- ปี ----------
 
   Widget _decadeGrid(DateTime today) {
     final from = _decadeStart;
@@ -347,7 +480,7 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
   Widget _tileGrid(List<(String, bool, bool, bool, VoidCallback)> tiles) {
     final c = context.noir;
     return LayoutBuilder(builder: (context, box) {
-      final cols = box.maxWidth >= 600 ? 4 : 3;
+      final cols = box.maxWidth >= 480 ? 4 : 3;
       return Wrap(
         spacing: 8,
         runSpacing: 8,
@@ -355,18 +488,18 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
           for (final (label, picked, isNow, dim, onTap) in tiles)
             SizedBox(
               width: (box.maxWidth - 8 * (cols - 1)) / cols,
-              height: 64,
+              height: 48,
               child: Material(
-                color: picked ? c.accent : c.surface,
-                borderRadius: BorderRadius.circular(10),
+                color: picked ? c.accent : Colors.transparent,
+                borderRadius: BorderRadius.circular(24),
                 child: InkWell(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(24),
                   onTap: onTap,
                   child: Container(
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: isNow && !picked ? c.accent : c.line),
+                      borderRadius: BorderRadius.circular(24),
+                      border: isNow && !picked ? Border.all(color: c.accent) : null,
                     ),
                     child: Text(
                       label,
@@ -401,20 +534,18 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
       ]);
 }
 
-/// ช่องวัน 1 ช่อง (ใช้ทั้งแถวสัปดาห์และตารางเดือน) + จุดสีตามหมวดงาน
-class _DayCell extends StatelessWidget {
-  const _DayCell({
+/// ช่องวันแบบมินิมอล (ตารางเดือน): ตัวเลขในวงกลม + จุดสีเล็ก ๆ
+class _MiniDay extends StatelessWidget {
+  const _MiniDay({
     required this.day,
     required this.selected,
     required this.isToday,
     required this.dimmed,
     required this.dots,
     required this.onTap,
-    this.topLabel,
   });
 
   final DateTime day;
-  final String? topLabel;
   final bool selected;
   final bool isToday;
   final bool dimmed;
@@ -424,48 +555,52 @@ class _DayCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.noir;
-    final fg = selected ? c.onAccent : (dimmed ? c.muted : c.text);
-    return Material(
-      color: selected ? c.accent : c.surface,
-      borderRadius: BorderRadius.circular(10),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(10),
-        onTap: onTap,
-        child: Container(
-          height: topLabel == null ? 52 : 66,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: isToday && !selected ? c.accent : c.line),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (topLabel != null)
-                Text(topLabel!,
-                    style: TextStyle(fontSize: 12, color: selected ? fg : c.muted)),
-              Text('${day.day}',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: fg)),
-              const SizedBox(height: 3),
-              SizedBox(
-                height: 6,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    for (final color in dots.take(4))
-                      Container(
-                        width: 6,
-                        height: 6,
-                        margin: const EdgeInsets.symmetric(horizontal: 1),
-                        decoration: BoxDecoration(
-                          color: selected ? c.onAccent : color,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                  ],
+    return InkWell(
+      borderRadius: BorderRadius.circular(22),
+      onTap: onTap,
+      child: SizedBox(
+        height: 48,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: selected ? c.accent : null,
+                border: isToday && !selected ? Border.all(color: c.accent) : null,
+              ),
+              child: Text(
+                '${day.day}',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: isToday || selected ? FontWeight.w600 : FontWeight.w400,
+                  color: selected ? c.onAccent : (dimmed ? c.muted.withValues(alpha: 0.5) : c.text),
                 ),
               ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 2),
+            SizedBox(
+              height: 4,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  for (final color in dots.take(3))
+                    Container(
+                      width: 4,
+                      height: 4,
+                      margin: const EdgeInsets.symmetric(horizontal: 1),
+                      decoration: BoxDecoration(
+                        color: dimmed ? color.withValues(alpha: 0.4) : color,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -10,7 +10,7 @@ import 'seed_data.dart';
 import 'study_repository.dart';
 
 /// เวอร์ชันโครงตาราง: ถ้าวันหลังเพิ่มตาราง/คอลัมน์ ให้เพิ่มเลขนี้ + เขียน onUpgrade
-const int _schemaVersion = 5; // v2: setting · v3: cleared_at · v4: ปฏิทิน · v5: Preset + เลือกวันเอง
+const int _schemaVersion = 6; // v2: setting · v3: cleared_at · v4: ปฏิทิน · v5: Preset + เลือกวันเอง · v6: วิชาง่าย 2 รอบ
 
 /// เปิด (หรือสร้างครั้งแรก) ไฟล์ฐานข้อมูล noir_manager.db
 Future<Database> openAppDatabase() async {
@@ -47,6 +47,11 @@ Future<Database> openAppDatabase() async {
       }
       if (oldVersion < 4) await createCalendarSchema(db);
       if (oldVersion < 5) await createCalendarV5(db);
+      if (oldVersion < 6) {
+        // แผน v0.2: วิชาง่ายขั้นต่ำ 2 รอบ/สัปดาห์
+        await db.execute(
+            'UPDATE subject SET sessions_per_week = 2 WHERE sessions_per_week < 2');
+      }
     },
   );
 }

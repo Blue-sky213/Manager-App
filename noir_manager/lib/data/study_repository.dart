@@ -46,4 +46,5 @@ abstract class StudyRepository {
 }
 
 /// แปลงความสำคัญ → จำนวนรอบต่อสัปดาห์ (กฎ: สูง/กลาง/น้อย = 3/2/1)
-int sessionsForImportance(int importance) => importance.clamp(1, 3);
+/// รอบติวต่อสัปดาห์: สำคัญ 3 · กลาง 2 · ง่าย 2 (แผน v0.2: วิชาง่ายขั้นต่ำ 2 ครั้ง)
+int sessionsForImportance(int importance) => importance >= 3 ? 3 : 2;

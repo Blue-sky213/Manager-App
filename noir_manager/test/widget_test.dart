@@ -243,4 +243,34 @@ void main() {
     expect(find.text('เพิ่มงาน'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('มุมมองสัปดาห์: เลือกแบบ A / B / C ได้ (จอกว้าง)', (tester) async {
+    setScreen(tester, const Size(1280, 1000));
+    final calendar = MemoryCalendarRepository();
+    await calendar.addActivity(NewActivity(
+      name: 'วิ่ง',
+      categoryId: 2,
+      importance: 2,
+      timed: true,
+      day: DateTime.now(),
+      startMinute: 17 * 60,
+      durationMin: 45,
+    ));
+    await tester.pumpWidget(buildApp(calendar: calendar));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('ปฏิทิน').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('A ตารางเวลา'), findsOneWidget);
+    await tester.tap(find.text('B ลิสต์'));
+    await tester.pumpAndSettle();
+    expect(find.text('17:00–17:45 · วิ่ง'), findsOneWidget);
+    expect(find.text('45 นาที'), findsOneWidget); // ชั่วโมงรวมของวัน
+
+    await tester.tap(find.text('C การ์ด'));
+    await tester.pumpAndSettle();
+    expect(find.text('วิ่ง'), findsOneWidget);
+    expect(find.text('17:45'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }
