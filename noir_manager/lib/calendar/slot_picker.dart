@@ -231,59 +231,31 @@ Future<PickedSlot?> pickFreeSlot(
             entries.add((importancePalette[i]!, importanceNames[i]!));
           }
         }
-        return Container(
-          constraints: const BoxConstraints(maxWidth: 220),
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: c.surface2.withValues(alpha: 0.95),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: c.line2),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              for (final (color, name) in entries)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 1),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Container(
-                      width: 10,
-                      height: 10,
-                      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(3)),
-                    ),
-                    const SizedBox(width: 6),
-                    Flexible(
-                      child: Text(name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(fontSize: 11, color: c.text)),
-                    ),
-                  ]),
-                ),
-              const SizedBox(height: 2),
-              Row(mainAxisSize: MainAxisSize.min, children: [
+        Widget dot(Color color, String name, {Color? border}) => Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
                 Container(
                   width: 10,
                   height: 10,
                   decoration: BoxDecoration(
-                      color: c.greenBg,
-                      border: Border.all(color: c.good),
-                      borderRadius: BorderRadius.circular(3)),
+                    color: color,
+                    borderRadius: BorderRadius.circular(3),
+                    border: border == null ? null : Border.all(color: border),
+                  ),
                 ),
-                const SizedBox(width: 6),
-                Text('ว่างพอ', style: TextStyle(fontSize: 11, color: c.text)),
-                const SizedBox(width: 10),
-                Container(
-                  width: 10,
-                  height: 10,
-                  decoration: BoxDecoration(color: c.accent, borderRadius: BorderRadius.circular(3)),
-                ),
-                const SizedBox(width: 6),
-                Text('ที่เลือก', style: TextStyle(fontSize: 11, color: c.text)),
-              ]),
-            ],
-          ),
+                const SizedBox(width: 5),
+                Text(name, style: TextStyle(fontSize: 11, color: c.text)),
+              ],
+            );
+        // แถวคำอธิบายสี วางเหนือไทม์ไลน์ (ไม่ลอยทับช่อง)
+        return Wrap(
+          spacing: 12,
+          runSpacing: 4,
+          children: [
+            for (final (color, name) in entries) dot(color, name),
+            dot(c.greenBg, 'ว่างพอ', border: c.good),
+            dot(c.accent, 'ที่เลือก'),
+          ],
         );
       }
 
@@ -324,10 +296,14 @@ Future<PickedSlot?> pickFreeSlot(
                     padding: const EdgeInsets.all(10),
                     decoration:
                         BoxDecoration(color: c.surface, borderRadius: BorderRadius.circular(10)),
-                    child: Stack(children: [
-                      timeline(),
-                      Positioned(top: 0, right: 0, child: IgnorePointer(child: legend())),
-                    ]),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        legend(),
+                        const SizedBox(height: 8),
+                        timeline(),
+                      ],
+                    ),
                   ),
                 ],
                 const SizedBox(height: 12),
