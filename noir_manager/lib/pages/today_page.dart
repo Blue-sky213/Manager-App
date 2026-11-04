@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../calendar/calendar_flows.dart';
 import '../calendar/calendar_listener.dart';
 import '../calendar/calendar_models.dart';
+import '../calendar/clash_page.dart';
 import '../calendar/day_agenda.dart';
 import '../theme/noir_colors.dart';
 import '../utils/thai_date.dart';
@@ -51,6 +52,7 @@ class _TodayPageState extends State<TodayPage> with CalendarListener<TodayPage> 
     final todayLb = _lifeBase[_today.weekday - 1];
     final active = _items.where((o) => o.active).toList();
     final done = active.where((o) => o.status == OccurrenceStatus.done).length;
+    final clashCount = clashingIds(_items).length;
 
     final agenda = DayAgenda(
       items: _items,
@@ -105,6 +107,32 @@ class _TodayPageState extends State<TodayPage> with CalendarListener<TodayPage> 
           ],
         ),
         const SizedBox(height: 20),
+        // วันนี้มีงานเวลาทับกัน → แถบแดงพาไปหน้าแก้
+        if (clashCount > 0) ...[
+          Material(
+            color: c.bad.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(10),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(10),
+              onTap: () => openClashPage(context),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                child: Row(
+                  children: [
+                    Icon(Icons.warning_amber_rounded, color: c.bad),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text('วันนี้มีงานเวลาชน $clashCount งาน · แตะเพื่อแก้วัน/เวลา',
+                          style: TextStyle(color: c.bad, fontWeight: FontWeight.w600)),
+                    ),
+                    Icon(Icons.chevron_right, color: c.bad),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
         // จอกว้าง: ตาราง + คอลัมน์ขวา (ตาม Mockup) · จอแคบ: เรียงลงล่าง
         LayoutBuilder(
           builder: (context, box) => box.maxWidth >= 860

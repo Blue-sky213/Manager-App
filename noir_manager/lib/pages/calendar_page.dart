@@ -4,6 +4,7 @@ import '../calendar/calendar_flows.dart';
 import '../calendar/calendar_listener.dart';
 import '../calendar/calendar_models.dart';
 import '../calendar/calendar_ui.dart';
+import '../calendar/clash_page.dart';
 import '../calendar/day_agenda.dart';
 import '../calendar/week_views.dart';
 import '../data/study_repository.dart';
@@ -313,7 +314,18 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
     final repo = calendar!;
     return Wrap(
       spacing: 8,
+      runSpacing: 8,
       children: [
+        OutlinedButton.icon(
+          onPressed: () => openClashPage(context),
+          icon: Icon(Icons.warning_amber_rounded, color: c.bad),
+          label: const Text('ตารางเวลาชน'),
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size(0, 44),
+            foregroundColor: c.text,
+            side: BorderSide(color: c.line2),
+          ),
+        ),
         if (_selected != today)
           OutlinedButton(
             onPressed: () => _go(day: today),

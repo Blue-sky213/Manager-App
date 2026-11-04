@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:noir_manager/calendar/calendar_models.dart';
+import 'package:noir_manager/calendar/clash_page.dart';
 import 'package:noir_manager/calendar/class_stats.dart';
 import 'package:noir_manager/calendar/memory_calendar_repository.dart';
 
@@ -313,5 +314,21 @@ void main() {
 
     await repo.cancel(items.firstWhere((o) => o.title == 'B').id, 'ไม่ไป');
     expect(clashingIds(await repo.occurrencesOn(mon)), isEmpty);
+  });
+
+  test('findClashes: งานซ้ำที่ชนทุกสัปดาห์รวมเป็นคู่เดียว นับจำนวนครั้ง', () async {
+    final repo = MemoryCalendarRepository();
+    NewActivity weekly(String n, int h) => NewActivity(
+        name: n, categoryId: 1, importance: 3, timed: true, day: mon,
+        startMinute: h * 60, durationMin: 120, repeat: RepeatKind.weekly, weekdays: {1});
+    await repo.addActivity(weekly('อังกฤษ', 9));
+    await repo.addActivity(weekly('ศึกษาทั่วไป', 10));
+    final byDay = {
+      for (var i = 0; i < 14; i++)
+        DateTime(2026, 11, 2 + i): await repo.occurrencesOn(DateTime(2026, 11, 2 + i)),
+    };
+    final clashes = findClashes(byDay);
+    expect(clashes, hasLength(1));
+    expect(clashes.single.days, [DateTime(2026, 11, 2), DateTime(2026, 11, 9)]);
   });
 }
