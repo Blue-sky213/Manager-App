@@ -218,8 +218,11 @@ Future<void> openOccurrenceActions(
   final action = await showModalBottomSheet<String>(
     context: context,
     showDragHandle: true,
+    // เมนูยาวกว่าจอ (หน้าต่างเตี้ย) → ให้เลื่อนได้ แทนที่จะล้นขอบ
+    isScrollControlled: true,
     builder: (ctx) => SafeArea(
-      child: Column(
+      child: SingleChildScrollView(
+       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           ListTile(
@@ -253,6 +256,7 @@ Future<void> openOccurrenceActions(
               o.repeats ? 'ลบงานซ้ำนี้ทั้งหมด' : 'ลบงานนี้'),
           const SizedBox(height: 8),
         ],
+       ),
       ),
     ),
   );

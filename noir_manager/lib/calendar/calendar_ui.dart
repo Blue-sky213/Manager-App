@@ -41,9 +41,11 @@ Future<DateTime?> pickDay(BuildContext context, DateTime initial) =>
     );
 
 /// เลือกเวลาแบบ 24 ชม. → คืนเป็นนาทีนับจากเที่ยงคืน
-Future<int?> pickMinute(BuildContext context, int initial) async {
+/// [title] = หัวข้อบนกล่อง เช่น "เวลาเริ่มกิจกรรม" (จะได้รู้ว่ากำลังเลือกอะไร)
+Future<int?> pickMinute(BuildContext context, int initial, {String title = 'เลือกเวลา'}) async {
   final t = await showTimePicker(
     context: context,
+    helpText: title,
     initialTime: TimeOfDay(hour: initial ~/ 60 % 24, minute: initial % 60),
     builder: (ctx, child) => MediaQuery(
       data: MediaQuery.of(ctx).copyWith(alwaysUse24HourFormat: true),
@@ -91,9 +93,9 @@ String durationLabel(int start, int duration) =>
 
 /// เลือกเวลาเริ่ม แล้วต่อด้วยเวลาจบ → (เริ่ม, ระยะเวลา) · null = ยกเลิก
 Future<(int, int)?> pickRange(BuildContext context, int start, int duration) async {
-  final s = await pickMinute(context, start);
+  final s = await pickMinute(context, start, title: 'เวลาเริ่มกิจกรรม');
   if (s == null || !context.mounted) return null;
-  final e = await pickMinute(context, (s + duration) % (24 * 60));
+  final e = await pickMinute(context, (s + duration) % (24 * 60), title: 'เวลาจบกิจกรรม (เริ่ม ${fmtMinute(s)})');
   if (e == null) return null;
   return (s, durationBetween(s, e));
 }
@@ -396,7 +398,7 @@ class _ActivityDialogState extends State<_ActivityDialog> {
                   label: 'เวลาเริ่ม',
                   value: fmtMinute(_start),
                   onTap: () async {
-                    final m = await pickMinute(context, _start);
+                    final m = await pickMinute(context, _start, title: 'เวลาเริ่มกิจกรรม');
                     if (m == null) return;
                     // ขยับเวลาเริ่ม → เวลาจบเลื่อนตาม (ระยะเวลาเท่าเดิม)
                     setState(() => _start = m);
@@ -407,7 +409,7 @@ class _ActivityDialogState extends State<_ActivityDialog> {
                   label: 'เวลาจบ',
                   value: fmtMinute(_start + _duration),
                   onTap: () async {
-                    final m = await pickMinute(context, (_start + _duration) % (24 * 60));
+                    final m = await pickMinute(context, (_start + _duration) % (24 * 60), title: 'เวลาจบกิจกรรม (เริ่ม ${fmtMinute(_start)})');
                     if (m == null) return;
                     setState(() => _duration = durationBetween(_start, m));
                   },
@@ -591,7 +593,7 @@ Future<(int, int)?> showOccurrenceTimeDialog(BuildContext context, Occurrence o)
                 label: 'เวลาเริ่ม',
                 value: fmtMinute(start),
                 onTap: () async {
-                  final m = await pickMinute(ctx, start);
+                  final m = await pickMinute(ctx, start, title: 'เวลาเริ่มกิจกรรม');
                   if (m != null) setLocal(() => start = m);
                 },
               ),
@@ -600,7 +602,7 @@ Future<(int, int)?> showOccurrenceTimeDialog(BuildContext context, Occurrence o)
                 label: 'เวลาจบ',
                 value: fmtMinute(start + duration),
                 onTap: () async {
-                  final m = await pickMinute(ctx, (start + duration) % (24 * 60));
+                  final m = await pickMinute(ctx, (start + duration) % (24 * 60), title: 'เวลาจบกิจกรรม (เริ่ม ${fmtMinute(start)})');
                   if (m != null) setLocal(() => duration = durationBetween(start, m));
                 },
               ),
@@ -781,7 +783,7 @@ class _RescheduleDialogState extends State<_RescheduleDialog> {
                 label: 'เวลาเริ่ม',
                 value: fmtMinute(_start),
                 onTap: () async {
-                  final m = await pickMinute(context, _start);
+                  final m = await pickMinute(context, _start, title: 'เวลาเริ่มกิจกรรม');
                   if (m != null) setState(() => _start = m);
                 },
               ),
@@ -790,7 +792,7 @@ class _RescheduleDialogState extends State<_RescheduleDialog> {
                 label: 'เวลาจบ',
                 value: fmtMinute(_start + _duration),
                 onTap: () async {
-                  final m = await pickMinute(context, (_start + _duration) % (24 * 60));
+                  final m = await pickMinute(context, (_start + _duration) % (24 * 60), title: 'เวลาจบกิจกรรม (เริ่ม ${fmtMinute(_start)})');
                   if (m != null) setState(() => _duration = durationBetween(_start, m));
                 },
               ),
@@ -882,7 +884,8 @@ class _LifeBaseDialogState extends State<_LifeBaseDialog> {
 
   Future<void> _edit(int i, {required bool bed}) async {
     final d = _days[i];
-    final m = await pickMinute(context, bed ? d.bedMinute : d.wakeMinute);
+    final m = await pickMinute(context, bed ? d.bedMinute : d.wakeMinute,
+        title: bed ? 'เวลาเข้านอน' : 'เวลาตื่นนอน');
     if (m == null) return;
     setState(() {
       _days[i] = bed ? d.copyWith(bedMinute: m) : d.copyWith(wakeMinute: m);

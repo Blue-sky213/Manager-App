@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../calendar/calendar_repository.dart';
+import '../data/demo_term.dart';
 import '../data/study_models.dart';
 import '../data/study_repository.dart';
 import '../data/study_scope.dart';
@@ -137,6 +139,18 @@ class _StudyPageState extends State<StudyPage> {
     );
     if (picked == null) return;
     await _repo!.setSessionsPerWeek(subject.id, picked);
+    await _reload();
+  }
+
+  /// ใส่ข้อมูลตัวอย่าง ปี 1 เทอม 1 (6 วิชา + บท + คาบเรียน + วันสอบ)
+  Future<void> _loadDemo() async {
+    final ok = await loadDemoTerm(_repo!, CalendarScope.of(context));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(ok
+          ? 'ใส่ $demoTermLabel แล้ว: ${demoSubjects.length} วิชา + คาบเรียน + วันสอบ (ดูที่หน้าปฏิทิน)'
+          : 'มีข้อมูลตัวอย่างอยู่แล้ว'),
+    ));
     await _reload();
   }
 
@@ -319,6 +333,8 @@ class _StudyPageState extends State<StudyPage> {
                       _changeImportance(subject);
                     case 'sessions':
                       _changeSessions(subject);
+                    case 'demo':
+                      _loadDemo();
                     default:
                       _deleteSubject(subject);
                   }
@@ -328,6 +344,8 @@ class _StudyPageState extends State<StudyPage> {
                   PopupMenuItem(value: 'importance', child: Text('เปลี่ยนความสำคัญ')),
                   PopupMenuItem(value: 'sessions', child: Text('รอบติวต่อสัปดาห์')),
                   PopupMenuItem(value: 'delete', child: Text('ลบวิชา')),
+                  PopupMenuDivider(),
+                  PopupMenuItem(value: 'demo', child: Text('ใส่ตัวอย่าง: ปี 1 เทอม 1')),
                 ],
               ),
           ],
