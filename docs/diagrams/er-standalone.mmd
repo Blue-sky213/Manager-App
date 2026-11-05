@@ -1,0 +1,21 @@
+erDiagram
+  TERM {
+    int id PK
+    int year
+    int term_no
+    text start_date
+    text end_date
+  }
+  HOLIDAY {
+    text day PK
+    text name
+  }
+  LIFE_BASE {
+    int weekday PK
+    int wake_minute
+    int bed_minute
+  }
+  SETTING {
+    text key PK
+    text value
+  }

@@ -1,0 +1,23 @@
+flowchart LR
+  subgraph UI["หน้าจอ"]
+    direction TB
+    T["วันนี้"]
+    C["ปฏิทิน"]
+    TP["เทอม & วันหยุด"]
+    S["วิชา"]
+    X["สถิติ"]
+  end
+  subgraph Repo["Repository"]
+    direction TB
+    CR["CalendarRepository<br/>งาน · ครั้ง · เทอม · วันหยุด"]
+    SR["StudyRepository<br/>วิชา · บท · คะแนน · บันทึกติว"]
+  end
+  DB[("SQLite v10")]
+  T --> CR
+  C --> CR
+  TP --> CR
+  S --> CR
+  S --> SR
+  X --> SR
+  CR --> DB
+  SR --> DB

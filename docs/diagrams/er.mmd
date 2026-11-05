@@ -1,0 +1,83 @@
+erDiagram
+  SUBJECT ||--o{ CHAPTER : "มีบท"
+  CHAPTER ||--o{ SUBTOPIC : "มีหัวข้อ"
+  SUBTOPIC ||--o{ ASSESSMENT : "มีคะแนน"
+  SUBJECT |o--o{ ACTIVITY : "คาบ/ติว/สอบ"
+  CATEGORY |o--o{ ACTIVITY : "หมวด"
+  PRESET |o--o{ ACTIVITY : "สร้างจาก"
+  ACTIVITY ||--o{ ACTIVITY_DATE : "วันที่เลือกเอง"
+  ACTIVITY ||--o{ OCCURRENCE : "เกิดเป็นครั้ง"
+  OCCURRENCE ||--o{ TUTOR_LOG : "บันทึกติว"
+  CHAPTER |o--o{ TUTOR_LOG : "ติวบทนี้"
+  SUBJECT {
+    int id PK
+    text name
+    int importance
+    int sessions_per_week
+    int tutor_minutes "v10"
+    text color "v10"
+    text code
+    text credits
+    int plan_year
+    int plan_term
+  }
+  CHAPTER {
+    int id PK
+    int subject_id FK
+    text name
+    text kind
+    text status
+  }
+  SUBTOPIC {
+    int id PK
+    int chapter_id FK
+    text name
+    int exam_flag
+  }
+  ASSESSMENT {
+    int id PK
+    int subtopic_id FK
+    int score
+    text taken_at
+  }
+  CATEGORY {
+    int id PK
+    text name
+    text color
+    text system_key "v10"
+  }
+  PRESET {
+    int id PK
+    int category_id FK
+    text name
+  }
+  ACTIVITY {
+    int id PK
+    int subject_id FK
+    int category_id FK
+    int preset_id FK
+    text name
+    text kind
+    text repeat
+    text weekdays
+    int start_minute
+    int duration_min
+  }
+  ACTIVITY_DATE {
+    int activity_id PK
+    text day PK
+  }
+  OCCURRENCE {
+    int id PK
+    int activity_id FK
+    int moved_from FK
+    text day
+    text status
+    text actual_end
+  }
+  TUTOR_LOG {
+    int id PK
+    int occurrence_id FK
+    int chapter_id FK
+    text status
+  }
