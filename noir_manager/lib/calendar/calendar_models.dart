@@ -345,9 +345,40 @@ class Occurrence {
     this.actualStart,
     this.actualEnd,
     this.kind = ActivityKind.todo,
+    this.rootDay,
+    this.session,
   });
 
   final ActivityKind kind;
+
+  /// วันที่ครั้งนี้ "ควรเกิด" ตามกฎการทำซ้ำ · ครั้งที่ถูกเลื่อนมาใช้วันของครั้งต้นทาง
+  /// (ไล่ moved_from กลับไปจนเจอ) เพื่อให้เลข "ครั้งที่ n" ติดตัวเนื้อหาไปด้วย
+  final DateTime? rootDay;
+
+  /// "ครั้งที่ n/N" · null = งานครั้งเดียว หรือยังไม่ได้คำนวณ
+  final SessionCount? session;
+
+  /// สำเนาที่ใส่เลขครั้งแล้ว (repository เติมให้หลังอ่านจาก DB)
+  Occurrence withSession(SessionCount? s) => Occurrence(
+        id: id,
+        activityId: activityId,
+        title: title,
+        categoryId: categoryId,
+        importance: importance,
+        repeats: repeats,
+        day: day,
+        startAt: startAt,
+        endAt: endAt,
+        status: status,
+        reason: reason,
+        movedFromId: movedFromId,
+        subjectId: subjectId,
+        actualStart: actualStart,
+        actualEnd: actualEnd,
+        kind: kind,
+        rootDay: rootDay,
+        session: s,
+      );
 
   /// วิชาที่ผูกไว้ (คาบเรียน)
   final int? subjectId;
@@ -411,7 +442,60 @@ class Occurrence {
             ? null
             : DateTime.parse(r['actual_end'] as String),
         kind: activityKindOf(r['a_kind']),
+        rootDay: r['root_day'] == null
+            ? null
+            : DateTime.parse(r['root_day'] as String),
       );
+}
+
+/// "ครั้งที่ n/N" ของงานซ้ำ · total null = งานไม่มี "ถึงวันที่"
+class SessionCount {
+  const SessionCount(this.n, this.total);
+
+  final int n;
+  final int? total;
+
+  String get label => total == null ? 'ครั้งที่ $n' : 'ครั้งที่ $n/$total';
+
+  @override
+  bool operator ==(Object other) =>
+      other is SessionCount && other.n == n && other.total == total;
+
+  @override
+  int get hashCode => Object.hash(n, total);
+
+  @override
+  String toString() => label;
+}
+
+/// ครั้งนี้ (วันที่ควรเกิด = [rootDay]) เป็นครั้งที่เท่าไหร่ของงาน [a]
+///
+/// นับทุกวันที่ควรเกิดตามกฎการทำซ้ำ → ครั้งที่ยกเลิกยังกินเลข (เนื้อหาครั้งนั้นหายไปจริง)
+/// ส่วนครั้งที่ถูกเลื่อนใช้ [rootDay] ของวันเดิม จึงยังเป็นเลขเดิม
+/// [a] ต้องเป็นข้อมูลเต็ม (โหมดเลือกวันเองต้องมีทุกวันใน dates)
+SessionCount? sessionCount(Activity a, DateTime rootDay) {
+  if (a.repeat == RepeatKind.none) return null;
+  final root = dayOnly(rootDay);
+  if (!occursOn(a, root)) return null;
+
+  if (a.repeat == RepeatKind.dates) {
+    final days = a.dates.values.map((d) => dayOnly(d.day)).toList()..sort();
+    return SessionCount(days.indexOf(root) + 1, days.length);
+  }
+
+  // ไม่มีวันสิ้นสุด → นับถึงวันนี้พอ (บอกได้แค่ n)
+  final last = a.endDate == null ? root : dayOnly(a.endDate!);
+  var count = 0;
+  var n = 0;
+  // สร้างวันด้วย DateTime(y, m, d + 1) แทน add(Duration) กันวันเพี้ยนช่วงเปลี่ยนเวลา (DST)
+  for (var d = dayOnly(a.startDate);
+      !d.isAfter(last);
+      d = DateTime(d.year, d.month, d.day + 1)) {
+    if (!occursOn(a, d)) continue;
+    count++;
+    if (d == root) n = count;
+  }
+  return SessionCount(n, a.endDate == null ? null : count);
 }
 
 /// หางานที่ล็อกเวลาและทับกับช่วง [start]–[end] ในรายการของวันนั้น

@@ -48,7 +48,19 @@ class MemoryCalendarRepository extends CalendarRepository {
       actualStart: o.actualStart,
       actualEnd: o.actualEnd,
       kind: a.kind,
+      rootDay: _rootDay(o),
     );
+  }
+
+  /// เหมือน root_day ใน SQL: ไล่ movedFrom ย้อนกลับจนเจอครั้งที่มี originDay
+  DateTime? _rootDay(_Occ o) {
+    _Occ? cur = o;
+    while (cur != null) {
+      if (cur.originDay != null) return cur.originDay;
+      final from = cur.movedFrom;
+      cur = from == null ? null : _occs.where((x) => x.id == from).firstOrNull;
+    }
+    return null;
   }
 
   @override
@@ -168,7 +180,7 @@ class MemoryCalendarRepository extends CalendarRepository {
         }
         return x.id.compareTo(y.id);
       });
-    return list.map(_toOccurrence).toList();
+    return attachSessions(list.map(_toOccurrence).toList());
   }
 
   @override
@@ -184,20 +196,20 @@ class MemoryCalendarRepository extends CalendarRepository {
       _activities.values.where((a) => a.subjectId == subjectId).toList();
 
   @override
-  Future<List<Occurrence>> occurrencesForSubject(int subjectId) async => (_occs
-          .where((o) => _activities[o.activityId]?.subjectId == subjectId)
-          .toList()
-        ..sort((a, b) => a.day.compareTo(b.day)))
-      .map(_toOccurrence)
-      .toList();
+  Future<List<Occurrence>> occurrencesForSubject(int subjectId) async {
+    final list = _occs
+        .where((o) => _activities[o.activityId]?.subjectId == subjectId)
+        .toList()
+      ..sort((a, b) => a.day.compareTo(b.day));
+    return attachSessions(list.map(_toOccurrence).toList());
+  }
 
   @override
-  Future<List<Occurrence>> inbox() async => (_occs
-          .where((o) => o.status == OccurrenceStatus.inbox)
-          .toList()
-        ..sort((a, b) => a.day.compareTo(b.day)))
-      .map(_toOccurrence)
-      .toList();
+  Future<List<Occurrence>> inbox() async {
+    final list = _occs.where((o) => o.status == OccurrenceStatus.inbox).toList()
+      ..sort((a, b) => a.day.compareTo(b.day));
+    return attachSessions(list.map(_toOccurrence).toList());
+  }
 
   _Occ _occ(int id) => _occs.firstWhere((o) => o.id == id);
 

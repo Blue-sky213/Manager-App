@@ -82,6 +82,23 @@ abstract class CalendarRepository extends ChangeNotifier {
 
   /// ลบคาบเรียน/วันสอบที่ซ้ำกัน (ดู [duplicateActivityIds]) → คืนจำนวนที่ลบ
   Future<int> removeDuplicateActivities();
+
+  /// เติม "ครั้งที่ n/N" ให้งานซ้ำ · ใช้ร่วมกันทั้งตัว SQLite และตัว RAM ให้กฎตรงกัน
+  /// อ่านกิจกรรมเต็มทีละตัว (cache ต่อรอบ) เพราะโหมดเลือกวันเองต้องรู้ทุกวันถึงจะนับได้
+  @protected
+  Future<List<Occurrence>> attachSessions(List<Occurrence> items) async {
+    final cache = <int, Activity>{};
+    final out = <Occurrence>[];
+    for (final o in items) {
+      if (!o.repeats || o.rootDay == null) {
+        out.add(o);
+        continue;
+      }
+      final a = cache[o.activityId] ??= await activity(o.activityId);
+      out.add(o.withSession(sessionCount(a, o.rootDay!)));
+    }
+    return out;
+  }
 }
 
 /// ท่อส่ง CalendarRepository ลงไปทุกหน้า (เหมือน StudyScope)
