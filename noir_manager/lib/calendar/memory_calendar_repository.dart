@@ -256,6 +256,58 @@ class MemoryCalendarRepository extends CalendarRepository {
   }
 
   @override
+  Future<DateTime?> shiftToNextRound(int occurrenceId, String reason) async {
+    final o = _occ(occurrenceId);
+    final a = _activities[o.activityId]!;
+    if (!canShiftToNextRound(a)) {
+      throw StateError('งานนี้ไม่มีกฎการทำซ้ำ เลื่อนไปรอบถัดไปไม่ได้');
+    }
+    o
+      ..status = OccurrenceStatus.shifted
+      ..reason = reason;
+    DateTime? newEnd;
+    if (a.endDate != null) {
+      newEnd = nextSlotAfter(a, a.endDate!);
+      final d = a.toDraft();
+      _activities[a.id] = NewActivity(
+        name: d.name,
+        categoryId: d.categoryId,
+        importance: d.importance,
+        timed: d.timed,
+        day: d.day,
+        startMinute: d.startMinute,
+        durationMin: d.durationMin,
+        repeat: d.repeat,
+        weekdays: d.weekdays,
+        endDate: newEnd,
+        presetId: d.presetId,
+        dates: d.dates,
+        subjectId: d.subjectId,
+        kind: d.kind,
+      ).toActivity(id: a.id);
+    }
+    notifyListeners();
+    return newEnd;
+  }
+
+  @override
+  Future<Set<DateTime>> shiftedDays(int activityId) async => {
+        for (final o in _occs)
+          if (o.activityId == activityId && o.status == OccurrenceStatus.shifted)
+            ?_rootDay(o),
+      };
+
+  final Map<String, String> _settings = {};
+
+  @override
+  Future<String?> getSetting(String key) async => _settings[key];
+
+  @override
+  Future<void> setSetting(String key, String value) async {
+    _settings[key] = value;
+  }
+
+  @override
   Future<void> moveSeries(
       int activityId, DateTime fromDay, int startMinute, int durationMin) async {
     final d = _activities[activityId]!.toDraft();

@@ -83,11 +83,25 @@ abstract class CalendarRepository extends ChangeNotifier {
   /// ลบคาบเรียน/วันสอบที่ซ้ำกัน (ดู [duplicateActivityIds]) → คืนจำนวนที่ลบ
   Future<int> removeDuplicateActivities();
 
+  /// "เลื่อนไปรอบถัดไป" (กล่องเลื่อนข้อ 1): ครั้งนี้ไม่เกิด เนื้อหาไหลไปครั้งหน้า
+  /// งานที่มี "ถึงวันที่" → ขยายวันสุดท้ายไปอีก 1 รอบตามกฎการทำซ้ำ
+  /// คืนวันสุดท้ายใหม่ · null = งานไม่มีวันสิ้นสุด (ไม่ต้องขยาย)
+  /// ใช้ได้เฉพาะงานที่ [canShiftToNextRound] (ไม่งั้นโยน [StateError])
+  Future<DateTime?> shiftToNextRound(int occurrenceId, String reason);
+
+  /// วันที่ (ตามกฎการทำซ้ำ) ของครั้งที่ถูกเลื่อนไปรอบถัดไป → ไม่นับเลข n/N
+  Future<Set<DateTime>> shiftedDays(int activityId);
+
+  /// ค่าตั้งเล็ก ๆ (ตาราง setting เดียวกับฝั่งวิชา) เช่น ตัวเลือกวันหยุดที่ "จำไว้"
+  Future<String?> getSetting(String key);
+  Future<void> setSetting(String key, String value);
+
   /// เติม "ครั้งที่ n/N" ให้งานซ้ำ · ใช้ร่วมกันทั้งตัว SQLite และตัว RAM ให้กฎตรงกัน
   /// อ่านกิจกรรมเต็มทีละตัว (cache ต่อรอบ) เพราะโหมดเลือกวันเองต้องรู้ทุกวันถึงจะนับได้
   @protected
   Future<List<Occurrence>> attachSessions(List<Occurrence> items) async {
     final cache = <int, Activity>{};
+    final skipped = <int, Set<DateTime>>{};
     final out = <Occurrence>[];
     for (final o in items) {
       if (!o.repeats || o.rootDay == null) {
@@ -95,7 +109,8 @@ abstract class CalendarRepository extends ChangeNotifier {
         continue;
       }
       final a = cache[o.activityId] ??= await activity(o.activityId);
-      out.add(o.withSession(sessionCount(a, o.rootDay!)));
+      final skip = skipped[o.activityId] ??= await shiftedDays(o.activityId);
+      out.add(o.withSession(sessionCount(a, o.rootDay!, skipped: skip)));
     }
     return out;
   }

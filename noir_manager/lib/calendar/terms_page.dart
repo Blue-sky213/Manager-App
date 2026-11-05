@@ -5,6 +5,7 @@ import '../utils/thai_date.dart';
 import '../widgets/dialogs.dart';
 import 'calendar_listener.dart';
 import 'calendar_models.dart';
+import 'holiday_flow.dart';
 
 Future<void> openTermsPage(BuildContext context) => Navigator.of(context)
     .push(MaterialPageRoute(builder: (_) => const TermsPage()));
@@ -103,13 +104,29 @@ class _TermsPageState extends State<TermsPage> with CalendarListener<TermsPage> 
     await calendar!.saveTerm(year, termNo, start, end);
   }
 
+  /// วันเดียว (แตะวันเดียวแล้วกดบันทึก) หรือช่วง เช่น สงกรานต์ 13–15 เม.ย.
+  /// บันทึกแล้วเปิดกล่องเลื่อน 4 ทางให้งานที่ตรงวันหยุดทันที
   Future<void> _addHoliday() async {
-    final day = await _pickDate(dayOnly(DateTime.now()), 'วันหยุด');
-    if (day == null || !mounted) return;
+    final today = dayOnly(DateTime.now());
+    final range = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2040),
+      initialDateRange: DateTimeRange(start: today, end: today),
+      helpText: 'วันหยุด (วันเดียวหรือช่วง)',
+    );
+    if (range == null || !mounted) return;
     final name = await askText(context,
         title: 'ชื่อวันหยุด', label: 'ชื่อ', hint: 'เช่น วันพ่อแห่งชาติ', confirmLabel: 'บันทึก');
-    if (name == null || name.trim().isEmpty) return;
-    await calendar!.setHoliday(day, name.trim());
+    if (name == null || name.trim().isEmpty || !mounted) return;
+    final repo = calendar!;
+    for (var d = dayOnly(range.start);
+        !d.isAfter(dayOnly(range.end));
+        d = DateTime(d.year, d.month, d.day + 1)) {
+      await repo.setHoliday(d, name.trim());
+    }
+    if (!mounted) return;
+    await holidayFlow(context, repo, range.start, range.end, name.trim());
   }
 
   @override
@@ -172,7 +189,7 @@ class _TermsPageState extends State<TermsPage> with CalendarListener<TermsPage> 
             ),
           ]),
           const SizedBox(height: 4),
-          Text('วันหยุดขึ้นเป็นป้ายในปฏิทิน · ระบบย้ายคาบอัตโนมัติจะมาในขั้นถัดไป', style: muted),
+          Text('เพิ่มวันหยุด → เลือกทางเลื่อนงานที่ตรงวันนั้นได้ทันที (เลื่อนรอบถัดไป · นัดวันอื่น · รอนัด · ยกเลิก)', style: muted),
           const SizedBox(height: 8),
           if (_holidays.isEmpty)
             Padding(
