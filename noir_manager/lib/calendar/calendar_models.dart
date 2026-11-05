@@ -325,7 +325,8 @@ String rangeText(int startMinute, int durationMin) =>
 
 // ---------- งาน 1 ครั้ง ----------
 
-enum OccurrenceStatus { planned, done, cancelled, moved, inbox }
+/// shifted = "เลื่อนไปรอบถัดไป": ครั้งนี้ไม่เกิด เนื้อหาไหลไปครั้งหน้า · ไม่กินเลข n/N
+enum OccurrenceStatus { planned, done, cancelled, moved, inbox, shifted }
 
 class Occurrence {
   const Occurrence({
@@ -473,13 +474,21 @@ class SessionCount {
 /// นับทุกวันที่ควรเกิดตามกฎการทำซ้ำ → ครั้งที่ยกเลิกยังกินเลข (เนื้อหาครั้งนั้นหายไปจริง)
 /// ส่วนครั้งที่ถูกเลื่อนใช้ [rootDay] ของวันเดิม จึงยังเป็นเลขเดิม
 /// [a] ต้องเป็นข้อมูลเต็ม (โหมดเลือกวันเองต้องมีทุกวันใน dates)
-SessionCount? sessionCount(Activity a, DateTime rootDay) {
+///
+/// [skipped] = วันที่ถูก "เลื่อนไปรอบถัดไป" → ไม่นับเลข (เนื้อหาไหลไปครั้งหน้า)
+/// วันสุดท้ายถูกขยายให้แล้วตอนเลื่อน N จึงเท่าเดิม
+SessionCount? sessionCount(Activity a, DateTime rootDay,
+    {Set<DateTime> skipped = const {}}) {
   if (a.repeat == RepeatKind.none) return null;
   final root = dayOnly(rootDay);
-  if (!occursOn(a, root)) return null;
+  if (!occursOn(a, root) || skipped.contains(root)) return null;
 
   if (a.repeat == RepeatKind.dates) {
-    final days = a.dates.values.map((d) => dayOnly(d.day)).toList()..sort();
+    final days = a.dates.values
+        .map((d) => dayOnly(d.day))
+        .where((d) => !skipped.contains(d))
+        .toList()
+      ..sort();
     return SessionCount(days.indexOf(root) + 1, days.length);
   }
 
@@ -491,11 +500,28 @@ SessionCount? sessionCount(Activity a, DateTime rootDay) {
   for (var d = dayOnly(a.startDate);
       !d.isAfter(last);
       d = DateTime(d.year, d.month, d.day + 1)) {
-    if (!occursOn(a, d)) continue;
+    if (!occursOn(a, d) || skipped.contains(d)) continue;
     count++;
     if (d == root) n = count;
   }
   return SessionCount(n, a.endDate == null ? null : count);
+}
+
+/// "เลื่อนไปรอบถัดไป" ใช้ได้เฉพาะงานที่มีกฎการทำซ้ำ (ทุกวัน / ทุกสัปดาห์)
+/// งานครั้งเดียว / เลือกวันเอง ไม่มีรอบถัดไปให้คำนวณ → ต้องเลือกวันเอง
+bool canShiftToNextRound(Activity a) =>
+    a.repeat == RepeatKind.daily ||
+    (a.repeat == RepeatKind.weekly && a.weekdays.isNotEmpty);
+
+/// วันแรกที่งานควรเกิด "หลัง" [day] ตามกฎการทำซ้ำ (ไม่สนวันสุดท้าย) · ใช้ขยายวันสุดท้าย
+DateTime? nextSlotAfter(Activity a, DateTime day) {
+  if (!canShiftToNextRound(a)) return null;
+  final d = dayOnly(day);
+  for (var i = 1; i <= 7; i++) {
+    final c = DateTime(d.year, d.month, d.day + i);
+    if (a.repeat == RepeatKind.daily || a.weekdays.contains(c.weekday)) return c;
+  }
+  return null;
 }
 
 /// หางานที่ล็อกเวลาและทับกับช่วง [start]–[end] ในรายการของวันนั้น

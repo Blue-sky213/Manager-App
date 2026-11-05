@@ -510,6 +510,58 @@ class SqliteCalendarRepository extends CalendarRepository {
   }
 
   @override
+  Future<DateTime?> shiftToNextRound(int occurrenceId, String reason) async {
+    DateTime? newEnd;
+    // transaction: ปิดครั้งนี้ + ขยายวันสุดท้าย ต้องสำเร็จพร้อมกัน
+    await _db.transaction((txn) async {
+      final occ = (await txn.query('occurrence',
+              where: 'id = ?', whereArgs: [occurrenceId], limit: 1))
+          .first;
+      final row = (await txn.query('activity',
+              where: 'id = ?', whereArgs: [occ['activity_id']], limit: 1))
+          .first;
+      final a = Activity.fromRow(row);
+      if (!canShiftToNextRound(a)) {
+        throw StateError('งานนี้ไม่มีกฎการทำซ้ำ เลื่อนไปรอบถัดไปไม่ได้');
+      }
+      await txn.update(
+          'occurrence', {'status': OccurrenceStatus.shifted.name, 'reason': reason},
+          where: 'id = ?', whereArgs: [occurrenceId]);
+      if (a.endDate != null) {
+        newEnd = nextSlotAfter(a, a.endDate!);
+        await txn.update('activity', {'end_date': dayKey(newEnd!)},
+            where: 'id = ?', whereArgs: [a.id]);
+      }
+    });
+    notifyListeners();
+    return newEnd;
+  }
+
+  @override
+  Future<Set<DateTime>> shiftedDays(int activityId) async {
+    final rows = await _db.rawQuery(
+        '$_occurrenceSelect WHERE o.activity_id = ? AND o.status = ?',
+        [activityId, OccurrenceStatus.shifted.name]);
+    return {
+      for (final r in rows)
+        if (r['root_day'] != null) DateTime.parse(r['root_day'] as String),
+    };
+  }
+
+  @override
+  Future<String?> getSetting(String key) async {
+    final rows =
+        await _db.query('setting', where: 'key = ?', whereArgs: [key], limit: 1);
+    return rows.isEmpty ? null : rows.first['value'] as String?;
+  }
+
+  @override
+  Future<void> setSetting(String key, String value) async {
+    await _db.insert('setting', {'key': key, 'value': value},
+        conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  @override
   Future<int> removeDuplicateActivities() async {
     final rows = await _db.query('activity', where: "kind IN ('class', 'exam')");
     final ids = duplicateActivityIds(rows.map(Activity.fromRow));

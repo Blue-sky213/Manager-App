@@ -136,6 +136,7 @@ String? _statusText(Occurrence o) => switch (o.status) {
       OccurrenceStatus.cancelled => 'ยกเลิก: ${o.reason ?? ''}',
       OccurrenceStatus.moved => 'เลื่อนไปวันอื่นแล้ว',
       OccurrenceStatus.inbox => 'อยู่ใน Reminder Inbox',
+      OccurrenceStatus.shifted => 'เลื่อนไปรอบถัดไป${o.reason == null ? '' : ' · ${o.reason}'}',
     };
 
 IconData? _statusIcon(OccurrenceStatus s) => switch (s) {
@@ -144,6 +145,7 @@ IconData? _statusIcon(OccurrenceStatus s) => switch (s) {
       OccurrenceStatus.cancelled => Icons.block,
       OccurrenceStatus.moved => Icons.redo,
       OccurrenceStatus.inbox => Icons.inbox,
+      OccurrenceStatus.shifted => Icons.fast_forward,
     };
 
 /// งานล็อกเวลา 1 ครั้ง

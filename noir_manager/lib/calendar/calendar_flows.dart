@@ -12,6 +12,7 @@ import '../widgets/dialogs.dart';
 import 'calendar_models.dart';
 import 'calendar_repository.dart';
 import 'calendar_ui.dart';
+import 'holiday_flow.dart';
 
 void _toast(BuildContext context, String text) {
   if (!context.mounted) return;
@@ -243,6 +244,8 @@ Future<void> openOccurrenceActions(
             if (o.timed)
               _tile(ctx, 'time', Icons.schedule, 'แก้เวลาเฉพาะวันนี้'),
             _tile(ctx, 'move', Icons.redo, 'เลื่อน'),
+            if (o.repeats)
+              _tile(ctx, 'shift', Icons.fast_forward, 'เลื่อนไปรอบถัดไป (เนื้อหาไหลไปครั้งหน้า)'),
             _tile(ctx, 'cancel', Icons.block, 'ยกเลิก (ต้องใส่เหตุผล)'),
           ],
           if (o.status == OccurrenceStatus.done && o.subjectId != null && o.timed)
@@ -254,6 +257,11 @@ Future<void> openOccurrenceActions(
             _tile(ctx, 'undo', Icons.undo, 'คืนเป็นตามแผน'),
           if (o.status == OccurrenceStatus.inbox)
             _tile(ctx, 'schedule', Icons.event, 'เลือกวันแทน'),
+          if (o.status == OccurrenceStatus.shifted)
+            const ListTile(
+              leading: Icon(Icons.info_outline),
+              title: Text('ครั้งนี้เลื่อนไปรอบถัดไปแล้ว · วันสุดท้ายขยายให้แล้ว'),
+            ),
           if (o.status == OccurrenceStatus.moved)
             const ListTile(
               leading: Icon(Icons.info_outline),
@@ -294,6 +302,8 @@ Future<void> openOccurrenceActions(
       await editActivityFlow(context, repo, o.activityId);
     case 'move':
       await rescheduleFlow(context, repo, o);
+    case 'shift':
+      await shiftFlow(context, repo, o);
     case 'schedule':
       await rescheduleFlow(context, repo, o, fromInbox: true);
     case 'cancel':
