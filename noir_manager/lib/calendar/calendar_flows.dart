@@ -231,7 +231,9 @@ Future<void> openOccurrenceActions(
           ListTile(
             title: Text(o.title,
                 style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-            subtitle: Text('$time${thaiShortDate(o.day)} · ความสำคัญ: ${importanceText(o.importance)}'
+            subtitle: Text('$time${thaiShortDate(o.day)}'
+                '${o.session == null ? '' : ' · ${o.session!.label}'}'
+                ' · ความสำคัญ: ${importanceText(o.importance)}'
                 '${o.actualEnd == null ? '' : '\nเลิกจริง ${fmtTime(o.actualEnd!)}'}'
                 '${o.reason == null ? '' : '\nยกเลิกเพราะ: ${o.reason}'}'),
           ),

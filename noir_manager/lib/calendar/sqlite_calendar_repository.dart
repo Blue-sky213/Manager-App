@@ -137,7 +137,15 @@ class SqliteCalendarRepository extends CalendarRepository {
 
   /// SELECT ที่ใช้ซ้ำ: งานแต่ละครั้ง + ชื่อ/หมวด/ความสำคัญจากกิจกรรมต้นแบบ
   static const _occurrenceSelect = '''
-    SELECT o.*, a.name AS a_name, a.category_id, a.importance, a.repeat, a.subject_id, a.kind AS a_kind
+    SELECT o.*, a.name AS a_name, a.category_id, a.importance, a.repeat, a.subject_id, a.kind AS a_kind,
+      -- root_day: ไล่ moved_from ย้อนกลับจนเจอครั้งต้นทางที่มี origin_day (เลื่อนกี่ทอดก็ได้)
+      (WITH RECURSIVE chain(cday, cfrom) AS (
+         SELECT o.origin_day, o.moved_from
+         UNION ALL
+         SELECT p.origin_day, p.moved_from FROM occurrence p
+           JOIN chain ON p.id = chain.cfrom
+           WHERE chain.cday IS NULL)
+       SELECT cday FROM chain WHERE cday IS NOT NULL LIMIT 1) AS root_day
     FROM occurrence o
     JOIN activity a ON a.id = o.activity_id
   ''';
@@ -317,7 +325,7 @@ class SqliteCalendarRepository extends CalendarRepository {
         '$_occurrenceSelect WHERE o.day = ? '
         'ORDER BY o.start_at IS NULL, o.start_at, o.id',
         [key]);
-    return rows.map(Occurrence.fromRow).toList();
+    return attachSessions(rows.map(Occurrence.fromRow).toList());
   }
 
   @override
@@ -343,7 +351,7 @@ class SqliteCalendarRepository extends CalendarRepository {
     final rows = await _db.rawQuery(
         '$_occurrenceSelect WHERE a.subject_id = ? ORDER BY o.day, o.start_at',
         [subjectId]);
-    return rows.map(Occurrence.fromRow).toList();
+    return attachSessions(rows.map(Occurrence.fromRow).toList());
   }
 
   @override
@@ -351,7 +359,7 @@ class SqliteCalendarRepository extends CalendarRepository {
     final rows = await _db.rawQuery(
         '$_occurrenceSelect WHERE o.status = ? ORDER BY o.day, o.id',
         [OccurrenceStatus.inbox.name]);
-    return rows.map(Occurrence.fromRow).toList();
+    return attachSessions(rows.map(Occurrence.fromRow).toList());
   }
 
   Future<void> _setStatus(int id, OccurrenceStatus s, {String? reason}) async {

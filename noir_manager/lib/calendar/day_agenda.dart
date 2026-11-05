@@ -241,6 +241,7 @@ class _OccurrenceRow extends StatelessWidget {
                                   if (clash) '⚠ ทับเวลา',
                                   if (o.kind == ActivityKind.exam) 'สอบ',
                                   if (tutor) 'ติว',
+                                  if (o.session?.total != null) o.session!.label,
                                   durationText(minutes),
                                   if (category != null) category!.name,
                                   if (o.importance == 3) 'สำคัญ',
@@ -291,6 +292,7 @@ class _ListRow extends StatelessWidget {
         style: TextStyle(decoration: faded ? TextDecoration.lineThrough : null),
       ),
       subtitle: Text([
+        if (o.session?.total != null) o.session!.label,
         if (category != null) category!.name,
         'ความสำคัญ: ${importanceText(o.importance)}',
         if (status != null) status,
