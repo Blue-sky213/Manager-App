@@ -294,7 +294,7 @@ class MemoryCalendarRepository extends CalendarRepository {
   Future<Set<DateTime>> shiftedDays(int activityId) async => {
         for (final o in _occs)
           if (o.activityId == activityId && o.status == OccurrenceStatus.shifted)
-            if (_rootDay(o) case final d?) d,
+            ?_rootDay(o),
       };
 
   final Map<String, String> _settings = {};
