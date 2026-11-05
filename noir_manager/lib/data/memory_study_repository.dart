@@ -133,6 +133,29 @@ class MemoryStudyRepository implements StudyRepository {
   }
 
   @override
+  Future<void> setSubjectColor(int subjectId, int colorIndex) async {
+    final i = _subjects.indexWhere((s) => s.id == subjectId);
+    _subjects[i] = _subjects[i].copyWith(colorIndex: colorIndex);
+  }
+
+  @override
+  Future<void> setTutorMinutes(int subjectId, int minutes) async {
+    final i = _subjects.indexWhere((s) => s.id == subjectId);
+    _subjects[i] = _subjects[i].copyWith(tutorMinutes: minutes);
+  }
+
+  /// (occurrenceId, chapterId) ของทุกรอบติวที่บันทึก
+  final List<(int, int?)> _tutorLog = [];
+
+  @override
+  Future<void> logTutor(int occurrenceId, int? chapterId, ChapterStatus status) async =>
+      _tutorLog.add((occurrenceId, chapterId));
+
+  @override
+  Future<int> tutorCount(int chapterId) async =>
+      {for (final l in _tutorLog) if (l.$2 == chapterId) l.$1}.length;
+
+  @override
   Future<void> setChapterStatus(int chapterId, ChapterStatus status) async {
     final i = _chapters.indexWhere((c) => c.id == chapterId);
     _chapters[i] = _chapters[i].copyWith(status: status);

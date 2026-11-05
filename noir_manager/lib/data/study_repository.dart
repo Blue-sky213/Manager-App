@@ -19,12 +19,24 @@ abstract class StudyRepository {
   Future<void> setSubjectPlan(int subjectId,
       {String? code, String? credits, int? year, int? term});
 
+  /// สีประจำวิชา (ลำดับใน subjectPalette)
+  Future<void> setSubjectColor(int subjectId, int colorIndex);
+
+  /// ความยาวรอบติวของวิชา (นาที)
+  Future<void> setTutorMinutes(int subjectId, int minutes);
+
   Future<List<ChapterWithTopics>> chapters(int subjectId);
   Future<int> addChapter(int subjectId, String name);
   Future<void> renameChapter(int chapterId, String name);
   Future<void> deleteChapter(int chapterId);
   Future<void> setChapterKind(int chapterId, ChapterKind kind);
   Future<void> setChapterStatus(int chapterId, ChapterStatus status);
+
+  /// บันทึกว่ารอบติว [occurrenceId] ติวบท [chapterId] ไปถึงสถานะ [status]
+  Future<void> logTutor(int occurrenceId, int? chapterId, ChapterStatus status);
+
+  /// บทนี้ติวไปแล้วกี่รอบ (นับจาก tutor_log)
+  Future<int> tutorCount(int chapterId);
 
   Future<int> addSubtopic(int chapterId, String name);
   Future<void> renameSubtopic(int subtopicId, String name);

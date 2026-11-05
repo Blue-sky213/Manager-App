@@ -16,8 +16,6 @@ import 'tutor_plan.dart';
 /// ความยาวรอบติวที่ตั้งได้ (นาที)
 const tutorLengths = [30, 45, 60, 90, 120];
 
-String tutorMinutesKey(int subjectId) => 'tutor_min_$subjectId';
-
 /// การ์ด "รอบติวสัปดาห์นี้": นับรอบ (เรียน + ติว) · ความยาวรอบ · เนื้อหารอบถัดไป · หาเวลาติว
 class TutorCard extends StatefulWidget {
   const TutorCard({super.key, required this.subject, required this.chapters});
@@ -32,6 +30,10 @@ class TutorCard extends StatefulWidget {
 class _TutorCardState extends State<TutorCard> with CalendarListener<TutorCard> {
   List<Occurrence> _week = [];
   int _minutes = 90;
+
+  /// บทถัดไปเคยติวมาแล้วกี่รอบ (จาก tutor_log)
+  int _chapterRounds = 0;
+  int? _loadedFor;
   StudyRepository? _settings;
 
   @override
@@ -45,7 +47,11 @@ class _TutorCardState extends State<TutorCard> with CalendarListener<TutorCard> 
   @override
   void didUpdateWidget(TutorCard old) {
     super.didUpdateWidget(old);
-    if (old.subject.id != widget.subject.id) reload();
+    if (old.subject.id != widget.subject.id ||
+        old.subject.tutorMinutes != widget.subject.tutorMinutes ||
+        old.chapters != widget.chapters) {
+      reload();
+    }
   }
 
   @override
@@ -58,17 +64,22 @@ class _TutorCardState extends State<TutorCard> with CalendarListener<TutorCard> 
       final d = DateTime(_monday.year, _monday.month, _monday.day + i);
       week.addAll((await calendar!.occurrencesOn(d)).where((o) => o.subjectId == id));
     }
-    final raw = await settings.getSetting(tutorMinutesKey(id));
+    // ความยาวรอบ: อ่านจากวิชาครั้งแรกที่เปิดวิชานี้ · หลังจากนั้นใช้ค่าที่กดเลือกล่าสุด
+    final minutes = _loadedFor == id ? _minutes : widget.subject.tutorMinutes;
+    final plan = planTutor(widget.chapters, minutes);
+    final done = plan.chapter == null ? 0 : await settings.tutorCount(plan.chapter!.id);
     if (!mounted || id != widget.subject.id) return;
     setState(() {
       _week = week;
-      _minutes = int.tryParse(raw ?? '') ?? 90;
+      _minutes = minutes;
+      _loadedFor = id;
+      _chapterRounds = done;
     });
   }
 
   Future<void> _setMinutes(int m) async {
     setState(() => _minutes = m);
-    await _settings!.setSetting(tutorMinutesKey(widget.subject.id), '$m');
+    await _settings!.setTutorMinutes(widget.subject.id, m);
   }
 
   Future<void> _findTime() async {
@@ -97,8 +108,7 @@ class _TutorCardState extends State<TutorCard> with CalendarListener<TutorCard> 
               '${plan.review.isEmpty ? '' : ' + ทวน ${plan.review.length} หัวข้อ'}',
     );
     if (picked == null) return;
-    final cats = await repo.categories();
-    final learn = cats.where((c) => c.name == 'เรียน').firstOrNull?.id;
+    final learn = studyCategoryId(await repo.categories());
     await repo.addActivity(NewActivity(
       name: 'ติว · ${widget.subject.name}',
       categoryId: learn,
@@ -174,7 +184,8 @@ class _TutorCardState extends State<TutorCard> with CalendarListener<TutorCard> 
                   ? (plan.review.isEmpty
                       ? 'รอบถัดไป: ติวครบทุกบทแล้ว ไม่มีหัวข้อที่ต้องทวน'
                       : 'รอบถัดไป: ทวนอย่างเดียว')
-                  : 'รอบถัดไป: ${plan.chapter!.name} · ${chapterKindLabel(plan.chapter!.kind)}',
+                  : 'รอบถัดไป: ${plan.chapter!.name} · ${chapterKindLabel(plan.chapter!.kind)}'
+                      '${_chapterRounds == 0 ? '' : ' · ติวมาแล้ว $_chapterRounds รอบ'}',
               style: title,
             ),
             const SizedBox(height: 4),

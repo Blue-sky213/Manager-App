@@ -86,6 +86,36 @@ class SqliteStudyRepository implements StudyRepository {
   }
 
   @override
+  Future<void> setSubjectColor(int subjectId, int colorIndex) async {
+    await _db.update('subject', {'color': '$colorIndex'},
+        where: 'id = ?', whereArgs: [subjectId]);
+  }
+
+  @override
+  Future<void> setTutorMinutes(int subjectId, int minutes) async {
+    await _db.update('subject', {'tutor_minutes': minutes},
+        where: 'id = ?', whereArgs: [subjectId]);
+  }
+
+  @override
+  Future<void> logTutor(int occurrenceId, int? chapterId, ChapterStatus status) async {
+    await _db.insert('tutor_log', {
+      'occurrence_id': occurrenceId,
+      'chapter_id': chapterId,
+      'status': status.name,
+      'logged_at': DateTime.now().toIso8601String(),
+    });
+  }
+
+  @override
+  Future<int> tutorCount(int chapterId) async {
+    final r = await _db.rawQuery(
+        'SELECT COUNT(DISTINCT occurrence_id) AS n FROM tutor_log WHERE chapter_id = ?',
+        [chapterId]);
+    return r.first['n'] as int? ?? 0;
+  }
+
+  @override
   Future<void> setChapterStatus(int chapterId, ChapterStatus status) async {
     await _db.update('chapter', {'status': status.name},
         where: 'id = ?', whereArgs: [chapterId]);

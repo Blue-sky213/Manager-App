@@ -456,4 +456,63 @@ class SqliteCalendarRepository extends CalendarRepository {
     await batch.commit(noResult: true);
     notifyListeners();
   }
+
+  @override
+  Future<List<Term>> terms() async {
+    final rows = await _db.query('term', orderBy: 'year, term_no');
+    return rows.map(Term.fromRow).toList();
+  }
+
+  @override
+  Future<void> saveTerm(int year, int termNo, DateTime start, DateTime end) async {
+    // UNIQUE(year, term_no) + replace = ปี/เทอมเดิมเขียนทับ
+    await _db.insert(
+      'term',
+      {'year': year, 'term_no': termNo, 'start_date': dayKey(start), 'end_date': dayKey(end)},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+    notifyListeners();
+  }
+
+  @override
+  Future<void> deleteTerm(int termId) async {
+    await _db.delete('term', where: 'id = ?', whereArgs: [termId]);
+    notifyListeners();
+  }
+
+  @override
+  Future<List<Holiday>> holidays() async {
+    final rows = await _db.query('holiday', orderBy: 'day');
+    return [
+      for (final r in rows) Holiday(DateTime.parse(r['day'] as String), r['name'] as String),
+    ];
+  }
+
+  @override
+  Future<void> setHoliday(DateTime day, String name) async {
+    await _db.insert('holiday', {'day': dayKey(day), 'name': name},
+        conflictAlgorithm: ConflictAlgorithm.replace);
+    notifyListeners();
+  }
+
+  @override
+  Future<void> removeHoliday(DateTime day) async {
+    await _db.delete('holiday', where: 'day = ?', whereArgs: [dayKey(day)]);
+    notifyListeners();
+  }
+
+  @override
+  Future<int> removeDuplicateActivities() async {
+    final rows = await _db.query('activity', where: "kind IN ('class', 'exam')");
+    final ids = duplicateActivityIds(rows.map(Activity.fromRow));
+    if (ids.isEmpty) return 0;
+    // CASCADE: ครั้งของงานที่ซ้ำถูกลบตามไปด้วย
+    final batch = _db.batch();
+    for (final id in ids) {
+      batch.delete('activity', where: 'id = ?', whereArgs: [id]);
+    }
+    await batch.commit(noResult: true);
+    notifyListeners();
+    return ids.length;
+  }
 }

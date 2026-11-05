@@ -59,6 +59,7 @@ final demoTermStart = DateTime(2026, 11, 9); // จ. สัปดาห์ 1
 final demoFirstHalfEnd = DateTime(2026, 12, 18); // ศ. สัปดาห์ 6
 final demoSecondHalfStart = DateTime(2026, 12, 28); // จ. สัปดาห์ 8
 final demoTermLastClass = DateTime(2027, 1, 29); // ศ. สัปดาห์ 12
+final demoTermEnd = DateTime(2027, 2, 5); // ศ. สัปดาห์สอบปลายภาค
 const demoTermLabel = 'ปี 1 เทอม 1 (ตัวอย่าง)';
 
 const _h = 60;
@@ -220,8 +221,8 @@ Future<bool> loadDemoTerm(StudyRepository study, CalendarRepository calendar) as
   final existing = {for (final s in await study.subjects()) s.name};
   if (demoSubjects.any((d) => existing.contains(d.name))) return false;
 
-  final cats = await calendar.categories();
-  final learn = cats.where((c) => c.name == 'เรียน').firstOrNull?.id;
+  final learn = studyCategoryId(await calendar.categories());
+  await calendar.saveTerm(1, 1, demoTermStart, demoTermEnd);
 
   for (final d in demoSubjects) {
     // ---- วิชา + บท + หัวข้อย่อย ----

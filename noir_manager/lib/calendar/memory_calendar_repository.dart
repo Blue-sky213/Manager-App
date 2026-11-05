@@ -6,7 +6,10 @@ class MemoryCalendarRepository extends CalendarRepository {
   MemoryCalendarRepository() {
     for (var i = 0; i < seedCategories.length; i++) {
       _categories.add(ActivityCategory(
-          id: i + 1, name: seedCategories[i].$1, colorKey: seedCategories[i].$2));
+          id: i + 1,
+          name: seedCategories[i].$1,
+          colorKey: seedCategories[i].$2,
+          systemKey: seedCategories[i].$3));
     }
     // Preset ตั้งต้นเหมือนฐานข้อมูลจริง: Stream · สตรีม · สำคัญ · 20:00–00:00
     _presets.add(Preset(
@@ -281,6 +284,54 @@ class MemoryCalendarRepository extends CalendarRepository {
   Future<void> setLifeBase(List<LifeBaseDay> days) async {
     _lifeBase = List.of(days);
     notifyListeners();
+  }
+
+  final List<Term> _terms = [];
+  final Map<String, Holiday> _holidays = {};
+
+  @override
+  Future<List<Term>> terms() async =>
+      [..._terms]..sort((a, b) => a.year != b.year ? a.year - b.year : a.termNo - b.termNo);
+
+  @override
+  Future<void> saveTerm(int year, int termNo, DateTime start, DateTime end) async {
+    _terms.removeWhere((t) => t.year == year && t.termNo == termNo);
+    _terms.add(Term(
+        id: _nextId++, year: year, termNo: termNo, start: dayOnly(start), end: dayOnly(end)));
+    notifyListeners();
+  }
+
+  @override
+  Future<void> deleteTerm(int termId) async {
+    _terms.removeWhere((t) => t.id == termId);
+    notifyListeners();
+  }
+
+  @override
+  Future<List<Holiday>> holidays() async =>
+      _holidays.values.toList()..sort((a, b) => a.day.compareTo(b.day));
+
+  @override
+  Future<void> setHoliday(DateTime day, String name) async {
+    _holidays[dayKey(day)] = Holiday(dayOnly(day), name);
+    notifyListeners();
+  }
+
+  @override
+  Future<void> removeHoliday(DateTime day) async {
+    _holidays.remove(dayKey(day));
+    notifyListeners();
+  }
+
+  @override
+  Future<int> removeDuplicateActivities() async {
+    final ids = duplicateActivityIds(_activities.values);
+    for (final id in ids) {
+      _occs.removeWhere((o) => o.activityId == id);
+      _activities.remove(id);
+    }
+    if (ids.isNotEmpty) notifyListeners();
+    return ids.length;
   }
 }
 

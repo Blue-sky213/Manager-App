@@ -12,6 +12,8 @@ class Subject {
     this.credits,
     this.planYear,
     this.planTerm,
+    this.colorIndex,
+    this.tutorMinutes = 90,
   });
 
   final int id;
@@ -25,6 +27,12 @@ class Subject {
   final int? planYear;
   final int? planTerm;
 
+  /// สีประจำวิชา = ลำดับใน subjectPalette · null = วนสีตาม id
+  final int? colorIndex;
+
+  /// ความยาวรอบติว (นาที) 30–120
+  final int tutorMinutes;
+
   /// เลขหน้าวงเล็บ = หน่วยกิตรวม เช่น "3(2-2-5)" → 3
   int get creditUnits => int.tryParse(RegExp(r'^\d+').stringMatch(credits ?? '') ?? '') ?? 0;
 
@@ -36,6 +44,8 @@ class Subject {
     String? credits,
     int? planYear,
     int? planTerm,
+    int? colorIndex,
+    int? tutorMinutes,
   }) =>
       Subject(
         id: id,
@@ -46,6 +56,8 @@ class Subject {
         credits: credits ?? this.credits,
         planYear: planYear ?? this.planYear,
         planTerm: planTerm ?? this.planTerm,
+        colorIndex: colorIndex ?? this.colorIndex,
+        tutorMinutes: tutorMinutes ?? this.tutorMinutes,
       );
 
   /// ความสำคัญ 3 = สูง, 2 = กลาง, 1 = น้อย (ตามกฎ hard/medium/easy = 3/2/1 รอบต่อสัปดาห์)
@@ -68,6 +80,9 @@ class Subject {
         credits: row['credits'] as String?,
         planYear: row['plan_year'] as int?,
         planTerm: row['plan_term'] as int?,
+        // คอลัมน์ color เป็น TEXT (เก็บเลขลำดับสี) · v10 ย้ายมาจาก setting
+        colorIndex: int.tryParse('${row['color'] ?? ''}'),
+        tutorMinutes: row['tutor_minutes'] as int? ?? 90,
       );
 }
 

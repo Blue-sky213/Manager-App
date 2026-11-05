@@ -69,6 +69,19 @@ abstract class CalendarRepository extends ChangeNotifier {
   /// Life Base: เวลานอน/ตื่น 7 วัน (จันทร์ → อาทิตย์)
   Future<List<LifeBaseDay>> lifeBase();
   Future<void> setLifeBase(List<LifeBaseDay> days);
+
+  /// ภาคเรียน: เรียงตามปี → เทอม · บันทึกซ้ำปี+เทอมเดิม = เขียนทับ
+  Future<List<Term>> terms();
+  Future<void> saveTerm(int year, int termNo, DateTime start, DateTime end);
+  Future<void> deleteTerm(int termId);
+
+  /// วันหยุด: เรียงตามวัน · วันเดิม = เปลี่ยนชื่อ
+  Future<List<Holiday>> holidays();
+  Future<void> setHoliday(DateTime day, String name);
+  Future<void> removeHoliday(DateTime day);
+
+  /// ลบคาบเรียน/วันสอบที่ซ้ำกัน (ดู [duplicateActivityIds]) → คืนจำนวนที่ลบ
+  Future<int> removeDuplicateActivities();
 }
 
 /// ท่อส่ง CalendarRepository ลงไปทุกหน้า (เหมือน StudyScope)

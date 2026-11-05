@@ -1,8 +1,9 @@
-/// สีประจำวิชา: ค่าเริ่มต้นวนตามลำดับ id · เปลี่ยนเองได้ (เก็บใน setting `subject_color_<id>`)
+/// สีประจำวิชา: ค่าเริ่มต้นวนตามลำดับ id · เปลี่ยนเองได้ (เก็บในคอลัมน์ subject.color ตั้งแต่ v10)
 library;
 
 import 'package:flutter/material.dart';
 
+import '../data/study_models.dart';
 import '../data/study_repository.dart';
 
 /// 8 สีที่อ่านตัวหนังสือขาวได้ทั้งโหมดมืดและสว่าง
@@ -26,17 +27,13 @@ const Map<int, Color> importancePalette = {
 
 const Map<int, String> importanceNames = {3: 'สำคัญสูง', 2: 'กลาง', 1: 'น้อย'};
 
-String subjectColorKey(int subjectId) => 'subject_color_$subjectId';
-
 /// สีของทุกวิชา: id → สี
-Future<Map<int, Color>> loadSubjectColors(StudyRepository repo) async {
-  final out = <int, Color>{};
-  for (final s in await repo.subjects()) {
-    final raw = int.tryParse(await repo.getSetting(subjectColorKey(s.id)) ?? '');
-    out[s.id] = subjectPalette[(raw ?? s.id) % subjectPalette.length];
-  }
-  return out;
-}
+Future<Map<int, Color>> loadSubjectColors(StudyRepository repo) async => {
+      for (final s in await repo.subjects()) s.id: subjectColorOf(s),
+    };
+
+/// สีของวิชาเดียว
+Color subjectColorOf(Subject s) => subjectPalette[(s.colorIndex ?? s.id) % subjectPalette.length];
 
 /// สีตัวหนังสือที่อ่านออกบนพื้น [bg]
 Color onColor(Color bg) =>

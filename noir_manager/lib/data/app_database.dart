@@ -10,7 +10,7 @@ import 'seed_data.dart';
 import 'study_repository.dart';
 
 /// เวอร์ชันโครงตาราง: ถ้าวันหลังเพิ่มตาราง/คอลัมน์ ให้เพิ่มเลขนี้ + เขียน onUpgrade
-const int _schemaVersion = 9; // v2 setting · v3 cleared_at · v4 ปฏิทิน · v5 Preset · v6 วิชาง่าย 2 รอบ · v7 คาบผูกวิชา + เวลาจริง · v8 แผนการเรียน · v9 เรียน/ติว + ประเภท/สถานะบท
+const int _schemaVersion = 10; // v2 setting · v3 cleared_at · v4 ปฏิทิน · v5 Preset · v6 วิชาง่าย 2 รอบ · v7 คาบผูกวิชา + เวลาจริง · v8 แผนการเรียน · v9 เรียน/ติว + ประเภท/สถานะบท · v10 เทอม/วันหยุด/บันทึกติว + ย้ายค่าวิชาออกจาก setting
 
 /// เปิด (หรือสร้างครั้งแรก) ไฟล์ฐานข้อมูล noir_manager.db
 Future<Database> openAppDatabase() async {
@@ -40,6 +40,7 @@ Future<Database> openAppDatabase() async {
       await createCalendarV7(db);
       await createStudyPlanV8(db);
       await createTutorV9(db);
+      await createTermV10(db);
       await seedStudyData(db);
     },
     // เครื่องที่มีไฟล์ v1 อยู่แล้ว (เครื่องนัวร์): เพิ่มเฉพาะส่วนที่ขาด ข้อมูลเดิมไม่หาย
@@ -58,6 +59,7 @@ Future<Database> openAppDatabase() async {
       if (oldVersion < 7) await createCalendarV7(db);
       if (oldVersion < 8) await createStudyPlanV8(db);
       if (oldVersion < 9) await createTutorV9(db);
+      if (oldVersion < 10) await createTermV10(db);
     },
   );
 }
@@ -138,6 +140,57 @@ Future<void> createTutorV9(DatabaseExecutor db) async {
     UPDATE activity SET kind = CASE
       WHEN name LIKE 'สอบ%' THEN 'exam' ELSE 'class' END
     WHERE subject_id IS NOT NULL AND kind = 'todo' ''');
+}
+
+/// v10:
+/// 1. ตาราง term (ภาคเรียน) · holiday (วันหยุด) · tutor_log (รอบติวไหนติวบทไหน)
+/// 2. สีวิชา + ความยาวรอบติว ย้ายจาก setting (subject_color_<id>, tutor_min_<id>) มาเป็นคอลัมน์ของ subject
+/// 3. หมวด "เรียน" มีรหัสระบบ system_key = 'study' → เปลี่ยนชื่อหมวดแล้วระบบติวไม่พัง
+Future<void> createTermV10(DatabaseExecutor db) async {
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS term (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      year       INTEGER NOT NULL,
+      term_no    INTEGER NOT NULL,
+      start_date TEXT    NOT NULL,
+      end_date   TEXT    NOT NULL,
+      UNIQUE (year, term_no)
+    )''');
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS holiday (
+      day  TEXT PRIMARY KEY,
+      name TEXT NOT NULL
+    )''');
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS tutor_log (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      occurrence_id INTEGER NOT NULL REFERENCES occurrence(id) ON DELETE CASCADE,
+      chapter_id    INTEGER REFERENCES chapter(id) ON DELETE SET NULL,
+      status        TEXT    NOT NULL,
+      logged_at     TEXT    NOT NULL
+    )''');
+  await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_tutor_log_chapter ON tutor_log(chapter_id)');
+
+  // ---- ย้ายค่าวิชาออกจาก setting ----
+  await addColumnIfMissing(db, 'subject', 'tutor_minutes', 'INTEGER NOT NULL DEFAULT 90');
+  await db.execute('''
+    UPDATE subject SET tutor_minutes = (
+      SELECT CAST(value AS INTEGER) FROM setting WHERE key = 'tutor_min_' || subject.id)
+    WHERE EXISTS (SELECT 1 FROM setting WHERE key = 'tutor_min_' || subject.id)''');
+  await db.execute('''
+    UPDATE subject SET color = (
+      SELECT value FROM setting WHERE key = 'subject_color_' || subject.id)
+    WHERE EXISTS (SELECT 1 FROM setting WHERE key = 'subject_color_' || subject.id)''');
+  await db.execute(
+      "DELETE FROM setting WHERE key LIKE 'tutor_min_%' OR key LIKE 'subject_color_%'");
+
+  // ---- หมวดเรียน: ผูกด้วยรหัส ไม่ใช่ชื่อ ----
+  await addColumnIfMissing(db, 'category', 'system_key', 'TEXT');
+  await db.execute('''
+    UPDATE category SET system_key = 'study'
+    WHERE id = (SELECT MIN(id) FROM category WHERE name = 'เรียน')
+      AND NOT EXISTS (SELECT 1 FROM category WHERE system_key = 'study')''');
 }
 
 /// ตารางตั้งค่าแบบ key → value เช่น grading_mode → ez / advanced

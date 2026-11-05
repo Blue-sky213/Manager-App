@@ -5,6 +5,8 @@ import 'package:noir_manager/calendar/clash_page.dart';
 import 'package:noir_manager/calendar/class_stats.dart';
 import 'package:noir_manager/calendar/free_slots.dart';
 import 'package:noir_manager/calendar/memory_calendar_repository.dart';
+import 'package:noir_manager/data/memory_study_repository.dart';
+import 'package:noir_manager/data/study_models.dart';
 
 void main() {
   final mon = DateTime(2026, 11, 2); // จันทร์
@@ -360,6 +362,83 @@ void main() {
       const busy = [Busy(9 * 60, 11 * 60, 'A')];
       expect(clashesAt(busy, 11 * 60, 60), isEmpty);
       expect(clashesAt(busy, 10 * 60, 60), hasLength(1));
+    });
+  });
+
+  group('v10: เทอม · วันหยุด · คาบซ้ำ · บันทึกติว', () {
+    NewActivity cls({String name = 'เรียน · อังกฤษ', int start = 9 * 60}) => NewActivity(
+          name: name,
+          categoryId: 1,
+          importance: 3,
+          timed: true,
+          day: mon,
+          startMinute: start,
+          durationMin: 90,
+          repeat: RepeatKind.weekly,
+          weekdays: {1},
+          subjectId: 7,
+          kind: ActivityKind.classSession,
+        );
+
+    test('หมวดเรียนหาจากรหัส study ไม่ใช่ชื่อ', () async {
+      final repo = MemoryCalendarRepository();
+      final id = studyCategoryId(await repo.categories());
+      expect((await repo.categories()).firstWhere((c) => c.id == id).name, 'เรียน');
+    });
+
+    test('ลบคาบซ้ำ: เก็บตัวแรก · คาบเวลาต่างกันไม่โดนลบ · งานทั่วไปไม่แตะ', () async {
+      final repo = MemoryCalendarRepository();
+      final first = await repo.addActivity(cls());
+      await repo.addActivity(cls()); // ซ้ำ
+      await repo.addActivity(cls()); // ซ้ำ
+      await repo.addActivity(cls(start: 13 * 60)); // คนละเวลา
+      await repo.addActivity(gym());
+      await repo.addActivity(gym()); // งานทั่วไปชื่อซ้ำได้
+      expect(await repo.removeDuplicateActivities(), 2);
+      expect(await repo.removeDuplicateActivities(), 0);
+      final left = await repo.activitiesForSubject(7);
+      expect(left.map((a) => a.id), contains(first));
+      expect(left, hasLength(2));
+    });
+
+    test('วันหยุด: วันเดิม = เปลี่ยนชื่อ · ลบได้', () async {
+      final repo = MemoryCalendarRepository();
+      await repo.setHoliday(DateTime(2026, 12, 5, 10), 'วันพ่อ');
+      await repo.setHoliday(DateTime(2026, 12, 5), 'วันพ่อแห่งชาติ');
+      await repo.setHoliday(DateTime(2026, 12, 10), 'วันรัฐธรรมนูญ');
+      final h = await repo.holidays();
+      expect(h.map((x) => x.name), ['วันพ่อแห่งชาติ', 'วันรัฐธรรมนูญ']);
+      await repo.removeHoliday(DateTime(2026, 12, 5));
+      expect(await repo.holidays(), hasLength(1));
+    });
+
+    test('เทอม: ปี+เทอมเดิมเขียนทับ · เรียงปี → เทอม · contains รวมวันสุดท้าย', () async {
+      final repo = MemoryCalendarRepository();
+      await repo.saveTerm(1, 2, DateTime(2027, 3, 1), DateTime(2027, 6, 30));
+      await repo.saveTerm(1, 1, DateTime(2026, 11, 9), DateTime(2027, 2, 5));
+      await repo.saveTerm(1, 1, DateTime(2026, 11, 9), DateTime(2027, 2, 6));
+      final t = await repo.terms();
+      expect(t.map((x) => x.termNo), [1, 2]);
+      expect(t.first.contains(DateTime(2027, 2, 6, 23)), isTrue);
+      expect(t.first.contains(DateTime(2027, 2, 7)), isFalse);
+      expect(t.last.label, 'ปี 1 · เทอม 2');
+    });
+
+    test('บันทึกติว: นับรอบต่อบท (รอบเดียวกันบันทึกซ้ำไม่นับเพิ่ม) · สี/ความยาวรอบเก็บในวิชา',
+        () async {
+      final study = MemoryStudyRepository();
+      final s = await study.addSubject('คณิต', importance: 3);
+      final ch = await study.addChapter(s, 'บท 1');
+      await study.logTutor(500, ch, ChapterStatus.learning);
+      await study.logTutor(500, ch, ChapterStatus.learned);
+      await study.logTutor(501, ch, ChapterStatus.learned);
+      expect(await study.tutorCount(ch), 2);
+
+      await study.setSubjectColor(s, 4);
+      await study.setTutorMinutes(s, 45);
+      final subj = (await study.subjects()).firstWhere((x) => x.id == s);
+      expect(subj.colorIndex, 4);
+      expect(subj.tutorMinutes, 45);
     });
   });
 }

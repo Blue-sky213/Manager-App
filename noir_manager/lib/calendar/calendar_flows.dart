@@ -274,7 +274,7 @@ Future<void> openOccurrenceActions(
       await repo.setDone(o.id, true);
       // รอบติว → ถามว่าบทที่ติวจบหรือยัง (รอบหน้าจะได้ไล่บทถัดไป)
       if (o.kind == ActivityKind.tutor && o.subjectId != null && context.mounted) {
-        await _askChapterProgress(context, o.subjectId!);
+        await _askChapterProgress(context, o.subjectId!, o.id);
       }
       // คาบเรียน → ถามเวลาเลิกจริงต่อเลย (ทำสถิติ)
       else if (o.subjectId != null && o.timed && context.mounted) {
@@ -321,7 +321,7 @@ Future<void> editLifeBaseFlow(BuildContext context, CalendarRepository repo) asy
 
 
 /// หลังติวเสร็จ: บทที่ติวอยู่ "จบแล้ว" หรือ "ยังไม่จบ" → อัปเดตสถานะบท
-Future<void> _askChapterProgress(BuildContext context, int subjectId) async {
+Future<void> _askChapterProgress(BuildContext context, int subjectId, int occurrenceId) async {
   final study = StudyScope.of(context);
   final chapters = await study.chapters(subjectId);
   final ch = nextChapter(chapters);
@@ -339,7 +339,10 @@ Future<void> _askChapterProgress(BuildContext context, int subjectId) async {
     ),
   );
   if (done == null) return;
-  await study.setChapterStatus(ch.id, done ? ChapterStatus.learned : ChapterStatus.learning);
+  final status = done ? ChapterStatus.learned : ChapterStatus.learning;
+  await study.setChapterStatus(ch.id, status);
+  await study.logTutor(occurrenceId, ch.id, status); // เก็บไว้ทำสถิติ "บทนี้ติวไปกี่รอบ"
+
   if (context.mounted) {
     _toast(context, done ? '${ch.name} → ติวจบ · ทำแบบทดสอบแล้วใส่คะแนนได้เลย' : '${ch.name} → กำลังติว');
   }

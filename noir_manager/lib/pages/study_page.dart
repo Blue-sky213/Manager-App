@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../calendar/calendar_repository.dart';
+import '../calendar/terms_page.dart';
 import '../data/demo_term.dart';
 import '../data/study_models.dart';
 import '../data/study_repository.dart';
@@ -177,6 +178,32 @@ class _StudyPageState extends State<StudyPage> {
     await _reload();
   }
 
+  /// เมนูทั้งหน้า (ใช้ทั้งในแผนผังและหน้ารายละเอียดวิชา)
+  static const List<PopupMenuEntry<String>> _pageMenuItems = [
+    PopupMenuItem(value: 'terms', child: Text('ภาคเรียน & วันหยุด')),
+    PopupMenuItem(value: 'dupes', child: Text('ลบคาบเรียน/วันสอบที่ซ้ำ')),
+    PopupMenuItem(value: 'demo', child: Text('ใส่ตัวอย่าง: แผน 4 ปี')),
+  ];
+
+  void _onPageMenu(String v) {
+    switch (v) {
+      case 'terms':
+        openTermsPage(context);
+      case 'dupes':
+        _removeDuplicates();
+      default:
+        _loadDemo();
+    }
+  }
+
+  Future<void> _removeDuplicates() async {
+    final n = await CalendarScope.of(context).removeDuplicateActivities();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(n == 0 ? 'ไม่มีคาบเรียน/วันสอบซ้ำ' : 'ลบรายการที่ซ้ำแล้ว $n รายการ'),
+    ));
+  }
+
   void _setMapView(bool map) {
     setState(() => _mapView = map);
     _repo!.setSetting(_viewKey, map ? 'map' : 'detail');
@@ -247,9 +274,7 @@ class _StudyPageState extends State<StudyPage> {
 
   /// สีประจำวิชา (ใช้ในไทม์ไลน์หาเวลาติว)
   Future<void> _pickColor(Subject subject) async {
-    final key = subjectColorKey(subject.id);
-    final current = int.tryParse(await _repo!.getSetting(key) ?? '') ?? subject.id;
-    if (!mounted) return;
+    final current = subject.colorIndex ?? subject.id;
     final picked = await showDialog<int>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -275,7 +300,8 @@ class _StudyPageState extends State<StudyPage> {
       ),
     );
     if (picked == null) return;
-    await _repo!.setSetting(key, '$picked');
+    await _repo!.setSubjectColor(subject.id, picked);
+    await _reload();
   }
 
   Future<void> _deleteSubject(Subject subject) async {
@@ -508,10 +534,8 @@ class _StudyPageState extends State<StudyPage> {
             ),
             PopupMenuButton<String>(
               tooltip: 'ตัวเลือก',
-              onSelected: (_) => _loadDemo(),
-              itemBuilder: (_) => const [
-                PopupMenuItem(value: 'demo', child: Text('ใส่ตัวอย่าง: แผน 4 ปี')),
-              ],
+              onSelected: _onPageMenu,
+              itemBuilder: (_) => _pageMenuItems,
             ),
           ],
         ),
@@ -574,8 +598,8 @@ class _StudyPageState extends State<StudyPage> {
                       _changeImportance(subject);
                     case 'sessions':
                       _changeSessions(subject);
-                    case 'demo':
-                      _loadDemo();
+                    case 'demo' || 'dupes' || 'terms':
+                      _onPageMenu(v);
                     case 'plan':
                       _editPlan(subject);
                     case 'color':
@@ -584,15 +608,15 @@ class _StudyPageState extends State<StudyPage> {
                       _deleteSubject(subject);
                   }
                 },
-                itemBuilder: (_) => const [
-                  PopupMenuItem(value: 'rename', child: Text('เปลี่ยนชื่อวิชา')),
-                  PopupMenuItem(value: 'importance', child: Text('เปลี่ยนความสำคัญ')),
-                  PopupMenuItem(value: 'sessions', child: Text('รอบติวต่อสัปดาห์')),
-                  PopupMenuItem(value: 'plan', child: Text('ปี / เทอม ในแผนการเรียน')),
-                  PopupMenuItem(value: 'color', child: Text('สีวิชา')),
-                  PopupMenuItem(value: 'delete', child: Text('ลบวิชา')),
-                  PopupMenuDivider(),
-                  PopupMenuItem(value: 'demo', child: Text('ใส่ตัวอย่าง: แผน 4 ปี')),
+                itemBuilder: (_) => [
+                  const PopupMenuItem(value: 'rename', child: Text('เปลี่ยนชื่อวิชา')),
+                  const PopupMenuItem(value: 'importance', child: Text('เปลี่ยนความสำคัญ')),
+                  const PopupMenuItem(value: 'sessions', child: Text('รอบติวต่อสัปดาห์')),
+                  const PopupMenuItem(value: 'plan', child: Text('ปี / เทอม ในแผนการเรียน')),
+                  const PopupMenuItem(value: 'color', child: Text('สีวิชา')),
+                  const PopupMenuItem(value: 'delete', child: Text('ลบวิชา')),
+                  const PopupMenuDivider(),
+                  ..._pageMenuItems,
                 ],
               ),
           ],

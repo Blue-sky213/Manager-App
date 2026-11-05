@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../calendar/calendar_flows.dart';
+import '../calendar/terms_page.dart';
 import '../calendar/calendar_listener.dart';
 import '../calendar/calendar_models.dart';
 import '../calendar/calendar_ui.dart';
@@ -58,6 +59,9 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
   /// งานของแต่ละวันที่เห็นบนจอ (ใช้วาดสัปดาห์ / จุดสีในเดือน)
   Map<DateTime, List<Occurrence>> _byDay = {};
   List<LifeBaseDay> _lifeBase = defaultLifeBase();
+
+  /// dayKey → ชื่อวันหยุด
+  Map<String, String> _holidays = {};
   Map<int, ActivityCategory> _categories = {};
 
   DateTime get _monday => _selected.subtract(Duration(days: _selected.weekday - 1));
@@ -89,6 +93,7 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
     final items = byDay[day] ?? await repo.occurrencesOn(day);
     final lifeBase = await repo.lifeBase();
     final cats = await repo.categories();
+    final holidays = await repo.holidays();
     final style = await _settings?.getSetting('week_style');
     if (!mounted || day != _selected || view != _view) return; // ผู้ใช้กดเปลี่ยนระหว่างโหลด
     setState(() {
@@ -96,6 +101,7 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
       _byDay = byDay;
       _lifeBase = lifeBase;
       _categories = {for (final c in cats) c.id: c};
+      _holidays = {for (final h in holidays) dayKey(h.day): h.name};
       _weekStyle = WeekStyle.values
           .firstWhere((w) => w.name == style, orElse: () => _weekStyle);
       _loading = false;
@@ -293,8 +299,18 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
           spacing: 8,
           runSpacing: 8,
           children: [
-            Text(thaiShortDate(_selected),
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: c.text)),
+            Wrap(spacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
+              Text(thaiShortDate(_selected),
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: c.text)),
+              if (_holidays[dayKey(_selected)] case final name?)
+                Chip(
+                  avatar: Icon(Icons.beach_access_outlined, size: 16, color: c.amberText),
+                  label: Text('วันหยุด · $name', style: TextStyle(color: c.amberText)),
+                  backgroundColor: c.amberBg,
+                  side: BorderSide.none,
+                  visualDensity: VisualDensity.compact,
+                ),
+            ]),
             _actions(today),
           ],
         ),
@@ -320,6 +336,16 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
           onPressed: () => openClashPage(context),
           icon: Icon(Icons.warning_amber_rounded, color: c.bad),
           label: const Text('ตารางเวลาชน'),
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size(0, 44),
+            foregroundColor: c.text,
+            side: BorderSide(color: c.line2),
+          ),
+        ),
+        OutlinedButton.icon(
+          onPressed: () => openTermsPage(context),
+          icon: const Icon(Icons.date_range_outlined),
+          label: const Text('เทอม & วันหยุด'),
           style: OutlinedButton.styleFrom(
             minimumSize: const Size(0, 44),
             foregroundColor: c.text,

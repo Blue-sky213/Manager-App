@@ -35,10 +35,14 @@ bool rangesOverlap(DateTime aStart, DateTime aEnd, DateTime bStart, DateTime bEn
 // ---------- หมวด ----------
 
 class ActivityCategory {
-  const ActivityCategory({required this.id, required this.name, required this.colorKey});
+  const ActivityCategory(
+      {required this.id, required this.name, required this.colorKey, this.systemKey});
 
   final int id;
   final String name;
+
+  /// หมวดที่ระบบใช้เอง เช่น 'study' = หมวดเรียน (เปลี่ยนชื่อหมวดได้ ระบบไม่พัง)
+  final String? systemKey;
 
   /// ชื่อสี: blue · green · purple · amber · gray (แปลงเป็นสีจริงตามธีม)
   final String colorKey;
@@ -47,8 +51,16 @@ class ActivityCategory {
         id: r['id'] as int,
         name: r['name'] as String,
         colorKey: r['color'] as String,
+        systemKey: r['system_key'] as String?,
       );
 }
+
+/// รหัสหมวดเรียน (ไม่ผูกกับชื่อหมวด)
+const studySystemKey = 'study';
+
+/// id ของหมวดเรียน · null = ไม่มี (ผู้ใช้ลบหมวดไปแล้ว)
+int? studyCategoryId(List<ActivityCategory> cats) =>
+    cats.where((c) => c.systemKey == studySystemKey).firstOrNull?.id;
 
 // ---------- Preset (ชุดค่าที่บันทึกไว้ + กลุ่ม) ----------
 
@@ -468,10 +480,78 @@ List<LifeBaseDay> defaultLifeBase() => [
     ];
 
 /// หมวดเริ่มต้นตอนสร้างฐานข้อมูลครั้งแรก
-const List<(String, String)> seedCategories = [
-  ('เรียน', 'blue'),
-  ('ออกกำลังกาย', 'green'),
-  ('สตรีม', 'purple'),
-  ('งาน', 'amber'),
-  ('อื่น ๆ', 'gray'),
+/// (ชื่อ, สี, รหัสระบบ)
+const List<(String, String, String?)> seedCategories = [
+  ('เรียน', 'blue', studySystemKey),
+  ('ออกกำลังกาย', 'green', null),
+  ('สตรีม', 'purple', null),
+  ('งาน', 'amber', null),
+  ('อื่น ๆ', 'gray', null),
 ];
+
+// ---------- ภาคเรียน + วันหยุด (v10) ----------
+
+/// ภาคเรียน เช่น ปี 1 เทอม 1 · 2026-06-15 → 2026-10-16
+/// term 3 = ภาคฤดูร้อน (ตรงกับ subject.plan_term)
+class Term {
+  const Term({
+    required this.id,
+    required this.year,
+    required this.termNo,
+    required this.start,
+    required this.end,
+  });
+
+  final int id;
+  final int year;
+  final int termNo;
+  final DateTime start;
+  final DateTime end;
+
+  String get label => termNo == 3 ? 'ปี $year · ภาคฤดูร้อน' : 'ปี $year · เทอม $termNo';
+
+  /// วันนี้อยู่ในเทอมนี้ไหม (รวมวันแรกและวันสุดท้าย)
+  bool contains(DateTime day) {
+    final d = dayOnly(day);
+    return !d.isBefore(start) && !d.isAfter(end);
+  }
+
+  factory Term.fromRow(Map<String, Object?> r) => Term(
+        id: r['id'] as int,
+        year: r['year'] as int,
+        termNo: r['term_no'] as int,
+        start: DateTime.parse(r['start_date'] as String),
+        end: DateTime.parse(r['end_date'] as String),
+      );
+}
+
+/// วันหยุด 1 วัน (วันหยุดราชการ / มหาลัยประกาศ)
+class Holiday {
+  const Holiday(this.day, this.name);
+  final DateTime day;
+  final String name;
+}
+
+/// งานเรียน/สอบที่ซ้ำกัน (ชื่อ · วิชา · ประเภท · เวลา · วันซ้ำ · ช่วงวัน ตรงกันหมด)
+/// คืน id ที่ควรลบ · เก็บตัวที่ id น้อยสุด (ตัวแรกที่สร้าง) ไว้
+/// ไม่แตะงานทั่วไป (todo/ติว) และงานแบบเลือกวันเอง เพราะอาจตั้งใจให้ชื่อซ้ำ
+List<int> duplicateActivityIds(Iterable<Activity> activities) {
+  final keep = <String, int>{};
+  final remove = <int>[];
+  final sorted = [...activities]..sort((a, b) => a.id.compareTo(b.id));
+  for (final a in sorted) {
+    if (a.kind != ActivityKind.classSession && a.kind != ActivityKind.exam) continue;
+    if (a.repeat == RepeatKind.dates) continue;
+    final key = [
+      a.name, a.subjectId, a.kind.name, a.startMinute, a.durationMin, a.repeat.name,
+      (a.weekdays.toList()..sort()).join(','), dayKey(a.startDate),
+      a.endDate == null ? '' : dayKey(a.endDate!),
+    ].join('|');
+    if (keep.containsKey(key)) {
+      remove.add(a.id);
+    } else {
+      keep[key] = a.id;
+    }
+  }
+  return remove;
+}

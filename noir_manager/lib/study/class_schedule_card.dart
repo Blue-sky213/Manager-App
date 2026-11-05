@@ -64,8 +64,7 @@ class _ClassScheduleCardState extends State<ClassScheduleCard>
     final repo = calendar!;
     final draft = await _askSlot(context);
     if (draft == null) return;
-    final cats = await repo.categories();
-    final learn = cats.where((c) => c.name == 'เรียน').firstOrNull?.id;
+    final learn = studyCategoryId(await repo.categories());
 
     // เช็กเวลาทับ (คาบแรกของแต่ละวันที่เลือก) · ทับได้ แค่เตือนสั้น ๆ ด้านล่าง
     final clashes = <String>{};
