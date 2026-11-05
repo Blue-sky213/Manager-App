@@ -36,7 +36,7 @@
 
 ```bash
 flutter pub get
-flutter analyze          # ต้องไม่มี error (info ค้างอยู่ 11 ข้อ — ห้ามเพิ่ม)
+flutter analyze          # ต้องไม่มี error (ค้างอยู่ 13 ข้อ ณ 5 พ.ย. — ห้ามเพิ่ม)
 flutter test             # ต้องผ่านทั้งหมด
 flutter run -d windows   # นัวร์รันบนเครื่องจริง
 ```

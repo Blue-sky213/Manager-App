@@ -32,7 +32,7 @@ jobs:
       - name: Get packages
         run: flutter pub get
 
-      # ไม่ให้ info/warning ทำ CI แดง (ยังค้าง 11 ข้อ) — แต่ error ต้องเป็น 0
+      # ไม่ให้ info/warning ทำ CI แดง (ยังค้าง 13 ข้อ) — แต่ error ต้องเป็น 0
       - name: Analyze
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
