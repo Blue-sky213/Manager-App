@@ -135,7 +135,8 @@ class _CurriculumMapState extends State<CurriculumMap> {
     }
 
     // ชั้นเส้นทับบนกล่อง (ไม่รับการแตะ ให้แตะทะลุถึงกล่อง)
-    Widget withLines(Widget child) => Stack(
+    // [shown] = วิชาที่อยู่บนจอใน build นี้ · กล่องที่เพิ่งถูกถอด (สลับปี) ห้ามอ่านตำแหน่ง
+    Widget withLines(Set<int> shown, Widget child) => Stack(
           key: _stackKey,
           children: [
             child,
@@ -143,7 +144,7 @@ class _CurriculumMapState extends State<CurriculumMap> {
               child: IgnorePointer(
                 child: CustomPaint(
                   painter: _LinkPainter(
-                    links: links,
+                    links: [for (final l in links) if (shown.contains(l.from) && shown.contains(l.to)) l],
                     chain: chain,
                     boxKeys: _boxKeys,
                     stackKey: _stackKey,
@@ -230,7 +231,9 @@ class _CurriculumMapState extends State<CurriculumMap> {
                       onTap: focusT == null || onFocus == null ? null : () => onFocus(focus, null),
                     ),
                     const SizedBox(height: 8),
-                    withLines(Row(
+                    withLines({
+                      for (final t in terms) ...years[focus]![t]!.map((s) => s.id)
+                    }, Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         for (final (i, t) in terms.indexed) ...[
@@ -252,7 +255,7 @@ class _CurriculumMapState extends State<CurriculumMap> {
           // เลื่อนซ้าย-ขวาได้ ดูทั้งหลักสูตรเหมือนแผนภูมิกระดาษ
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
-            child: withLines(Row(
+            child: withLines(ids, Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 for (final (yi, y) in sortedYears.indexed) ...[
@@ -385,7 +388,7 @@ class _LinkPainter extends CustomPainter {
     ];
     for (final l in ordered) {
       final a = _rectOf(l.from, stack), b = _rectOf(l.to, stack);
-      if (a == null || b == null) continue; // วิชาไม่ได้อยู่บนจอ (ดูปี/ภาคเดียว)
+      if (a == null || b == null) continue; // ยังไม่ได้จัดวาง
       final on = chain.edges.contains(l);
       final color = on ? strong : (active ? dim.withValues(alpha: 0.35) : idle.withValues(alpha: 0.7));
       final paint = Paint()
