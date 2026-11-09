@@ -353,7 +353,12 @@ void main() {
     expect(find.text('ภาคเรียนที่ 2'), findsOneWidget);
     expect(find.text('คณิตศาสตร์วิศวกรรม 1'), findsOneWidget);
     expect(find.text('คณิตศาสตร์วิศวกรรม 2'), findsOneWidget);
-    expect(find.text('การเขียนโปรแกรมคอมพิวเตอร์'), findsNothing);
+    expect(find.text('กระบวนการคิดเชิงออกแบบ'), findsNothing); // ปี 1 ไม่มีเส้นต่อ → ไม่โผล่
+    // วิชาปีอื่นที่มีเส้นต่อ → คอลัมน์เงา ซ้าย = ต้องเรียนก่อน · ขวา = ต่อยอด
+    expect(find.text('← ต้องเรียนก่อน'), findsOneWidget);
+    expect(find.text('การเขียนโปรแกรมคอมพิวเตอร์'), findsOneWidget);
+    expect(find.text('ต่อยอดไป →'), findsOneWidget);
+    expect(find.text('การฝึกงาน'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
     // ในปี 2 แตะหัวภาค 2 → เหลือภาค 2 อย่างเดียว
@@ -361,13 +366,22 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('แผนการเรียน · ปี 2 · ภาค 2'), findsOneWidget);
     expect(find.text('คณิตศาสตร์วิศวกรรม 2'), findsOneWidget);
-    expect(find.text('คณิตศาสตร์วิศวกรรม 1'), findsNothing);
+    // คณิต 1 (ภาค 1) เหลือแค่กล่องเงาบอกว่าอยู่ภาคไหน
+    expect(find.text('ปี 2 · ภาค 1'), findsWidgets);
+    expect(find.text('สถาปัตยกรรมคอมพิวเตอร์และระบบปฏิบัติการ'), findsOneWidget);
+    expect(find.text('เครือข่ายขั้นสูงและโปรโตคอล'), findsNothing); // ภาค 1 ไม่มีเส้นมาภาค 2
     // ชิป "ทั้งปี" → กลับมาเห็น 2 ภาค
     await tester.tap(find.widgetWithText(ChoiceChip, 'ทั้งปี'));
     await tester.pumpAndSettle();
     expect(find.text('แผนการเรียน · ปี 2'), findsOneWidget);
     expect(find.text('คณิตศาสตร์วิศวกรรม 1'), findsOneWidget);
     expect(tester.takeException(), isNull);
+
+    // แตะกล่องเงา "การฝึกงาน" (ปี 3) → ไปดูปี 3
+    await tester.tap(find.text('การฝึกงาน'));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+    expect(find.text('แผนการเรียน · ปี 3'), findsOneWidget);
 
     // กลับทุกปี → แตะหัวภาคแรกสุด (ปี 1 ภาค 1) → ไปภาคนั้นตรง ๆ
     await tester.tap(find.widgetWithText(ChoiceChip, 'ทุกปี'));

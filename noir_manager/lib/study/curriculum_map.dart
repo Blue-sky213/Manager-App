@@ -115,6 +115,38 @@ class _CurriculumMapState extends State<CurriculumMap> {
           ),
         );
 
+    // กล่องเงา: วิชาปี/ภาคอื่นที่มีเส้นต่อกับวิชาบนจอ · แตะ = ไปดูปีนั้น
+    Widget ghostBox(Subject s) => MouseRegion(
+          onEnter: (_) => setState(() => _hoverId = s.id),
+          onExit: (_) {
+            if (_hoverId == s.id) setState(() => _hoverId = null);
+          },
+          child: AnimatedOpacity(
+            duration: const Duration(milliseconds: 150),
+            opacity: dimOthers && !chain.nodes.contains(s.id) ? 0.3 : 0.7,
+            child: _SubjectBox(
+              key: _keyOf(s.id),
+              subject: s,
+              progress: SubjectProgress.empty,
+              ghost: true,
+              onTap: () => w.onFocus?.call(s.planYear, null),
+            ),
+          ),
+        );
+
+    Widget ghostColumn(String title, List<Subject> items) => SizedBox(
+          width: _boxWidth,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _Header(text: title, subtle: true),
+              const SizedBox(height: 8),
+              for (final s in items)
+                Padding(padding: const EdgeInsets.only(bottom: _gap), child: ghostBox(s)),
+            ],
+          ),
+        );
+
     // คอลัมน์ 1 ภาค: กล่องเรียงลงมาทีละใบ สูงเท่ากันทุกใบ
     Widget termColumn(String title, List<Subject> items,
         {double width = _boxWidth, VoidCallback? onHeader}) {
@@ -136,27 +168,30 @@ class _CurriculumMapState extends State<CurriculumMap> {
 
     // ชั้นเส้นทับบนกล่อง (ไม่รับการแตะ ให้แตะทะลุถึงกล่อง)
     // [shown] = วิชาที่อยู่บนจอใน build นี้ · กล่องที่เพิ่งถูกถอด (สลับปี) ห้ามอ่านตำแหน่ง
-    Widget withLines(Set<int> shown, Widget child) => Stack(
-          key: _stackKey,
-          children: [
-            child,
-            Positioned.fill(
-              child: IgnorePointer(
-                child: CustomPaint(
-                  painter: _LinkPainter(
-                    links: [for (final l in links) if (shown.contains(l.from) && shown.contains(l.to)) l],
-                    chain: chain,
-                    boxKeys: _boxKeys,
-                    stackKey: _stackKey,
-                    idle: c.muted,
-                    dim: c.line2,
-                    strong: c.accent,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        );
+    // เส้นปกติอยู่ "หลัง" กล่อง (เห็นแค่ในช่องว่าง ไม่บังชื่อวิชา) · เส้นของสายที่ชี้อยู่ "หน้า" กล่อง
+    Widget withLines(Set<int> shown, Widget child) {
+      final visible = [
+        for (final l in links) if (shown.contains(l.from) && shown.contains(l.to)) l
+      ];
+      _LinkPainter painter({required bool front}) => _LinkPainter(
+            links: [for (final l in visible) if (chain.edges.contains(l) == front) l],
+            active: dimOthers,
+            front: front,
+            boxKeys: _boxKeys,
+            stackKey: _stackKey,
+            idle: c.muted,
+            dim: c.line2,
+            strong: c.accent,
+          );
+      return Stack(
+        key: _stackKey,
+        children: [
+          Positioned.fill(child: IgnorePointer(child: CustomPaint(painter: painter(front: false)))),
+          child,
+          Positioned.fill(child: IgnorePointer(child: CustomPaint(painter: painter(front: true)))),
+        ],
+      );
+    }
 
     final sortedYears = years.keys.toList()..sort();
     final focus = w.focusYear != null && years.containsKey(w.focusYear) ? w.focusYear : null;
@@ -212,9 +247,29 @@ class _CurriculumMapState extends State<CurriculumMap> {
           // ช่องระหว่างภาคกว้าง ให้เส้นเลี้ยวเห็นชัด
           LayoutBuilder(builder: (context, size) {
             final terms = focusT == null ? termsOf(focus) : [focusT];
-            final colW = ((size.maxWidth - _focusGap * (terms.length - 1)) / terms.length)
-                .clamp(_boxWidth, _focusMaxWidth);
-            final total = colW * terms.length + _focusGap * (terms.length - 1);
+            final shown = {
+              for (final t in terms) ...years[focus]![t]!.map((s) => s.id)
+            };
+            // วิชานอกจอที่มีเส้นต่อ: ต้นเส้น → คอลัมน์เงาซ้าย · ปลายเส้น → คอลัมน์เงาขวา
+            int order(Subject s) => (s.planYear ?? 99) * 10 + (s.planTerm ?? 9);
+            final firstOrder = focus * 10 + terms.first;
+            final byId = {for (final s in w.subjects) s.id: s};
+            final outside = <Subject>{
+              for (final l in links)
+                if (shown.contains(l.to) && !shown.contains(l.from)) byId[l.from]!,
+              for (final l in links)
+                if (shown.contains(l.from) && !shown.contains(l.to)) byId[l.to]!,
+            };
+            final before = [for (final s in outside) if (order(s) < firstOrder) s]
+              ..sort((a, b) => order(a).compareTo(order(b)));
+            final after = [for (final s in outside) if (order(s) >= firstOrder) s]
+              ..sort((a, b) => order(a).compareTo(order(b)));
+            final ghostW = (before.isEmpty ? 0 : _boxWidth + _focusGap) +
+                (after.isEmpty ? 0 : _boxWidth + _focusGap);
+            final colW =
+                ((size.maxWidth - ghostW - _focusGap * (terms.length - 1)) / terms.length)
+                    .clamp(_boxWidth, _focusMaxWidth);
+            final total = ghostW + colW * terms.length + _focusGap * (terms.length - 1);
             return SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: SizedBox(
@@ -231,11 +286,13 @@ class _CurriculumMapState extends State<CurriculumMap> {
                       onTap: focusT == null || onFocus == null ? null : () => onFocus(focus, null),
                     ),
                     const SizedBox(height: 8),
-                    withLines({
-                      for (final t in terms) ...years[focus]![t]!.map((s) => s.id)
-                    }, Row(
+                    withLines({...shown, ...outside.map((s) => s.id)}, Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        if (before.isNotEmpty) ...[
+                          ghostColumn('← ต้องเรียนก่อน', before),
+                          const SizedBox(width: _focusGap),
+                        ],
                         for (final (i, t) in terms.indexed) ...[
                           if (i > 0) const SizedBox(width: _focusGap),
                           termColumn(termLabel(t), years[focus]![t]!,
@@ -243,6 +300,10 @@ class _CurriculumMapState extends State<CurriculumMap> {
                               onHeader: focusT != null || onFocus == null
                                   ? null
                                   : () => onFocus(focus, t)),
+                        ],
+                        if (after.isNotEmpty) ...[
+                          const SizedBox(width: _focusGap),
+                          ghostColumn('ต่อยอดไป →', after),
                         ],
                       ],
                     )),
@@ -353,10 +414,12 @@ LinkChain linkChain(List<SubjectLink> links, int? focus) {
 }
 
 /// วาดเส้นหักมุม: ขอบขวากล่องต้นทาง → เลี้ยวลง/ขึ้นในช่องว่างหน้ากล่องปลายทาง → ลูกศรเข้าขอบซ้าย
+/// ใช้ 2 ชั้น: [front] = false วาดหลังกล่อง (เส้นทั่วไป) · true วาดหน้ากล่อง (เส้นของสายที่ชี้)
 class _LinkPainter extends CustomPainter {
   _LinkPainter({
     required this.links,
-    required this.chain,
+    required this.active,
+    required this.front,
     required this.boxKeys,
     required this.stackKey,
     required this.idle,
@@ -365,7 +428,9 @@ class _LinkPainter extends CustomPainter {
   });
 
   final List<SubjectLink> links;
-  final LinkChain chain;
+  /// มีวิชาที่ชี้/เลือกอยู่ → เส้นหลังกล่องจางลงอีก
+  final bool active;
+  final bool front;
   final Map<int, GlobalKey> boxKeys;
   final GlobalKey stackKey;
   final Color idle, dim, strong;
@@ -380,17 +445,11 @@ class _LinkPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final stack = stackKey.currentContext?.findRenderObject();
     if (stack is! RenderBox) return;
-    final active = chain.nodes.length > 1;
-    // วาดเส้นจางก่อน เส้นในสายทีหลัง → เส้นสายอยู่บนสุดเสมอ
-    final ordered = [
-      for (final l in links) if (!chain.edges.contains(l)) l,
-      for (final l in links) if (chain.edges.contains(l)) l,
-    ];
-    for (final l in ordered) {
+    for (final l in links) {
       final a = _rectOf(l.from, stack), b = _rectOf(l.to, stack);
       if (a == null || b == null) continue; // ยังไม่ได้จัดวาง
-      final on = chain.edges.contains(l);
-      final color = on ? strong : (active ? dim.withValues(alpha: 0.35) : idle.withValues(alpha: 0.7));
+      final on = front;
+      final color = on ? strong : (active ? dim.withValues(alpha: 0.35) : idle.withValues(alpha: 0.8));
       final paint = Paint()
         ..color = color
         ..style = PaintingStyle.stroke
@@ -500,6 +559,7 @@ class _SubjectBox extends StatelessWidget {
     required this.onTap,
     this.onDoubleTap,
     this.selected = false,
+    this.ghost = false,
   });
 
   final Subject subject;
@@ -507,6 +567,9 @@ class _SubjectBox extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback? onDoubleTap;
   final bool selected;
+
+  /// กล่องเงา (วิชาปี/ภาคอื่น): บรรทัดสถานะบอก "ปี N · ภาค N" แทนความคืบหน้า
+  final bool ghost;
 
   @override
   Widget build(BuildContext context) {
@@ -576,7 +639,9 @@ class _SubjectBox extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
                 child: Text(
-                  missing.isNotEmpty
+                  ghost
+                      ? 'ปี ${subject.planYear} · ${subject.planTerm == 3 ? 'ฤดูร้อน' : 'ภาค ${subject.planTerm}'}'
+                      : missing.isNotEmpty
                       ? '⚠ ขาด ${missing.join(' · ')}'
                       : progress.total == 0
                           ? ' '
@@ -586,7 +651,7 @@ class _SubjectBox extends StatelessWidget {
                   textAlign: TextAlign.center,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: missing.isNotEmpty
+                  style: missing.isNotEmpty && !ghost
                       ? TextStyle(fontSize: 11, color: c.bad, fontWeight: FontWeight.w600)
                       : TextStyle(fontSize: 11, color: c.muted),
                 ),
