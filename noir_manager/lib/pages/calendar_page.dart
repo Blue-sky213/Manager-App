@@ -10,6 +10,7 @@ import '../calendar/day_agenda.dart';
 import '../calendar/week_views.dart';
 import '../data/study_repository.dart';
 import '../data/study_scope.dart';
+import '../shell/app_nav.dart';
 import '../theme/noir_colors.dart';
 import '../utils/thai_date.dart';
 
@@ -74,6 +75,24 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
         CalView.month => monthGridDays(_selected),
         _ => const [],
       };
+
+  // แตะวันสอบในหน้าวิชา → มาที่วันนั้น (มุมมองวัน เห็นเวลาสอบชัด)
+  void _onJump() {
+    final d = calendarJump.day;
+    if (d != null && mounted) _go(day: d, view: CalView.day);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    calendarJump.addListener(_onJump);
+  }
+
+  @override
+  void dispose() {
+    calendarJump.removeListener(_onJump);
+    super.dispose();
+  }
 
   @override
   void didChangeDependencies() {

@@ -40,6 +40,12 @@ class _StudyPageState extends State<StudyPage> {
   /// วิชาที่แตะครั้งเดียวในแผนผัง (ดับเบิลคลิกถึงเปิด) · ล้างทุกครั้งที่ออกจากแผนผัง
   int? _mapSelectedId;
 
+  /// ปีที่ดูในแผนผัง (แตะหัวปี/เทอม) · null = ทั้งหลักสูตร · คงไว้ตอนกลับจากหน้าวิชา
+  int? _mapYear;
+
+  /// ภาคที่ดูในแผนผัง (แตะหัวภาค) · null = ทุกภาคของปีนั้น
+  int? _mapTerm;
+
   /// ปีที่ดูอยู่ในหน้ารายวิชา (0 = ยังไม่จัดปี) · null = ตามปีของวิชาที่เปิด
   int? _yearView;
   static const _viewKey = 'study_view';
@@ -594,7 +600,12 @@ class _StudyPageState extends State<StudyPage> {
         Row(
           children: [
             Expanded(
-              child: Text('แผนการเรียน',
+              child: Text(
+                  _mapYear == null
+                      ? 'แผนการเรียน'
+                      : _mapTerm == null
+                          ? 'แผนการเรียน · ปี $_mapYear'
+                          : 'แผนการเรียน · ปี $_mapYear · ${_mapTerm == 3 ? 'ฤดูร้อน' : 'ภาค $_mapTerm'}',
                   style: TextStyle(fontSize: 28, fontWeight: FontWeight.w600, color: c.text)),
             ),
             FilledButton.icon(
@@ -612,7 +623,9 @@ class _StudyPageState extends State<StudyPage> {
         const SizedBox(height: 4),
         Text(
             _mapSelectedId == null
-                ? 'แตะกล่องวิชาเพื่อเลือก · ดับเบิลคลิกเพื่อเปิดดูบท คะแนน ตารางเรียน'
+                ? (_mapYear == null
+                    ? 'แตะหัวปี = ดูทั้งปี · แตะหัวภาค = ดูภาคเดียว · ดับเบิลคลิกกล่องวิชาเพื่อเปิด'
+                    : 'แตะกล่องวิชาเพื่อเลือก · ดับเบิลคลิกเพื่อเปิดดูบท คะแนน ตารางเรียน')
                 : 'เลือก "${_subjects.where((s) => s.id == _mapSelectedId).firstOrNull?.name ?? ''}" · ดับเบิลคลิกเพื่อเปิด',
             style: TextStyle(color: c.muted, fontSize: 13)),
         const SizedBox(height: 16),
@@ -622,6 +635,12 @@ class _StudyPageState extends State<StudyPage> {
           selectedId: _mapSelectedId,
           onOpen: _openSubject,
           onSelect: (s) => setState(() => _mapSelectedId = _mapSelectedId == s.id ? null : s.id),
+          focusYear: _mapYear,
+          focusTerm: _mapTerm,
+          onFocus: (y, t) => setState(() {
+            _mapYear = y;
+            _mapTerm = t;
+          }),
         ),
       ],
     );

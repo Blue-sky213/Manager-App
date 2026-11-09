@@ -330,4 +330,102 @@ void main() {
     expect(find.text('ตารางเรียน'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('แผนผัง: แตะหัวปี → ดูทั้งปี · แตะหัวภาค → ดูภาคเดียว · ชิปพากลับ',
+      (tester) async {
+    setScreen(tester, const Size(1280, 2400));
+    await tester.pumpWidget(buildApp());
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('วิชา').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('ตัวเลือก'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('ใส่ตัวอย่าง: แผน 4 ปี'));
+    await tester.pumpAndSettle();
+
+    // หัวปี → ปี 2 อย่างเดียว เห็นทั้ง 2 เทอม ไม่มีวิชาปี 1
+    await tester.tap(find.text('ปีการศึกษาที่ 2'));
+    await tester.pumpAndSettle();
+    expect(find.text('แผนการเรียน · ปี 2'), findsOneWidget);
+    expect(find.textContaining('ปีการศึกษาที่ 2 ·'), findsOneWidget);
+    expect(find.text('ปีการศึกษาที่ 1'), findsNothing);
+    expect(find.text('ภาคเรียนที่ 1'), findsOneWidget);
+    expect(find.text('ภาคเรียนที่ 2'), findsOneWidget);
+    expect(find.text('คณิตศาสตร์วิศวกรรม 1'), findsOneWidget);
+    expect(find.text('คณิตศาสตร์วิศวกรรม 2'), findsOneWidget);
+    expect(find.text('การเขียนโปรแกรมคอมพิวเตอร์'), findsNothing);
+    expect(tester.takeException(), isNull);
+
+    // ในปี 2 แตะหัวภาค 2 → เหลือภาค 2 อย่างเดียว
+    await tester.tap(find.text('ภาคเรียนที่ 2'));
+    await tester.pumpAndSettle();
+    expect(find.text('แผนการเรียน · ปี 2 · ภาค 2'), findsOneWidget);
+    expect(find.text('คณิตศาสตร์วิศวกรรม 2'), findsOneWidget);
+    expect(find.text('คณิตศาสตร์วิศวกรรม 1'), findsNothing);
+    // ชิป "ทั้งปี" → กลับมาเห็น 2 ภาค
+    await tester.tap(find.widgetWithText(ChoiceChip, 'ทั้งปี'));
+    await tester.pumpAndSettle();
+    expect(find.text('แผนการเรียน · ปี 2'), findsOneWidget);
+    expect(find.text('คณิตศาสตร์วิศวกรรม 1'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    // กลับทุกปี → แตะหัวภาคแรกสุด (ปี 1 ภาค 1) → ไปภาคนั้นตรง ๆ
+    await tester.tap(find.widgetWithText(ChoiceChip, 'ทุกปี'));
+    await tester.pumpAndSettle();
+    expect(find.text('ปีการศึกษาที่ 4'), findsOneWidget);
+    await tester.tap(find.text('ภาคเรียนที่ 1').first);
+    await tester.pumpAndSettle();
+    expect(find.text('แผนการเรียน · ปี 1 · ภาค 1'), findsOneWidget);
+    expect(find.text('การเขียนโปรแกรมคอมพิวเตอร์'), findsOneWidget);
+    expect(find.text('การแก้ปัญหาและขั้นตอนวิธี'), findsNothing); // ปี 1 ภาค 2
+
+    // ดับเบิลคลิกเปิดวิชาได้เหมือนเดิมในมุมมองปีเดียว
+    final prog = find.text('การเขียนโปรแกรมคอมพิวเตอร์');
+    await tester.tap(prog);
+    await tester.pump(const Duration(milliseconds: 60));
+    await tester.tap(prog);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('ปี 1 ·'), findsOneWidget);
+  });
+
+  testWidgets('แตะวันสอบในหน้าวิชา → ไปวันนั้นในปฏิทิน', (tester) async {
+    setScreen(tester, const Size(1280, 2400));
+    final cal = MemoryCalendarRepository();
+    final examDay = DateTime(2026, 12, 21);
+    await cal.addActivity(NewActivity(
+      name: 'สอบกลางภาค · DaVinci',
+      categoryId: 1,
+      importance: 3,
+      timed: true,
+      day: examDay,
+      startMinute: 13 * 60,
+      durationMin: 180,
+      subjectId: 1,
+      kind: ActivityKind.exam,
+    ));
+    await tester.pumpWidget(buildApp(calendar: cal));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('วิชา').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('รายวิชา'));
+    await tester.pumpAndSettle();
+
+    final exam = find.textContaining('สอบกลางภาค · ${thaiShortDate(examDay)}');
+    await tester.scrollUntilVisible(
+      exam,
+      300,
+      scrollable: find
+          .byWidgetPredicate((w) => w is Scrollable && w.axisDirection == AxisDirection.down)
+          .first,
+    );
+    await tester.tap(exam);
+    await tester.pumpAndSettle();
+    expect(find.text('แก้วัน / เวลาสอบ'), findsOneWidget);
+    await tester.tap(find.text('ไปที่ ${thaiShortDate(examDay)} ในปฏิทิน'));
+    await tester.pumpAndSettle();
+
+    // สลับมาเมนูปฏิทิน มุมมองวัน ที่วันสอบ
+    expect(find.text('${thaiShortDate(examDay)} ${buddhistYear(examDay)}'), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
 }

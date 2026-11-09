@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../pages/calendar_page.dart';
 import '../theme/noir_colors.dart';
+import 'app_nav.dart';
 import 'destinations.dart';
 
 /// "โครงบ้าน" ของแอป: เมนู + พื้นที่แสดงหน้า
@@ -28,6 +30,24 @@ class _AppShellState extends State<AppShell> {
   int _index = 0; // เมนูที่เลือกอยู่ (0 = วันนี้)
 
   void _select(int i) => setState(() => _index = i);
+
+  // หน้าอื่นขอเปิดปฏิทิน (เช่น แตะวันสอบ) → สลับเมนู
+  void _onJump() {
+    final i = appDestinations.indexWhere((d) => d.page is CalendarPage);
+    if (i >= 0) _select(i);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    calendarJump.addListener(_onJump);
+  }
+
+  @override
+  void dispose() {
+    calendarJump.removeListener(_onJump);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
