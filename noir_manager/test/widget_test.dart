@@ -297,7 +297,25 @@ void main() {
     expect(find.text('ปีการศึกษาที่ 4'), findsOneWidget);
     expect(find.text('จำนวนหน่วยกิตตลอดหลักสูตร 125 หน่วยกิต'), findsOneWidget);
 
-    await tester.tap(find.text('การเขียนโปรแกรมคอมพิวเตอร์'));
+    // แตะครั้งเดียว = เลือก (ยังอยู่หน้าแผนผัง) · ดับเบิลคลิก = เปิด
+    final prog = find.text('การเขียนโปรแกรมคอมพิวเตอร์');
+    await tester.tap(prog);
+    await tester.pump(const Duration(milliseconds: 400)); // รอให้พ้นช่วงรอดับเบิลคลิก → นับเป็นแตะครั้งเดียว
+    await tester.pumpAndSettle();
+    expect(find.text('ปีการศึกษาที่ 1'), findsOneWidget);
+    expect(find.textContaining('ดับเบิลคลิกเพื่อเปิด'), findsOneWidget);
+    await tester.tap(prog);
+    await tester.pump(const Duration(milliseconds: 60));
+    await tester.tap(prog);
+    await tester.pumpAndSettle();
+
+    // หน้ารายวิชาเปิดที่ปี 1 → เห็นเฉพาะวิชาปี 1 ไม่มีวิชาปี 2 ปนมา
+    expect(find.textContaining('ปี 1 ·'), findsOneWidget);
+    expect(find.text('คณิตศาสตร์วิศวกรรม 1'), findsNothing);
+    await tester.tap(find.textContaining('ปี 2 ·'));
+    await tester.pumpAndSettle();
+    expect(find.text('คณิตศาสตร์วิศวกรรม 1'), findsOneWidget);
+    await tester.tap(find.textContaining('ปี 1 ·'));
     await tester.pumpAndSettle();
     // หน้ารายวิชายาว (ตารางเรียน + รอบติว) → เลื่อนลงไปหาบทแรกแทนการเดาความสูงจอ
     final chapter1 = find.text('บท 1 · อัลกอริทึมและผังงาน [กลางภาค]');

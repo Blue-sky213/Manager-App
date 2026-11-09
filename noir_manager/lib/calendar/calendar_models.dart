@@ -164,7 +164,12 @@ class ClassInfo {
       );
 
   /// ช่องว่าง → null (ไม่เก็บสตริงว่างลง DB)
-  ClassInfo get normalized => ClassInfo(type: type, room: _blankToNull(room), section: _blankToNull(section));
+  /// พิมพ์ "กลุ่ม L.1" / "ห้อง 1-B4-08" มา → เก็บแค่ค่า เพราะหน้าจอเติมคำนำหน้าให้เอง
+  ClassInfo get normalized => ClassInfo(
+        type: type,
+        room: _blankToNull(_stripLabel(room, 'ห้อง')),
+        section: _blankToNull(_stripLabel(section, 'กลุ่ม')),
+      );
 
   @override
   bool operator ==(Object other) =>
@@ -172,6 +177,12 @@ class ClassInfo {
 
   @override
   int get hashCode => Object.hash(type, room, section);
+}
+
+String? _stripLabel(String? s, String label) {
+  final t = s?.trim();
+  if (t == null || !t.startsWith(label)) return t;
+  return t.substring(label.length).replaceFirst(RegExp(r'^[\s:：]+'), '');
 }
 
 String? _blankToNull(String? s) => (s == null || s.trim().isEmpty) ? null : s.trim();

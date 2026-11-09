@@ -26,12 +26,17 @@ class CurriculumMap extends StatelessWidget {
     required this.progress,
     required this.selectedId,
     required this.onOpen,
+    this.onSelect,
   });
 
   final List<Subject> subjects;
   final Map<int, SubjectProgress> progress;
   final int? selectedId;
+  /// ดับเบิลคลิก = เปิดวิชา
   final ValueChanged<Subject> onOpen;
+
+  /// แตะครั้งเดียว = เลือก (กรอบสีเน้น) · null = แตะครั้งเดียวก็เปิดเลย
+  final ValueChanged<Subject>? onSelect;
 
   @override
   Widget build(BuildContext context) {
@@ -66,7 +71,9 @@ class CurriculumMap extends StatelessWidget {
                 child: _SubjectBox(
                   subject: s,
                   progress: progress[s.id] ?? SubjectProgress.empty,
-                  onTap: () => onOpen(s),
+                  selected: s.id == selectedId,
+                  onTap: () => (onSelect ?? onOpen)(s),
+                  onDoubleTap: onSelect == null ? null : () => onOpen(s),
                 ),
               ),
             if (credits > 0) _Header(text: '$credits หน่วยกิต', subtle: true),
@@ -170,11 +177,15 @@ class _SubjectBox extends StatelessWidget {
     required this.subject,
     required this.progress,
     required this.onTap,
+    this.onDoubleTap,
+    this.selected = false,
   });
 
   final Subject subject;
   final SubjectProgress progress;
   final VoidCallback onTap;
+  final VoidCallback? onDoubleTap;
+  final bool selected;
 
   @override
   Widget build(BuildContext context) {
@@ -198,10 +209,14 @@ class _SubjectBox extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(8),
         onTap: onTap,
+        onDoubleTap: onDoubleTap,
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: missing.isEmpty ? c.line2 : c.bad, width: missing.isEmpty ? 1 : 2),
+            border: Border.all(
+              color: selected ? c.accent : (missing.isEmpty ? c.line2 : c.bad),
+              width: selected || missing.isNotEmpty ? 2 : 1,
+            ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
