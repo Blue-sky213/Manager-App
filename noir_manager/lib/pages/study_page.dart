@@ -51,6 +51,9 @@ class _StudyPageState extends State<StudyPage> {
   static const _viewKey = 'study_view';
   Map<int, SubjectProgress> _progress = {};
 
+  /// เส้นวิชาที่ต้องเรียนก่อน (วาดในแผนผัง)
+  List<SubjectLink> _links = [];
+
   /// ส่วนที่ "ยุบ" อยู่ (จำไว้ในฐานข้อมูล): 'ch<id>' = การ์ดบท · 'review' / 'exam' = กล่องท้ายหน้า
   Set<String> _collapsed = {};
   static const _collapsedKey = 'collapsed_sections';
@@ -85,6 +88,7 @@ class _StudyPageState extends State<StudyPage> {
     final chapters =
         selected == null ? <ChapterWithTopics>[] : await repo.chapters(selected);
     final view = await repo.getSetting(_viewKey);
+    final links = await repo.subjectLinks();
     // ความคืบหน้าทุกวิชา (ใช้วาดแถบสีในแผนผัง)
     final progress = <int, SubjectProgress>{};
     for (final s in subjects) {
@@ -104,6 +108,7 @@ class _StudyPageState extends State<StudyPage> {
       _mode = mode;
       _mapView = view != 'detail';
       _progress = progress;
+      _links = links;
       _collapsed = collapsedRaw.split(',').where((k) => k.isNotEmpty).toSet();
       _loading = false;
     });
@@ -195,6 +200,7 @@ class _StudyPageState extends State<StudyPage> {
     PopupMenuItem(value: 'terms', child: Text('ภาคเรียน & วันหยุด')),
     PopupMenuItem(value: 'dupes', child: Text('ลบคาบเรียน/วันสอบที่ซ้ำ')),
     PopupMenuItem(value: 'demo', child: Text('ใส่ตัวอย่าง: แผน 4 ปี')),
+    PopupMenuItem(value: 'links', child: Text('ใส่เส้นเชื่อมตามหลักสูตร 2567')),
   ];
 
   void _onPageMenu(String v) {
@@ -203,9 +209,113 @@ class _StudyPageState extends State<StudyPage> {
         openTermsPage(context);
       case 'dupes':
         _removeDuplicates();
+      case 'links':
+        _loadLinks();
       default:
         _loadDemo();
     }
+  }
+
+  /// เส้นตามหลักสูตร: จับคู่จากรหัสวิชา · เพิ่มอย่างเดียว เส้นที่ทำเองไม่หาย
+  Future<void> _loadLinks() async {
+    final n = await loadCurriculumLinks(_repo!);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(n == 0
+          ? 'ไม่มีเส้นใหม่ให้เพิ่ม (มีครบแล้ว หรือรหัสวิชาไม่ตรงหลักสูตร)'
+          : 'เพิ่มเส้นเชื่อม $n เส้น'),
+    ));
+    await _reload();
+  }
+
+  /// แก้เส้นของวิชาเดียว: ติ๊กวิชาที่ต้องเรียนก่อน / วิชาที่ต่อยอด
+  Future<void> _editLinks(Subject subject) async {
+    // ลำดับในแผน: ปี/เทอม · วิชายังไม่จัดเทอมไม่อยู่ในรายการ (ไม่รู้ว่ามาก่อนหรือหลัง)
+    int? order(Subject s) =>
+        s.planYear == null || s.planTerm == null ? null : s.planYear! * 10 + s.planTerm!;
+    final me = order(subject);
+    if (me == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('จัดปี / เทอม ของวิชานี้ก่อน แล้วค่อยต่อเส้น')));
+      return;
+    }
+    final others = [for (final s in _subjects) if (s.id != subject.id && order(s) != null) s]
+      ..sort((a, b) => order(a)!.compareTo(order(b)!));
+    final before = [for (final s in others) if (order(s)! < me) s];
+    final after = [for (final s in others) if (order(s)! > me) s];
+    final pre = {for (final l in _links) if (l.to == subject.id) l.from};
+    final post = {for (final l in _links) if (l.from == subject.id) l.to};
+    final newPre = {...pre}, newPost = {...post};
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setLocal) {
+        final c = ctx.noir;
+        Widget section(String title, List<Subject> items, Set<int> picked) => Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(4, 12, 4, 4),
+                  child: Text(title,
+                      style: TextStyle(fontWeight: FontWeight.w600, color: c.text)),
+                ),
+                if (items.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: Text('ไม่มีวิชาในช่วงนี้', style: TextStyle(color: c.muted)),
+                  ),
+                for (final s in items)
+                  CheckboxListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    value: picked.contains(s.id),
+                    title: Text(s.name),
+                    subtitle: Text('ปี ${s.planYear} · ${s.planTerm == 3 ? 'ฤดูร้อน' : 'ภาค ${s.planTerm}'}'
+                        '${s.code == null ? '' : ' · ${s.code}'}'),
+                    onChanged: (v) => setLocal(() {
+                      if (v == true) {
+                        picked.add(s.id);
+                      } else {
+                        picked.remove(s.id);
+                      }
+                    }),
+                  ),
+              ],
+            );
+        return AlertDialog(
+          title: Text('เส้นเชื่อม · ${subject.name}'),
+          content: SizedBox(
+            width: 480,
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                section('ต้องเรียนก่อนวิชานี้', before, newPre),
+                section('วิชานี้ต่อยอดไปที่', after, newPost),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('ยกเลิก')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('บันทึก')),
+          ],
+        );
+      }),
+    );
+    if (ok != true) return;
+    final repo = _repo!;
+    for (final id in newPre.difference(pre)) {
+      await repo.addSubjectLink(id, subject.id);
+    }
+    for (final id in pre.difference(newPre)) {
+      await repo.removeSubjectLink(id, subject.id);
+    }
+    for (final id in newPost.difference(post)) {
+      await repo.addSubjectLink(subject.id, id);
+    }
+    for (final id in post.difference(newPost)) {
+      await repo.removeSubjectLink(subject.id, id);
+    }
+    await _reload();
   }
 
   Future<void> _removeDuplicates() async {
@@ -621,6 +731,10 @@ class _StudyPageState extends State<StudyPage> {
           ],
         ),
         const SizedBox(height: 4),
+        Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 8,
+          children: [
         Text(
             _mapSelectedId == null
                 ? (_mapYear == null
@@ -628,6 +742,14 @@ class _StudyPageState extends State<StudyPage> {
                     : 'แตะกล่องวิชาเพื่อเลือก · ดับเบิลคลิกเพื่อเปิดดูบท คะแนน ตารางเรียน')
                 : 'เลือก "${_subjects.where((s) => s.id == _mapSelectedId).firstOrNull?.name ?? ''}" · ดับเบิลคลิกเพื่อเปิด',
             style: TextStyle(color: c.muted, fontSize: 13)),
+            if (_subjects.where((s) => s.id == _mapSelectedId).firstOrNull case final sel?)
+              TextButton.icon(
+                onPressed: () => _editLinks(sel),
+                icon: const Icon(Icons.timeline, size: 18),
+                label: const Text('แก้เส้นเชื่อม'),
+              ),
+          ],
+        ),
         const SizedBox(height: 16),
         CurriculumMap(
           subjects: _subjects,
@@ -637,6 +759,7 @@ class _StudyPageState extends State<StudyPage> {
           onSelect: (s) => setState(() => _mapSelectedId = _mapSelectedId == s.id ? null : s.id),
           focusYear: _mapYear,
           focusTerm: _mapTerm,
+          links: _links,
           onFocus: (y, t) => setState(() {
             _mapYear = y;
             _mapTerm = t;

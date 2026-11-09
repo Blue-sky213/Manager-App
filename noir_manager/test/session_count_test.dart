@@ -132,6 +132,7 @@ void main() {
     await createTutorV9(db);
     await createTermV10(db);
     await createClassInfoV11(db); // ให้ตรงกับ schema ล่าสุดของแอป
+    await createSubjectLinkV12(db);
     await moveRules(SqliteCalendarRepository(db));
     await db.close();
   });

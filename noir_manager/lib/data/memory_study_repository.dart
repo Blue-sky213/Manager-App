@@ -27,6 +27,7 @@ class MemoryStudyRepository implements StudyRepository {
   final List<Chapter> _chapters = [];
   final List<_TopicRow> _topics = [];
   final List<_ScoreRow> _scores = [];
+  final Set<SubjectLink> _links = {};
 
   int _insertSubject(String name, int importance) {
     final id = _nextId++;
@@ -117,6 +118,22 @@ class MemoryStudyRepository implements StudyRepository {
       await deleteChapter(id);
     }
     _subjects.removeWhere((s) => s.id == subjectId);
+    _links.removeWhere((l) => l.from == subjectId || l.to == subjectId); // = CASCADE
+  }
+
+  @override
+  Future<List<SubjectLink>> subjectLinks() async => _links.toList()
+    ..sort((a, b) => a.from != b.from ? a.from - b.from : a.to - b.to);
+
+  @override
+  Future<void> addSubjectLink(int fromId, int toId) async {
+    if (fromId == toId) return;
+    _links.add((from: fromId, to: toId));
+  }
+
+  @override
+  Future<void> removeSubjectLink(int fromId, int toId) async {
+    _links.remove((from: fromId, to: toId));
   }
 
   @override

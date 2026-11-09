@@ -428,4 +428,47 @@ void main() {
     expect(find.text('${thaiShortDate(examDay)} ${buddhistYear(examDay)}'), findsWidgets);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('แผนผัง: กล่องวิชาสูงเท่ากัน · เลือกวิชา → แก้เส้นเชื่อม เห็นวิชาที่ต้องเรียนก่อน',
+      (tester) async {
+    setScreen(tester, const Size(1280, 2400));
+    await tester.pumpWidget(buildApp());
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('วิชา').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('ตัวเลือก'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('ใส่ตัวอย่าง: แผน 4 ปี'));
+    await tester.pumpAndSettle();
+
+    // ทุกกล่องสูงเท่ากัน ไม่ว่าชื่อยาว 1 หรือ 2 บรรทัด
+    final boxes = find.byWidgetPredicate((w) => w.runtimeType.toString() == '_SubjectBox');
+    final heights = {for (final e in boxes.evaluate()) tester.getSize(find.byWidget(e.widget)).height};
+    expect(boxes.evaluate().length, greaterThan(10));
+    expect(heights, hasLength(1));
+
+    // ปี 2 ภาค 2 · เลือก "คณิตศาสตร์วิศวกรรม 2" → ปุ่มแก้เส้น → คณิต 1 ถูกติ๊กเป็นวิชาที่ต้องเรียนก่อน
+    await tester.tap(find.text('ปีการศึกษาที่ 2'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('คณิตศาสตร์วิศวกรรม 2'));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('แก้เส้นเชื่อม'));
+    await tester.pumpAndSettle();
+    expect(find.text('ต้องเรียนก่อนวิชานี้'), findsOneWidget);
+    final m1 = find.ancestor(
+        of: find.descendant(of: find.byType(AlertDialog), matching: find.text('คณิตศาสตร์วิศวกรรม 1')),
+        matching: find.byType(CheckboxListTile));
+    expect(tester.widget<CheckboxListTile>(m1).value, isTrue);
+
+    // เอาติ๊กออก → บันทึก → เปิดใหม่ไม่ติ๊กแล้ว
+    await tester.tap(m1);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('บันทึก'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('แก้เส้นเชื่อม'));
+    await tester.pumpAndSettle();
+    expect(tester.widget<CheckboxListTile>(m1).value, isFalse);
+    expect(tester.takeException(), isNull);
+  });
 }
