@@ -336,6 +336,41 @@ const List<PlanEntry> curriculumPlan = [
   (year: 4, term: 2, code: 'XXXXXXXXX', name: 'วิชาเลือกเสรี', credits: '3(3-0-6)'),
 ];
 
+/// วิชาที่ต้องเรียนก่อน (รหัส → รหัส) ตามแผนภูมิหลักสูตร 2567 ที่นัวร์ยืนยันแล้ว
+const List<(String, String)> curriculumLinks = [
+  ('060233115', '060233120'), // การเขียนโปรแกรม → พัฒนาระบบสารสนเทศฯ
+  ('080103001', '080103002'), // อังกฤษ 1 → 2
+  ('040203111', '040203112'), // คณิตวิศวกรรม 1 → 2
+  ('060233108', '060233215'), // การสื่อสารข้อมูลฯ → ปฏิบัติการ 1
+  ('060233108', '060233205'), //   → เครือข่ายขั้นสูงฯ
+  ('060233108', '060233206'), //   → การจัดการเครือข่ายฯ
+  ('060233108', '060233204'), //   → ออกแบบเครือข่ายฯ
+  ('060233108', '060233208'), //   → ความมั่นคงปลอดภัยไซเบอร์
+  ('060233215', '060233216'), // ปฏิบัติการ 1 → 2
+  ('060233120', '060233403'), // พัฒนาระบบสารสนเทศฯ → ฝึกงาน
+  ('060233120', '060233401'), //   → โครงงาน 1
+  ('060233207', '060233403'), // ML → ฝึกงาน
+  ('060233401', '060233402'), // โครงงาน 1 → 2
+];
+
+/// ใส่เส้นความสัมพันธ์ตามหลักสูตร: จับคู่จากรหัสวิชา · เพิ่มอย่างเดียว ไม่ลบเส้นที่นัวร์ทำเอง
+/// รหัสในรายการไม่ซ้ำกับวิชาเลือก (XXX) จึงจับคู่ได้ตัวเดียว · คืนจำนวนเส้นที่เพิ่ม
+Future<int> loadCurriculumLinks(StudyRepository study) async {
+  final byCode = <String, int>{};
+  for (final s in await study.subjects()) {
+    if (s.code != null) byCode.putIfAbsent(s.code!, () => s.id);
+  }
+  final have = (await study.subjectLinks()).toSet();
+  var added = 0;
+  for (final (a, b) in curriculumLinks) {
+    final from = byCode[a], to = byCode[b];
+    if (from == null || to == null || have.contains((from: from, to: to))) continue;
+    await study.addSubjectLink(from, to);
+    added++;
+  }
+  return added;
+}
+
 /// ใส่แผนการเรียนทั้งหลักสูตร: ปี 1 เทอม 1 แบบละเอียด + เทอมอื่นแบบรายชื่อ · คืนจำนวนวิชาที่เพิ่ม
 Future<int> loadDemoCurriculum(StudyRepository study, CalendarRepository calendar) async {
   var added = 0;
@@ -359,5 +394,6 @@ Future<int> loadDemoCurriculum(StudyRepository study, CalendarRepository calenda
     await study.setSubjectPlan(id, code: e.code, credits: e.credits, year: e.year, term: e.term);
     added++;
   }
+  await loadCurriculumLinks(study);
   return added;
 }

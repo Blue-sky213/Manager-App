@@ -80,6 +80,25 @@ class SqliteStudyRepository implements StudyRepository {
   }
 
   @override
+  Future<List<SubjectLink>> subjectLinks() async {
+    final rows = await _db.query('subject_link', orderBy: 'from_id, to_id');
+    return [for (final r in rows) (from: r['from_id'] as int, to: r['to_id'] as int)];
+  }
+
+  @override
+  Future<void> addSubjectLink(int fromId, int toId) async {
+    if (fromId == toId) return;
+    await _db.insert('subject_link', {'from_id': fromId, 'to_id': toId},
+        conflictAlgorithm: ConflictAlgorithm.ignore);
+  }
+
+  @override
+  Future<void> removeSubjectLink(int fromId, int toId) async {
+    await _db.delete('subject_link',
+        where: 'from_id = ? AND to_id = ?', whereArgs: [fromId, toId]);
+  }
+
+  @override
   Future<void> setChapterKind(int chapterId, ChapterKind kind) async {
     await _db.update('chapter', {'kind': kind.name},
         where: 'id = ?', whereArgs: [chapterId]);

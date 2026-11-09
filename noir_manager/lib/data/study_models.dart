@@ -217,3 +217,6 @@ class ChapterWithTopics {
   final Chapter chapter;
   final List<Subtopic> subtopics;
 }
+
+/// เส้นความสัมพันธ์ในแผนผัง: [from] ต้องเรียนก่อน [to] (เช่น คณิต 1 → คณิต 2)
+typedef SubjectLink = ({int from, int to});

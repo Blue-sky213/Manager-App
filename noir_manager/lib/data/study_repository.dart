@@ -15,6 +15,13 @@ abstract class StudyRepository {
   Future<void> setSessionsPerWeek(int subjectId, int sessions);
   Future<void> deleteSubject(int subjectId);
 
+  /// เส้นความสัมพันธ์ทั้งหมด (from ต้องเรียนก่อน to)
+  Future<List<SubjectLink>> subjectLinks();
+
+  /// เพิ่มเส้น · มีอยู่แล้ว / ชี้หาตัวเอง → ไม่ทำอะไร
+  Future<void> addSubjectLink(int fromId, int toId);
+  Future<void> removeSubjectLink(int fromId, int toId);
+
   /// ตำแหน่งในแผนการเรียน: รหัส · หน่วยกิต · ปี · เทอม
   Future<void> setSubjectPlan(int subjectId,
       {String? code, String? credits, int? year, int? term});

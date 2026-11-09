@@ -10,7 +10,7 @@ import 'seed_data.dart';
 import 'study_repository.dart';
 
 /// เวอร์ชันโครงตาราง: ถ้าวันหลังเพิ่มตาราง/คอลัมน์ ให้เพิ่มเลขนี้ + เขียน onUpgrade
-const int _schemaVersion = 11; // v2 setting · v3 cleared_at · v4 ปฏิทิน · v5 Preset · v6 วิชาง่าย 2 รอบ · v7 คาบผูกวิชา + เวลาจริง · v8 แผนการเรียน · v9 เรียน/ติว + ประเภท/สถานะบท · v10 เทอม/วันหยุด/บันทึกติว + ย้ายค่าวิชาออกจาก setting · v11 ประเภทคาบ/ห้อง/กลุ่ม
+const int _schemaVersion = 12; // v2 setting · v3 cleared_at · v4 ปฏิทิน · v5 Preset · v6 วิชาง่าย 2 รอบ · v7 คาบผูกวิชา + เวลาจริง · v8 แผนการเรียน · v9 เรียน/ติว + ประเภท/สถานะบท · v10 เทอม/วันหยุด/บันทึกติว + ย้ายค่าวิชาออกจาก setting · v11 ประเภทคาบ/ห้อง/กลุ่ม · v12 เส้นความสัมพันธ์วิชา
 
 /// เปิด (หรือสร้างครั้งแรก) ไฟล์ฐานข้อมูล noir_manager.db
 Future<Database> openAppDatabase() async {
@@ -42,6 +42,7 @@ Future<Database> openAppDatabase() async {
       await createTutorV9(db);
       await createTermV10(db);
       await createClassInfoV11(db);
+      await createSubjectLinkV12(db);
       await seedStudyData(db);
     },
     // เครื่องที่มีไฟล์ v1 อยู่แล้ว (เครื่องนัวร์): เพิ่มเฉพาะส่วนที่ขาด ข้อมูลเดิมไม่หาย
@@ -62,6 +63,7 @@ Future<Database> openAppDatabase() async {
       if (oldVersion < 9) await createTutorV9(db);
       if (oldVersion < 10) await createTermV10(db);
       if (oldVersion < 11) await createClassInfoV11(db);
+      if (oldVersion < 12) await createSubjectLinkV12(db);
     },
   );
 }
@@ -201,6 +203,20 @@ Future<void> createClassInfoV11(DatabaseExecutor db) async {
   await addColumnIfMissing(db, 'activity', 'class_type', 'TEXT');
   await addColumnIfMissing(db, 'activity', 'room', 'TEXT');
   await addColumnIfMissing(db, 'activity', 'section', 'TEXT');
+}
+
+/// v12: เส้นความสัมพันธ์ในแผนผัง — from_id ต้องเรียนก่อน to_id
+/// ตารางใหม่อย่างเดียว ไม่แตะข้อมูลเดิม · ลบวิชา → เส้นของวิชานั้นหายตาม (CASCADE)
+Future<void> createSubjectLinkV12(DatabaseExecutor db) async {
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS subject_link (
+      from_id INTEGER NOT NULL REFERENCES subject(id) ON DELETE CASCADE,
+      to_id   INTEGER NOT NULL REFERENCES subject(id) ON DELETE CASCADE,
+      PRIMARY KEY (from_id, to_id),
+      CHECK (from_id <> to_id)
+    )''');
+  await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_subject_link_to ON subject_link(to_id)');
 }
 
 /// ตารางตั้งค่าแบบ key → value เช่น grading_mode → ez / advanced
