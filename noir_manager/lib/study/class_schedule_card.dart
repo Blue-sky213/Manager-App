@@ -6,6 +6,7 @@ import '../calendar/calendar_models.dart';
 import '../calendar/calendar_ui.dart';
 import '../calendar/class_stats.dart';
 import '../data/study_models.dart';
+import '../shell/app_nav.dart';
 import '../theme/noir_colors.dart';
 import '../utils/thai_date.dart';
 import '../widgets/dialogs.dart';
@@ -164,6 +165,37 @@ class _ClassScheduleCardState extends State<ClassScheduleCard>
     }
   }
 
+  /// แตะวันสอบ → ไปดูวันนั้นในปฏิทิน หรือแก้วัน/เวลาสอบ
+  Future<void> _examMenu(Activity e) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.calendar_month_outlined),
+              title: Text('ไปที่ ${thaiShortDate(e.startDate)} ในปฏิทิน'),
+              onTap: () => Navigator.pop(ctx, 'go'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('แก้วัน / เวลาสอบ'),
+              onTap: () => Navigator.pop(ctx, 'edit'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (action == null || !mounted) return;
+    if (action == 'go') {
+      calendarJump.go(e.startDate);
+    } else {
+      await editActivityFlow(context, calendar!, e.id);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = context.noir;
@@ -207,13 +239,18 @@ class _ClassScheduleCardState extends State<ClassScheduleCard>
               Text('วันสอบ', style: title),
               const SizedBox(height: 4),
               for (final e in _exams)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 2),
-                  child: Text(
+                ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  visualDensity: VisualDensity.compact,
+                  leading: Icon(Icons.event_note_outlined, color: c.accent, size: 20),
+                  title: Text(
                     '${e.name.split(' · ').first} · ${thaiShortDate(e.startDate)} '
                     '${rangeText(e.startMinute ?? 0, e.durationMin ?? 0)}',
                     style: TextStyle(color: c.text),
                   ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _examMenu(e),
                 ),
             ],
 
