@@ -36,6 +36,12 @@ class _StudyPageState extends State<StudyPage> {
 
   /// มุมมองหน้าวิชา: แผนผังแผนการเรียน หรือ รายละเอียดวิชา (จำไว้ใน setting)
   bool _mapView = true;
+
+  /// วิชาที่แตะครั้งเดียวในแผนผัง (ดับเบิลคลิกถึงเปิด) · ล้างทุกครั้งที่ออกจากแผนผัง
+  int? _mapSelectedId;
+
+  /// ปีที่ดูอยู่ในหน้ารายวิชา (0 = ยังไม่จัดปี) · null = ตามปีของวิชาที่เปิด
+  int? _yearView;
   static const _viewKey = 'study_view';
   Map<int, SubjectProgress> _progress = {};
 
@@ -204,14 +210,78 @@ class _StudyPageState extends State<StudyPage> {
     ));
   }
 
+  Widget _yearPicker(BuildContext context, Subject? subject) {
+    final c = context.noir;
+    int yearOf(Subject s) => s.planYear ?? 0;
+    final years = {for (final s in _subjects) yearOf(s)}.toList()
+      ..sort((a, b) => a == 0 ? 1 : (b == 0 ? -1 : a - b)); // "ยังไม่จัดปี" ไว้ท้าย
+    var year = _yearView ?? (subject == null ? null : yearOf(subject));
+    if (year == null || !years.contains(year)) year = years.isEmpty ? 0 : years.first;
+    final inYear = _subjects.where((s) => yearOf(s) == year).toList();
+    final terms = {for (final s in inYear) s.planTerm ?? 0}.toList()
+      ..sort((a, b) => a == 0 ? 1 : (b == 0 ? -1 : a - b));
+    String termLabel(int t) => switch (t) { 0 => 'ไม่ระบุเทอม', 3 => 'ฤดูร้อน', _ => 'เทอม $t' };
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Wrap(spacing: 6, runSpacing: 6, children: [
+          for (final y in years)
+            ChoiceChip(
+              label: Text('${y == 0 ? 'ยังไม่จัดปี' : 'ปี $y'} · ${_subjects.where((s) => yearOf(s) == y).length}'),
+              selected: y == year,
+              onSelected: (_) => setState(() => _yearView = y),
+            ),
+          ActionChip(
+            avatar: const Icon(Icons.add, size: 18),
+            label: const Text('เพิ่มวิชา'),
+            onPressed: _addSubject,
+          ),
+        ]),
+        const SizedBox(height: 10),
+        for (final t in terms)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              SizedBox(
+                width: 76,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 9),
+                  child: Text(termLabel(t), style: TextStyle(color: c.muted, fontSize: 13)),
+                ),
+              ),
+              Expanded(
+                child: Wrap(spacing: 8, runSpacing: 8, children: [
+                  for (final s in inYear.where((s) => (s.planTerm ?? 0) == t))
+                    ChoiceChip(
+                      label: Text(s.name),
+                      selected: s.id == _subjectId,
+                      onSelected: (_) {
+                        _subjectId = s.id;
+                        _yearView = year;
+                        _reload();
+                      },
+                    ),
+                ]),
+              ),
+            ]),
+          ),
+      ],
+    );
+  }
+
   void _setMapView(bool map) {
-    setState(() => _mapView = map);
+    setState(() {
+      _mapView = map;
+      _mapSelectedId = null; // ไม่ให้กรอบเลือกค้างตอนกลับมา
+    });
     _repo!.setSetting(_viewKey, map ? 'map' : 'detail');
   }
 
   /// แตะกล่องวิชาในแผนผัง → เปิดรายละเอียดวิชานั้น
   void _openSubject(Subject s) {
     _subjectId = s.id;
+    _yearView = null; // เปิดจากแผนผัง → ไปที่ปีของวิชานั้น
     _setMapView(false);
     _reload();
   }
@@ -540,14 +610,18 @@ class _StudyPageState extends State<StudyPage> {
           ],
         ),
         const SizedBox(height: 4),
-        Text('แตะกล่องวิชาเพื่อเปิดดูบท · คะแนน · ตารางเรียน',
+        Text(
+            _mapSelectedId == null
+                ? 'แตะกล่องวิชาเพื่อเลือก · ดับเบิลคลิกเพื่อเปิดดูบท คะแนน ตารางเรียน'
+                : 'เลือก "${_subjects.where((s) => s.id == _mapSelectedId).firstOrNull?.name ?? ''}" · ดับเบิลคลิกเพื่อเปิด',
             style: TextStyle(color: c.muted, fontSize: 13)),
         const SizedBox(height: 16),
         CurriculumMap(
           subjects: _subjects,
           progress: _progress,
-          selectedId: _subjectId,
+          selectedId: _mapSelectedId,
           onOpen: _openSubject,
+          onSelect: (s) => setState(() => _mapSelectedId = _mapSelectedId == s.id ? null : s.id),
         ),
       ],
     );
@@ -623,27 +697,8 @@ class _StudyPageState extends State<StudyPage> {
         ),
         const SizedBox(height: 12),
 
-        // แถบเลือกวิชา + ปุ่มเพิ่มวิชา (Wrap = ล้นแล้วขึ้นบรรทัดใหม่เอง)
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final s in _subjects)
-              ChoiceChip(
-                label: Text(s.name),
-                selected: s.id == _subjectId,
-                onSelected: (_) {
-                  _subjectId = s.id;
-                  _reload();
-                },
-              ),
-            ActionChip(
-              avatar: const Icon(Icons.add, size: 18),
-              label: const Text('เพิ่มวิชา'),
-              onPressed: _addSubject,
-            ),
-          ],
-        ),
+        // เลือกปี → เห็นเฉพาะวิชาของปีนั้น แบ่งแถวตามเทอม (แทนชิปทุกวิชาที่ยาวเกิน)
+        _yearPicker(context, subject),
 
         if (subject != null) ...[
           const SizedBox(height: 12),
@@ -655,7 +710,7 @@ class _StudyPageState extends State<StudyPage> {
             onTap: () => _changeSessions(subject),
           ),
           const SizedBox(height: 12),
-          ClassScheduleCard(subject: subject),
+          ClassScheduleCard(subject: subject, onEditPlan: () => _editPlan(subject)),
           const SizedBox(height: 12),
           TutorCard(subject: subject, chapters: _chapters),
           const SizedBox(height: 16),

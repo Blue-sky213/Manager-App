@@ -93,6 +93,13 @@ void main() {
     });
   });
 
+  test('พิมพ์ "กลุ่ม L.1" / "ห้อง 1-B4-08" → เก็บแค่ค่า (หน้าจอเติมคำนำหน้าเอง)', () {
+    const typed = ClassInfo(type: ClassType.lab, section: 'กลุ่ม L.1', room: 'ห้อง: 1-B4-08');
+    expect(typed.normalized, const ClassInfo(type: ClassType.lab, section: 'L.1', room: '1-B4-08'));
+    expect(const ClassInfo(section: 'L.1').normalized.section, 'L.1');
+    expect(const ClassInfo(section: 'กลุ่ม', room: '  ').normalized, ClassInfo.none);
+  });
+
   group('เก็บประเภท/ห้อง/กลุ่ม', () {
     test('RAM: แก้เวลาทั้งชุดแล้วข้อมูลคาบไม่หาย · ตั้งประเภทให้คาบเก่าได้', () async {
       final repo = MemoryCalendarRepository();

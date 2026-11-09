@@ -15,9 +15,12 @@ import 'credit_hours.dart';
 ///
 /// คาบเรียน = งานในปฏิทินที่ผูก subject_id ไว้ → แก้ที่นี่หรือในปฏิทินก็ได้ ข้อมูลเดียวกัน
 class ClassScheduleCard extends StatefulWidget {
-  const ClassScheduleCard({super.key, required this.subject});
+  const ClassScheduleCard({super.key, required this.subject, this.onEditPlan});
 
   final Subject subject;
+
+  /// เปิดกล่องแก้ รหัส/หน่วยกิต/ปี/เทอม ของวิชา (ใช้ตอนยังไม่มีหน่วยกิต)
+  final VoidCallback? onEditPlan;
 
   @override
   State<ClassScheduleCard> createState() => _ClassScheduleCardState();
@@ -59,8 +62,9 @@ class _ClassScheduleCardState extends State<ClassScheduleCard>
       ..sort((x, y) => x.$1.compareTo(y.$1));
   }
 
+  // รอบติวก็เป็นงานครั้งเดียว แต่ไม่ใช่วันสอบ
   List<Activity> get _exams =>
-      _activities.where((a) => a.repeat == RepeatKind.none).toList()
+      _activities.where((a) => a.repeat == RepeatKind.none && a.kind != ActivityKind.tutor).toList()
         ..sort((a, b) => a.startDate.compareTo(b.startDate));
 
   Future<void> _addSlot() async {
@@ -187,7 +191,8 @@ class _ClassScheduleCardState extends State<ClassScheduleCard>
               Text('ยังไม่มีคาบเรียน · กด "เพิ่มคาบ" ใส่วันและเวลาเรียนประจำ',
                   style: TextStyle(color: c.muted))
             else
-              _CreditCheckRow(credits: widget.subject.credits, activities: _activities),
+              _CreditCheckRow(
+                  credits: widget.subject.credits, activities: _activities, onEditPlan: widget.onEditPlan),
             for (final (_, group) in _slots)
               _SlotTile(
                 group: group,
@@ -413,6 +418,7 @@ class _ClassInfoFields extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(
+        mainAxisSize: MainAxisSize.min, // กล่องสูงแค่พอดีเนื้อหา
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text('ประเภทคาบ'),
@@ -482,10 +488,11 @@ Future<ClassInfo?> _askClassInfo(BuildContext context, ClassInfo initial) async 
 
 /// แถวตรวจชั่วโมงเรียนกับหน่วยกิต เช่น "3(2-2-5) · ทฤษฎี 2/2 ✓ · ปฏิบัติ 0/2 ขาด 2"
 class _CreditCheckRow extends StatelessWidget {
-  const _CreditCheckRow({required this.credits, required this.activities});
+  const _CreditCheckRow({required this.credits, required this.activities, this.onEditPlan});
 
   final String? credits;
   final List<Activity> activities;
+  final VoidCallback? onEditPlan;
 
   @override
   Widget build(BuildContext context) {
@@ -494,12 +501,16 @@ class _CreditCheckRow extends StatelessWidget {
     if (check == null) {
       return Padding(
         padding: const EdgeInsets.only(bottom: 4),
-        child: Text(
-          (credits ?? '').isEmpty
-              ? 'ใส่หน่วยกิต เช่น 3(2-2-5) ในแผนการเรียน เพื่อตรวจชั่วโมงเรียน'
-              : 'หน่วยกิต $credits · ตรวจชั่วโมงอัตโนมัติไม่ได้',
-          style: TextStyle(color: c.muted, fontSize: 13),
-        ),
+        child: Wrap(spacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
+          Text(
+            (credits ?? '').isEmpty
+                ? 'ยังไม่มีหน่วยกิต · ใส่แบบ 3(2-2-5) เพื่อตรวจชั่วโมงเรียน'
+                : 'หน่วยกิต $credits · ตรวจชั่วโมงอัตโนมัติไม่ได้ (ใช้แบบ 3(2-2-5))',
+            style: TextStyle(color: c.muted, fontSize: 13),
+          ),
+          if (onEditPlan != null)
+            TextButton(onPressed: onEditPlan, child: Text((credits ?? '').isEmpty ? 'ใส่หน่วยกิต' : 'แก้หน่วยกิต')),
+        ]),
       );
     }
     Widget part(String label, HourCheck h) {
