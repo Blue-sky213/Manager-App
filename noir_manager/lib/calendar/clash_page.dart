@@ -638,6 +638,7 @@ Future<void> _quickEdit(BuildContext context, CalendarRepository repo, Occurrenc
       dates: d.dates,
       subjectId: d.subjectId,
       kind: d.kind,
+      classInfo: d.classInfo,
     ),
   );
 }

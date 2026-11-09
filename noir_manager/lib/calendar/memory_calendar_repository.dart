@@ -138,6 +138,7 @@ class MemoryCalendarRepository extends CalendarRepository {
           dates: d.dates,
           subjectId: d.subjectId,
           kind: d.kind,
+        classInfo: d.classInfo,
         ).toActivity(id: e.key);
       }
     }
@@ -284,6 +285,7 @@ class MemoryCalendarRepository extends CalendarRepository {
         dates: d.dates,
         subjectId: d.subjectId,
         kind: d.kind,
+        classInfo: d.classInfo,
       ).toActivity(id: a.id);
     }
     notifyListeners();
@@ -326,6 +328,7 @@ class MemoryCalendarRepository extends CalendarRepository {
       dates: d.dates,
       subjectId: d.subjectId,
       kind: d.kind,
+        classInfo: d.classInfo,
     ).toActivity(id: activityId);
     final from = dayOnly(fromDay);
     for (final o in _occs) {

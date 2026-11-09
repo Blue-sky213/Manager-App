@@ -128,6 +128,54 @@ class ScheduledDate {
   bool get customTime => startMinute != null;
 }
 
+/// ประเภทคาบเรียน (ตามตารางทะเบียน: S = ทฤษฎี · L = ปฏิบัติ)
+enum ClassType { theory, lab }
+
+ClassType? classTypeOf(Object? v) => switch (v) {
+      'theory' => ClassType.theory,
+      'lab' => ClassType.lab,
+      _ => null,
+    };
+
+String classTypeLabel(ClassType? t) => switch (t) {
+      ClassType.theory => 'ทฤษฎี',
+      ClassType.lab => 'ปฏิบัติ',
+      null => 'ไม่ระบุประเภท',
+    };
+
+/// ข้อมูลเฉพาะคาบเรียน (v11) · คาบเก่าก่อน v11 = ว่างทั้งหมด
+class ClassInfo {
+  const ClassInfo({this.type, this.room, this.section});
+
+  static const none = ClassInfo();
+
+  final ClassType? type;
+
+  /// ห้องเรียน เช่น 1-B4-08
+  final String? room;
+
+  /// กลุ่มเรียน เช่น S.1 / L.1
+  final String? section;
+
+  factory ClassInfo.fromRow(Map<String, Object?> r) => ClassInfo(
+        type: classTypeOf(r['class_type']),
+        room: _blankToNull(r['room'] as String?),
+        section: _blankToNull(r['section'] as String?),
+      );
+
+  /// ช่องว่าง → null (ไม่เก็บสตริงว่างลง DB)
+  ClassInfo get normalized => ClassInfo(type: type, room: _blankToNull(room), section: _blankToNull(section));
+
+  @override
+  bool operator ==(Object other) =>
+      other is ClassInfo && other.type == type && other.room == room && other.section == section;
+
+  @override
+  int get hashCode => Object.hash(type, room, section);
+}
+
+String? _blankToNull(String? s) => (s == null || s.trim().isEmpty) ? null : s.trim();
+
 class Activity {
   const Activity({
     required this.id,
@@ -145,11 +193,15 @@ class Activity {
     this.dates = const {},
     this.subjectId,
     this.kind = ActivityKind.todo,
+    this.classInfo = ClassInfo.none,
   });
 
   /// ผูกกับวิชาในหน้าวิชา (คาบเรียน) · null = งานทั่วไป
   final int? subjectId;
   final ActivityKind kind;
+
+  /// ประเภท/ห้อง/กลุ่ม ของคาบเรียน (ใช้กับ kind = class)
+  final ClassInfo classInfo;
 
   final int id;
   final String name;
@@ -200,6 +252,7 @@ class Activity {
         dates: dates,
         subjectId: r['subject_id'] as int?,
         kind: activityKindOf(r['kind']),
+        classInfo: ClassInfo.fromRow(r),
       );
 
   /// แปลงกลับเป็นฟอร์ม (ใช้ตอนกด "แก้ไขงาน")
@@ -218,6 +271,7 @@ class Activity {
         dates: (dates.values.toList()..sort((a, b) => a.day.compareTo(b.day))),
         subjectId: subjectId,
         kind: kind,
+        classInfo: classInfo,
       );
 }
 
@@ -268,10 +322,12 @@ class NewActivity {
     this.dates = const [],
     this.subjectId,
     this.kind = ActivityKind.todo,
+    this.classInfo = ClassInfo.none,
   });
 
   final int? subjectId;
   final ActivityKind kind;
+  final ClassInfo classInfo;
 
   final String name;
   final int? categoryId;
@@ -316,6 +372,26 @@ class NewActivity {
             : const {},
         subjectId: subjectId,
         kind: kind,
+        classInfo: classInfo,
+      );
+
+  /// ฉบับเดิมแต่เปลี่ยนข้อมูลคาบเรียน (ตั้งประเภท/ห้อง/กลุ่มให้คาบที่มีอยู่แล้ว)
+  NewActivity withClassInfo(ClassInfo info) => NewActivity(
+        name: name,
+        categoryId: categoryId,
+        importance: importance,
+        timed: timed,
+        day: day,
+        startMinute: startMinute,
+        durationMin: durationMin,
+        repeat: repeat,
+        weekdays: weekdays,
+        endDate: endDate,
+        presetId: presetId,
+        dates: dates,
+        subjectId: subjectId,
+        kind: kind,
+        classInfo: info,
       );
 }
 

@@ -9,6 +9,7 @@ import '../data/study_models.dart';
 import '../theme/noir_colors.dart';
 import '../utils/thai_date.dart';
 import '../widgets/dialogs.dart';
+import 'credit_hours.dart';
 
 /// การ์ด "ตารางเรียน + วันสอบ + สถิติเวลาเลิก" ของวิชาที่เลือก (ในหน้าวิชา)
 ///
@@ -49,7 +50,9 @@ class _ClassScheduleCardState extends State<ClassScheduleCard>
   List<(String, List<Activity>)> get _slots {
     final groups = <String, List<Activity>>{};
     for (final a in _activities.where((a) => a.repeat == RepeatKind.weekly && a.timed)) {
-      final key = '${weekdaysToText(a.weekdays)}|${a.startMinute}|${a.durationMin}';
+      // ประเภท/ห้อง/กลุ่มต่างกัน = คนละคาบ แม้เวลาเดียวกัน
+      final i = a.classInfo;
+      final key = '${weekdaysToText(a.weekdays)}|${a.startMinute}|${a.durationMin}|${i.type}|${i.room}|${i.section}';
       (groups[key] ??= []).add(a);
     }
     return groups.entries.map((e) => (e.key, e.value)).toList()
@@ -95,6 +98,7 @@ class _ClassScheduleCardState extends State<ClassScheduleCard>
       endDate: draft.to,
       subjectId: widget.subject.id,
       kind: ActivityKind.classSession,
+      classInfo: draft.info,
     ));
     if (clashes.isNotEmpty && mounted) {
       ScaffoldMessenger.of(context)
@@ -126,6 +130,11 @@ class _ClassScheduleCardState extends State<ClassScheduleCard>
                 onTap: () => Navigator.pop(ctx, 'edit:${g.id}'),
               ),
             ListTile(
+              leading: const Icon(Icons.sell_outlined),
+              title: const Text('ตั้งประเภท / ห้อง / กลุ่มเรียน'),
+              onTap: () => Navigator.pop(ctx, 'info'),
+            ),
+            ListTile(
               leading: const Icon(Icons.delete_outline),
               title: const Text('ลบคาบนี้ (ทุกช่วง)'),
               onTap: () => Navigator.pop(ctx, 'delete'),
@@ -135,7 +144,13 @@ class _ClassScheduleCardState extends State<ClassScheduleCard>
       ),
     );
     if (action == null || !mounted) return;
-    if (action == 'delete') {
+    if (action == 'info') {
+      final info = await _askClassInfo(context, a.classInfo);
+      if (info == null) return;
+      for (final g in group) {
+        await repo.updateActivity(g.id, g.toDraft().withClassInfo(info));
+      }
+    } else if (action == 'delete') {
       if (!await confirmDelete(context, a.name)) return;
       for (final g in group) {
         await repo.deleteActivity(g.id);
@@ -170,7 +185,9 @@ class _ClassScheduleCardState extends State<ClassScheduleCard>
             ),
             if (_slots.isEmpty)
               Text('ยังไม่มีคาบเรียน · กด "เพิ่มคาบ" ใส่วันและเวลาเรียนประจำ',
-                  style: TextStyle(color: c.muted)),
+                  style: TextStyle(color: c.muted))
+            else
+              _CreditCheckRow(credits: widget.subject.credits, activities: _activities),
             for (final (_, group) in _slots)
               _SlotTile(
                 group: group,
@@ -253,8 +270,12 @@ class _SlotTile extends StatelessWidget {
         backgroundColor: c.navBg,
         child: Text(days, style: TextStyle(fontSize: 12, color: c.navText)),
       ),
-      title: Text('${rangeText(a.startMinute!, a.durationMin!)} · ${durationText(a.durationMin!)}'),
+      title: Text('${classTypeLabel(a.classInfo.type)} · '
+          '${rangeText(a.startMinute!, a.durationMin!)} · ${durationText(a.durationMin!)}',
+          style: TextStyle(color: a.classInfo.type == null ? c.muted : null)),
       subtitle: Text([
+        if (a.classInfo.section != null) 'กลุ่ม ${a.classInfo.section}',
+        if (a.classInfo.room != null) 'ห้อง ${a.classInfo.room}',
         '${thaiShortDate(from)} – ${to == null ? 'ไม่กำหนด' : thaiShortDate(to)}',
         if (group.length > 1) 'เว้นช่วงสอบ',
         if (stats.count > 0) 'เลิกจริงเฉลี่ย ${diffText(stats.averageDiff)}',
@@ -264,17 +285,19 @@ class _SlotTile extends StatelessWidget {
   }
 }
 
-typedef _SlotDraft = ({Set<int> weekdays, int start, int minutes, DateTime from, DateTime to});
+typedef _SlotDraft = ({Set<int> weekdays, int start, int minutes, DateTime from, DateTime to, ClassInfo info});
 
 /// กล่องเพิ่มคาบเรียนประจำ: วันในสัปดาห์ · เวลาเริ่ม–เลิก · ช่วงวันที่ของเทอม
-Future<_SlotDraft?> _askSlot(BuildContext context) {
+Future<_SlotDraft?> _askSlot(BuildContext context) async {
+  final room = TextEditingController(), section = TextEditingController();
+  ClassType? type = ClassType.theory;
   var weekdays = <int>{DateTime.now().weekday};
   var start = 9 * 60;
   var minutes = 120;
   var from = dayOnly(DateTime.now());
   var to = from.add(const Duration(days: 7 * 13 - 3)); // ~3 เดือน (13 สัปดาห์)
 
-  return showDialog<_SlotDraft>(
+  final result = await showDialog<_SlotDraft>(
     context: context,
     builder: (ctx) => StatefulBuilder(
       builder: (ctx, setLocal) => AlertDialog(
@@ -286,6 +309,13 @@ Future<_SlotDraft?> _askSlot(BuildContext context) {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                _ClassInfoFields(
+                  type: type,
+                  onType: (t) => setLocal(() => type = t),
+                  room: room,
+                  section: section,
+                ),
+                const SizedBox(height: 12),
                 const Text('เรียนวันไหน (เลือกได้หลายวัน)'),
                 const SizedBox(height: 6),
                 Wrap(
@@ -358,6 +388,8 @@ Future<_SlotDraft?> _askSlot(BuildContext context) {
                       minutes: minutes,
                       from: from,
                       to: to,
+                      info: ClassInfo(type: type, room: room.text.trim(), section: section.text.trim())
+                          .normalized,
                     )),
             child: const Text('เพิ่มคาบ'),
           ),
@@ -365,4 +397,136 @@ Future<_SlotDraft?> _askSlot(BuildContext context) {
       ),
     ),
   );
+  room.dispose();
+  section.dispose();
+  return result;
+}
+
+/// ประเภท (ทฤษฎี/ปฏิบัติ/ไม่ระบุ) + ห้อง + กลุ่มเรียน · ใช้ทั้งตอนเพิ่มคาบและตอนแก้คาบเดิม
+class _ClassInfoFields extends StatelessWidget {
+  const _ClassInfoFields({required this.type, required this.onType, required this.room, required this.section});
+
+  final ClassType? type;
+  final ValueChanged<ClassType?> onType;
+  final TextEditingController room;
+  final TextEditingController section;
+
+  @override
+  Widget build(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('ประเภทคาบ'),
+          const SizedBox(height: 6),
+          Wrap(spacing: 6, runSpacing: 6, children: [
+            for (final t in [ClassType.theory, ClassType.lab, null])
+              ChoiceChip(
+                label: Text(t == null ? 'ไม่ระบุ' : '${classTypeLabel(t)} (${t == ClassType.theory ? 'S' : 'L'})'),
+                selected: type == t,
+                onSelected: (_) => onType(t),
+              ),
+          ]),
+          const SizedBox(height: 8),
+          Row(children: [
+            Expanded(
+              child: TextField(
+                controller: section,
+                decoration: const InputDecoration(labelText: 'กลุ่มเรียน', hintText: 'S.1 / L.1'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: TextField(
+                controller: room,
+                decoration: const InputDecoration(labelText: 'ห้อง', hintText: '1-B4-08'),
+              ),
+            ),
+          ]),
+        ],
+      );
+}
+
+/// แก้ประเภท/ห้อง/กลุ่มของคาบที่มีอยู่ (เช่นคาบเก่าก่อน v11)
+Future<ClassInfo?> _askClassInfo(BuildContext context, ClassInfo initial) async {
+  final room = TextEditingController(text: initial.room ?? '');
+  final section = TextEditingController(text: initial.section ?? '');
+  var type = initial.type;
+  final result = await showDialog<ClassInfo>(
+    context: context,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setLocal) => AlertDialog(
+        title: const Text('ประเภท / ห้อง / กลุ่มเรียน'),
+        content: SizedBox(
+          width: 420,
+          child: _ClassInfoFields(
+            type: type,
+            onType: (t) => setLocal(() => type = t),
+            room: room,
+            section: section,
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('ยกเลิก')),
+          FilledButton(
+            onPressed: () => Navigator.pop(
+                ctx, ClassInfo(type: type, room: room.text.trim(), section: section.text.trim()).normalized),
+            child: const Text('บันทึก'),
+          ),
+        ],
+      ),
+    ),
+  );
+  room.dispose();
+  section.dispose();
+  return result;
+}
+
+/// แถวตรวจชั่วโมงเรียนกับหน่วยกิต เช่น "3(2-2-5) · ทฤษฎี 2/2 ✓ · ปฏิบัติ 0/2 ขาด 2"
+class _CreditCheckRow extends StatelessWidget {
+  const _CreditCheckRow({required this.credits, required this.activities});
+
+  final String? credits;
+  final List<Activity> activities;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.noir;
+    final check = checkCredits(credits, activities);
+    if (check == null) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: Text(
+          (credits ?? '').isEmpty
+              ? 'ใส่หน่วยกิต เช่น 3(2-2-5) ในแผนการเรียน เพื่อตรวจชั่วโมงเรียน'
+              : 'หน่วยกิต $credits · ตรวจชั่วโมงอัตโนมัติไม่ได้',
+          style: TextStyle(color: c.muted, fontSize: 13),
+        ),
+      );
+    }
+    Widget part(String label, HourCheck h) {
+      final (text, color) = switch (h.status) {
+        HourStatus.ok => ('${hoursText(h.have)}/${hoursText(h.need)} ✓', c.good),
+        HourStatus.short => ('${hoursText(h.have)}/${hoursText(h.need)} ขาด ${hoursText(h.need - h.have)}', c.warn),
+        HourStatus.over => ('${hoursText(h.have)}/${hoursText(h.need)} เกิน ${hoursText(h.have - h.need)}', c.bad),
+      };
+      return Text('$label $text', style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.w600));
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Wrap(spacing: 12, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
+        Text('หน่วยกิต ${check.hours.credits}(${check.hours.theory}-${check.hours.lab}-${check.hours.self})',
+            style: TextStyle(color: c.muted, fontSize: 13)),
+        part('ทฤษฎี', check.theory),
+        part('ปฏิบัติ', check.lab),
+        if (check.unknown > 0)
+          Text(
+            check.totalMatchesOnly
+                ? 'รวมครบแล้ว · แตะคาบเพื่อตั้งประเภท'
+                : 'ไม่ระบุประเภท ${hoursText(check.unknown)} ชม. · แตะคาบเพื่อตั้งประเภท',
+            style: TextStyle(color: c.muted, fontSize: 13),
+          ),
+        Text('ศึกษาเอง ${check.hours.self} ชม./สัปดาห์', style: TextStyle(color: c.muted, fontSize: 13)),
+      ]),
+    );
+  }
 }
