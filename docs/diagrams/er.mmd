@@ -1,5 +1,6 @@
 erDiagram
   SUBJECT ||--o{ CHAPTER : "มีบท"
+  SUBJECT ||--o{ SUBJECT_LINK : "เรียนก่อน → ต่อยอด"
   CHAPTER ||--o{ SUBTOPIC : "มีหัวข้อ"
   SUBTOPIC ||--o{ ASSESSMENT : "มีคะแนน"
   SUBJECT |o--o{ ACTIVITY : "คาบ/ติว/สอบ"
@@ -20,6 +21,10 @@ erDiagram
     text credits
     int plan_year
     int plan_term
+  }
+  SUBJECT_LINK {
+    int from_id PK,FK "v12"
+    int to_id PK,FK "v12"
   }
   CHAPTER {
     int id PK
