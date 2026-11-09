@@ -131,6 +131,7 @@ void main() {
     await createStudyPlanV8(db);
     await createTutorV9(db);
     await createTermV10(db);
+    await createClassInfoV11(db); // ให้ตรงกับ schema ล่าสุดของแอป
     await moveRules(SqliteCalendarRepository(db));
     await db.close();
   });

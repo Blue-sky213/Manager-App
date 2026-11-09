@@ -173,6 +173,9 @@ class SqliteCalendarRepository extends CalendarRepository {
       'preset_id': a.presetId,
       'subject_id': a.subjectId,
       'kind': activityKindDb(a.kind),
+      'class_type': a.classInfo.type?.name,
+      'room': a.classInfo.room,
+      'section': a.classInfo.section,
     };
   }
 

@@ -187,6 +187,7 @@ class _ActivityDialogState extends State<_ActivityDialog> {
         dates: _repeat == RepeatKind.dates ? _dates : const [],
         subjectId: widget.initial?.subjectId, // แก้ไขคาบเรียนแล้วยังผูกวิชาเดิม
         kind: widget.initial?.kind ?? ActivityKind.todo,
+        classInfo: widget.initial?.classInfo ?? ClassInfo.none, // แก้เวลาในปฏิทินแล้วประเภท/ห้องไม่หาย
       );
 
   String? get _problem {
