@@ -136,27 +136,30 @@ class _CurriculumMapState extends State<CurriculumMap> {
 
     // ชั้นเส้นทับบนกล่อง (ไม่รับการแตะ ให้แตะทะลุถึงกล่อง)
     // [shown] = วิชาที่อยู่บนจอใน build นี้ · กล่องที่เพิ่งถูกถอด (สลับปี) ห้ามอ่านตำแหน่ง
-    Widget withLines(Set<int> shown, Widget child) => Stack(
-          key: _stackKey,
-          children: [
-            child,
-            Positioned.fill(
-              child: IgnorePointer(
-                child: CustomPaint(
-                  painter: _LinkPainter(
-                    links: [for (final l in links) if (shown.contains(l.from) && shown.contains(l.to)) l],
-                    chain: chain,
-                    boxKeys: _boxKeys,
-                    stackKey: _stackKey,
-                    idle: c.muted,
-                    dim: c.line2,
-                    strong: c.accent,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        );
+    // เส้นปกติอยู่ "หลัง" กล่อง (เห็นแค่ในช่องว่าง ไม่บังชื่อวิชา) · เส้นของสายที่ชี้อยู่ "หน้า" กล่อง
+    Widget withLines(Set<int> shown, Widget child) {
+      final visible = [
+        for (final l in links) if (shown.contains(l.from) && shown.contains(l.to)) l
+      ];
+      _LinkPainter painter({required bool front}) => _LinkPainter(
+            links: [for (final l in visible) if (chain.edges.contains(l) == front) l],
+            active: dimOthers,
+            front: front,
+            boxKeys: _boxKeys,
+            stackKey: _stackKey,
+            idle: c.muted,
+            dim: c.line2,
+            strong: c.accent,
+          );
+      return Stack(
+        key: _stackKey,
+        children: [
+          Positioned.fill(child: IgnorePointer(child: CustomPaint(painter: painter(front: false)))),
+          child,
+          Positioned.fill(child: IgnorePointer(child: CustomPaint(painter: painter(front: true)))),
+        ],
+      );
+    }
 
     final sortedYears = years.keys.toList()..sort();
     final focus = w.focusYear != null && years.containsKey(w.focusYear) ? w.focusYear : null;
@@ -353,10 +356,12 @@ LinkChain linkChain(List<SubjectLink> links, int? focus) {
 }
 
 /// วาดเส้นหักมุม: ขอบขวากล่องต้นทาง → เลี้ยวลง/ขึ้นในช่องว่างหน้ากล่องปลายทาง → ลูกศรเข้าขอบซ้าย
+/// ใช้ 2 ชั้น: [front] = false วาดหลังกล่อง (เส้นทั่วไป) · true วาดหน้ากล่อง (เส้นของสายที่ชี้)
 class _LinkPainter extends CustomPainter {
   _LinkPainter({
     required this.links,
-    required this.chain,
+    required this.active,
+    required this.front,
     required this.boxKeys,
     required this.stackKey,
     required this.idle,
@@ -365,7 +370,9 @@ class _LinkPainter extends CustomPainter {
   });
 
   final List<SubjectLink> links;
-  final LinkChain chain;
+  /// มีวิชาที่ชี้/เลือกอยู่ → เส้นหลังกล่องจางลงอีก
+  final bool active;
+  final bool front;
   final Map<int, GlobalKey> boxKeys;
   final GlobalKey stackKey;
   final Color idle, dim, strong;
@@ -380,17 +387,11 @@ class _LinkPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final stack = stackKey.currentContext?.findRenderObject();
     if (stack is! RenderBox) return;
-    final active = chain.nodes.length > 1;
-    // วาดเส้นจางก่อน เส้นในสายทีหลัง → เส้นสายอยู่บนสุดเสมอ
-    final ordered = [
-      for (final l in links) if (!chain.edges.contains(l)) l,
-      for (final l in links) if (chain.edges.contains(l)) l,
-    ];
-    for (final l in ordered) {
+    for (final l in links) {
       final a = _rectOf(l.from, stack), b = _rectOf(l.to, stack);
       if (a == null || b == null) continue; // ยังไม่ได้จัดวาง
-      final on = chain.edges.contains(l);
-      final color = on ? strong : (active ? dim.withValues(alpha: 0.35) : idle.withValues(alpha: 0.7));
+      final on = front;
+      final color = on ? strong : (active ? dim.withValues(alpha: 0.35) : idle.withValues(alpha: 0.8));
       final paint = Paint()
         ..color = color
         ..style = PaintingStyle.stroke
