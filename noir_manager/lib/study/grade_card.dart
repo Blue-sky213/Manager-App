@@ -247,14 +247,14 @@ class _GradeCardState extends State<GradeCard> {
 
   Widget _box(BuildContext context, List<Widget> children) {
     final c = context.noir;
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: c.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: c.line),
+    // Material (ไม่ใช่ Container สีพื้น) → ช่องติ๊ก / ปุ่มข้างในยังเห็นเงากดได้
+    return Material(
+      color: c.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: BorderSide(color: c.line)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children),
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children),
     );
   }
 
