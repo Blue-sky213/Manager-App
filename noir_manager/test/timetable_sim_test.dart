@@ -115,7 +115,10 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('ตารางเรียนทั้งสัปดาห์'));
     await tester.pumpAndSettle();
-    String count() => tester.widget<Text>(find.textContaining(' คาบ · ')).data!;
+    // ตัวนับบนหน้า "N คาบ · M วิชา" (ไม่ใช่ข้อความ SnackBar "จำลอง N คาบ …")
+    final counter = find.byWidgetPredicate(
+        (w) => w is Text && RegExp(r'^\d+ คาบ · \d+ วิชา$').hasMatch(w.data ?? ''));
+    String count() => tester.widget<Text>(counter).data!;
     final before = count();
 
     await tester.tap(find.byTooltip('ตัวเลือก').last);
