@@ -220,3 +220,24 @@ class ChapterWithTopics {
 
 /// เส้นความสัมพันธ์ในแผนผัง: [from] ต้องเรียนก่อน [to] (เช่น คณิต 1 → คณิต 2)
 typedef SubjectLink = ({int from, int to});
+
+/// บันทึกคาบเรียน 1 คาบ: เรียนบทไหน · จบบทไหม · โน้ต
+class ClassLog {
+  const ClassLog({
+    required this.id,
+    required this.subjectId,
+    required this.day,
+    this.occurrenceId,
+    this.chapterId,
+    this.finished = false,
+    this.note,
+  });
+
+  final int id;
+  final int subjectId;
+  final int? occurrenceId;
+  final int? chapterId; // null = บทถูกลบไปแล้ว
+  final DateTime day;
+  final bool finished;
+  final String? note;
+}

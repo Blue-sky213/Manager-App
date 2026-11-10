@@ -32,6 +32,7 @@ class MemoryStudyRepository implements StudyRepository {
   final List<({int id, int subjectId, String name, double weight})> _parts = [];
   final List<({int id, int partId, String name, double full, double? got})> _items = [];
   final Map<int, GradeSetup> _setups = {};
+  final List<ClassLog> _classLogs = [];
 
   int _insertSubject(String name, int importance) {
     final id = _nextId++;
@@ -127,6 +128,7 @@ class MemoryStudyRepository implements StudyRepository {
       await deleteGradePart(p.id);
     }
     _setups.remove(subjectId);
+    _classLogs.removeWhere((l) => l.subjectId == subjectId);
   }
 
   @override
@@ -188,6 +190,39 @@ class MemoryStudyRepository implements StudyRepository {
 
   @override
   Future<void> setGradeSetup(int subjectId, GradeSetup setup) async => _setups[subjectId] = setup;
+
+  @override
+  Future<List<ClassLog>> classLogs(int subjectId) async => _classLogs.where((l) => l.subjectId == subjectId).toList()
+    ..sort((a, b) => a.day != b.day ? b.day.compareTo(a.day) : b.id - a.id);
+
+  @override
+  Future<int> logClass(int subjectId, DateTime day,
+      {int? occurrenceId, int? chapterId, bool finished = false, String? note}) async {
+    final old = occurrenceId == null ? -1 : _classLogs.indexWhere((l) => l.occurrenceId == occurrenceId);
+    final id = old >= 0 ? _classLogs[old].id : _nextId++;
+    final log = ClassLog(
+      id: id,
+      subjectId: subjectId,
+      day: DateTime(day.year, day.month, day.day),
+      occurrenceId: occurrenceId,
+      chapterId: chapterId,
+      finished: finished,
+      note: (note == null || note.trim().isEmpty) ? null : note.trim(),
+    );
+    if (old >= 0) {
+      _classLogs[old] = log;
+    } else {
+      _classLogs.add(log);
+    }
+    final ci = chapterId == null ? -1 : _chapters.indexWhere((c) => c.id == chapterId);
+    if (ci >= 0 && _chapters[ci].status == ChapterStatus.todo) {
+      _chapters[ci] = _chapters[ci].copyWith(status: ChapterStatus.learning);
+    }
+    return id;
+  }
+
+  @override
+  Future<void> deleteClassLog(int logId) async => _classLogs.removeWhere((l) => l.id == logId);
 
   @override
   Future<List<SubjectLink>> subjectLinks() async => _links.toList()
@@ -278,6 +313,14 @@ class MemoryStudyRepository implements StudyRepository {
     _scores.removeWhere((s) => topicIds.contains(s.subtopicId));
     _topics.removeWhere((t) => t.chapterId == chapterId);
     _chapters.removeWhere((c) => c.id == chapterId);
+    // = ON DELETE SET NULL
+    for (var i = 0; i < _classLogs.length; i++) {
+      final l = _classLogs[i];
+      if (l.chapterId == chapterId) {
+        _classLogs[i] = ClassLog(
+            id: l.id, subjectId: l.subjectId, day: l.day, occurrenceId: l.occurrenceId, finished: l.finished, note: l.note);
+      }
+    }
   }
 
   @override

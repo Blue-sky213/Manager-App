@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../data/study_models.dart';
+import '../calendar/calendar_repository.dart';
 import '../data/study_scope.dart';
 import '../theme/noir_colors.dart';
 import '../widgets/dialogs.dart';
+import 'attendance.dart';
 import 'grading.dart';
 
 /// แท็บ "เกรด" ในหน้าวิชา: ใส่คะแนนย่อย → เห็นเกรด · ต้องได้อีกเท่าไหร่ · ช่วงเกรดของอาจารย์
@@ -30,6 +32,15 @@ class _GradeCardState extends State<GradeCard> {
   GradeSetup _setup = const GradeSetup();
   bool _loading = true;
 
+  /// คาบทั้งหมดนับจากปฏิทิน (null = นับไม่ได้ → ใส่เอง)
+  int? _autoTotal;
+
+  /// เงื่อนไขที่ใช้คิดจริง: ไม่ได้ใส่จำนวนคาบเอง → ใช้ที่นับจากปฏิทิน
+  GradeFlags get _flags => _setup.flags.classTotal == null && _autoTotal != null
+      ? _setup.flags.copyWith(classTotal: _autoTotal)
+      : _setup.flags;
+  GradeSetup get _effective => GradeSetup(scale: _setup.scale, flags: _flags, official: _setup.official);
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -47,9 +58,12 @@ class _GradeCardState extends State<GradeCard> {
     final parts = await repo.gradeParts(widget.subject.id);
     final setup = await repo.gradeSetup(widget.subject.id);
     if (!mounted) return;
+    final auto = await plannedClassTotal(CalendarScope.of(context), widget.subject.id);
+    if (!mounted) return;
     setState(() {
       _parts = parts;
       _setup = setup;
+      _autoTotal = auto;
       _loading = false;
     });
   }
@@ -230,7 +244,7 @@ class _GradeCardState extends State<GradeCard> {
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator()));
-    final r = computeGrade(_parts, _setup.scale, _setup.flags);
+    final r = computeGrade(_parts, _setup.scale, _flags);
     return LayoutBuilder(builder: (context, box) {
       final left = _partsColumn(context);
       final right = _summaryColumn(context, r);
@@ -403,7 +417,7 @@ class _GradeCardState extends State<GradeCard> {
           Expanded(child: Text('ช่วงเกรด', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: c.text))),
           TextButton(
             onPressed: () => _saveSetup(GradeSetup(flags: flags, official: _setup.official)),
-            child: const Text('คืนค่า มก.'),
+            child: const Text('คืนค่าเริ่มต้น'),
           ),
         ]),
         Wrap(spacing: 6, runSpacing: 6, children: [
@@ -436,18 +450,12 @@ class _GradeCardState extends State<GradeCard> {
       const SizedBox(height: 12),
       _box(context, [
         Text('เงื่อนไขได้ F ทันที', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: c.text)),
-        CheckboxListTile(
-          contentPadding: EdgeInsets.zero,
-          dense: true,
-          value: flags.absentOver,
-          onChanged: (v) => setFlags(GradeFlags(absentOver: v ?? false, missedExam: flags.missedExam)),
-          title: const Text('ขาดเรียนเกิน 20%'),
-        ),
+        _absentRow(context, setFlags),
         CheckboxListTile(
           contentPadding: EdgeInsets.zero,
           dense: true,
           value: flags.missedExam,
-          onChanged: (v) => setFlags(GradeFlags(absentOver: flags.absentOver, missedExam: v ?? false)),
+          onChanged: (v) => setFlags(flags.copyWith(missedExam: v ?? false)),
           title: const Text('ขาดสอบ'),
         ),
         const SizedBox(height: 4),
@@ -465,6 +473,103 @@ class _GradeCardState extends State<GradeCard> {
           ),
         ]),
       ]),
+      ..._feedback(context),
     ]);
+  }
+
+  /// ขาดเรียน: [−] จำนวน [+] · จากกี่คาบ · กี่ % · ขาดได้อีกกี่คาบ
+  Widget _absentRow(BuildContext context, void Function(GradeFlags) setFlags) {
+    final c = context.noir;
+    final stored = _setup.flags;
+    final f = _flags;
+    final pct = f.absentPercent;
+    final left = f.absentLeft;
+    final color = f.absentOver ? c.bad : (left != null && left <= 1 ? c.warn : c.muted);
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Row(children: [
+        Expanded(child: Text('ขาดเรียน', style: TextStyle(color: c.text))),
+        IconButton(
+          tooltip: 'ลดคาบที่ขาด',
+          onPressed: stored.absentCount <= 0 ? null : () => setFlags(stored.copyWith(absentCount: stored.absentCount - 1)),
+          icon: const Icon(Icons.remove),
+        ),
+        Text('${stored.absentCount}', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: c.text)),
+        IconButton(
+          tooltip: 'ขาดเพิ่ม 1 คาบ',
+          onPressed: () => setFlags(stored.copyWith(absentCount: stored.absentCount + 1)),
+          icon: const Icon(Icons.add),
+        ),
+      ]),
+      Wrap(spacing: 6, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
+        ActionChip(
+          visualDensity: VisualDensity.compact,
+          label: Text(f.classTotal == null
+              ? 'ใส่จำนวนคาบทั้งหมด'
+              : 'จาก ${f.classTotal} คาบ${stored.classTotal == null ? ' (นับจากปฏิทิน)' : ''}'),
+          onPressed: () => _editTotal(setFlags),
+        ),
+        ActionChip(
+          visualDensity: VisualDensity.compact,
+          label: Text('เกณฑ์ ${fmtScore(f.absentLimit)}%'),
+          onPressed: () => _editLimit(setFlags),
+        ),
+      ]),
+      if (pct != null)
+        Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Text(
+            f.absentOver
+                ? 'ขาด ${fmtScore(pct)}% · เกินเกณฑ์ → F'
+                : 'ขาด ${fmtScore(pct)}% · ขาดได้อีก ${left ?? 0} คาบ',
+            style: TextStyle(fontSize: 13, color: color),
+          ),
+        ),
+    ]);
+  }
+
+  Future<void> _editTotal(void Function(GradeFlags) setFlags) async {
+    final text = await askText(context,
+        title: 'คาบเรียนทั้งหมดของวิชานี้',
+        label: 'จำนวนคาบ',
+        hint: _autoTotal == null ? 'เช่น 30' : 'เว้นว่าง = นับจากปฏิทิน ($_autoTotal คาบ)',
+        initial: _setup.flags.classTotal?.toString() ?? '',
+        confirmLabel: 'บันทึก');
+    if (!mounted) return;
+    final n = int.tryParse(text ?? '');
+    // เว้นว่าง / 0 → กลับไปนับจากปฏิทิน
+    setFlags(n == null || n <= 0 ? _setup.flags.copyWith(clearTotal: true) : _setup.flags.copyWith(classTotal: n));
+  }
+
+  Future<void> _editLimit(void Function(GradeFlags) setFlags) async {
+    final text = await askText(context,
+        title: 'ขาดเรียนได้ไม่เกินกี่ %', label: '%', initial: fmtScore(_setup.flags.absentLimit), confirmLabel: 'บันทึก');
+    final v = double.tryParse(text ?? '');
+    if (v == null || v <= 0 || v > 100) return;
+    setFlags(_setup.flags.copyWith(absentLimit: v));
+  }
+
+  /// โอกาสปรับปรุง: เสียคะแนนตรงไหน · ขาดอีกเท่าไหร่ถึงเกรดถัดไป · เกรดจริงไม่ตรงกับที่คิด
+  List<Widget> _feedback(BuildContext context) {
+    final c = context.noir;
+    final tips = gradeFeedback(_parts, _effective);
+    if (tips.isEmpty) return const [];
+    return [
+      const SizedBox(height: 12),
+      _box(context, [
+        Text('โอกาสปรับปรุง', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: c.text)),
+        const SizedBox(height: 6),
+        for (final t in tips)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 2, right: 8),
+                child: Icon(Icons.lightbulb_outline, size: 16, color: c.warn),
+              ),
+              Expanded(child: Text(t, style: TextStyle(fontSize: 14, color: c.text))),
+            ]),
+          ),
+      ]),
+    ];
   }
 }

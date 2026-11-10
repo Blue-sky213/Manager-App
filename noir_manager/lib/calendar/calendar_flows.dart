@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../data/study_models.dart';
 import '../data/study_scope.dart';
 import '../shell/app_nav.dart';
+import '../study/class_log.dart';
 import '../study/tutor_plan.dart';
 import '../theme/noir_colors.dart';
 import '../utils/thai_date.dart';
@@ -226,6 +227,8 @@ List<ContextItem<String>> occurrenceItems(Occurrence o) => [
         if (o.repeats) ctxItem('shift', Icons.fast_forward, 'เลื่อนไปรอบถัดไป (เนื้อหาไหลไปครั้งหน้า)'),
         ctxItem('cancel', Icons.block, 'ยกเลิก (ต้องใส่เหตุผล)'),
       ],
+      if (o.kind == ActivityKind.classSession && o.subjectId != null && o.status != OccurrenceStatus.cancelled)
+        ctxItem('classlog', Icons.menu_book_outlined, 'บันทึกเรียนถึงไหน'),
       if (o.status == OccurrenceStatus.done && o.subjectId != null && o.timed)
         ctxItem('actual', Icons.timer_outlined, o.actualEnd == null ? 'บันทึกเวลาเลิกจริง' : 'แก้เวลาเลิกจริง'),
       if (o.status == OccurrenceStatus.done) ctxItem('undo', Icons.undo, 'ยังไม่ได้ทำ'),
@@ -301,7 +304,19 @@ Future<void> openOccurrenceActions(
       else if (o.subjectId != null && o.timed && context.mounted) {
         final end = await askActualEnd(context, o);
         if (end != null) await repo.setActualTimes(o.id, end: end);
+        // คาบเรียน → ถามต่อว่าเรียนถึงบทไหน (กด "ข้าม" ได้)
+        if (o.kind == ActivityKind.classSession && context.mounted) {
+          await showClassLogDialog(context, subjectId: o.subjectId!, day: o.day, occurrenceId: o.id);
+        }
       }
+    case 'classlog':
+      final logs = await StudyScope.of(context).classLogs(o.subjectId!);
+      if (!context.mounted) return;
+      await showClassLogDialog(context,
+          subjectId: o.subjectId!,
+          day: o.day,
+          occurrenceId: o.id,
+          existing: logs.where((l) => l.occurrenceId == o.id).firstOrNull);
     case 'actual':
       final end = await askActualEnd(context, o);
       if (end != null) await repo.setActualTimes(o.id, end: end);
