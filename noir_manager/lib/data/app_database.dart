@@ -12,8 +12,12 @@ import 'study_repository.dart';
 /// เวอร์ชันโครงตาราง: ถ้าวันหลังเพิ่มตาราง/คอลัมน์ ให้เพิ่มเลขนี้ + เขียน onUpgrade
 const int _schemaVersion = 12; // v2 setting · v3 cleared_at · v4 ปฏิทิน · v5 Preset · v6 วิชาง่าย 2 รอบ · v7 คาบผูกวิชา + เวลาจริง · v8 แผนการเรียน · v9 เรียน/ติว + ประเภท/สถานะบท · v10 เทอม/วันหยุด/บันทึกติว + ย้ายค่าวิชาออกจาก setting · v11 ประเภทคาบ/ห้อง/กลุ่ม · v12 เส้นความสัมพันธ์วิชา
 
+/// ที่อยู่ไฟล์ DB · Windows: C:\Users\<ชื่อ>\AppData\Roaming\<บริษัท>\noir_manager\noir_manager.db
+Future<String> appDatabasePath() async =>
+    p.join((await getApplicationSupportDirectory()).path, 'noir_manager.db');
+
 /// เปิด (หรือสร้างครั้งแรก) ไฟล์ฐานข้อมูล noir_manager.db
-Future<Database> openAppDatabase() async {
+Future<Database> openAppDatabase([String? dbPath]) async {
   // Windows/Linux ไม่มี SQLite ในตัวแบบ Android → สลับไปใช้ตัว FFI
   if (!kIsWeb &&
       (defaultTargetPlatform == TargetPlatform.windows ||
@@ -22,9 +26,7 @@ Future<Database> openAppDatabase() async {
     databaseFactory = databaseFactoryFfi;
   }
 
-  // Windows: C:\Users\<ชื่อ>\AppData\Roaming\<บริษัท>\noir_manager\
-  final dir = await getApplicationSupportDirectory();
-  final path = p.join(dir.path, 'noir_manager.db');
+  final path = dbPath ?? await appDatabasePath();
 
   return openDatabase(
     path,
