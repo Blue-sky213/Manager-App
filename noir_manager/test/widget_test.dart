@@ -358,7 +358,7 @@ void main() {
           .last,
     );
     expect(chapter1, findsOneWidget);
-    expect(find.text('ตารางเรียน'), findsOneWidget);
+    expect(find.text('เวลาเรียน'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
