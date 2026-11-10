@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../calendar/calendar_repository.dart';
+import '../calendar/calendar_models.dart';
+import '../calendar/calendar_ui.dart';
 import '../calendar/terms_page.dart';
 import '../data/demo_term.dart';
 import '../data/study_models.dart';
@@ -9,6 +11,7 @@ import '../data/study_scope.dart';
 import '../shell/app_nav.dart';
 import '../study/advanced_rules.dart';
 import '../study/class_schedule_card.dart';
+import '../study/credit_hours.dart';
 import '../study/curriculum_map.dart';
 import '../study/week_timetable.dart';
 import '../study/subject_colors.dart';
@@ -17,6 +20,7 @@ import '../study/mastery.dart';
 import '../study/score_history_dialog.dart';
 import '../study/subtopic_dialog.dart';
 import '../theme/noir_colors.dart';
+import '../utils/thai_date.dart';
 import '../widgets/dialogs.dart';
 
 /// หน้า "วิชา": Study Tree + Mastery Score
@@ -53,6 +57,24 @@ class _StudyPageState extends State<StudyPage> {
 
   /// ปีที่ดูอยู่ในหน้ารายวิชา (0 = ยังไม่จัดปี) · null = ตามปีของวิชาที่เปิด
   int? _yearView;
+
+  /// แท็บในหน้าวิชา: 0 ภาพรวม · 1 บทเรียน · 2 ตารางเรียน · 3 ติว
+  int _tab = 0;
+
+  /// ขอบเขตรายชื่อวิชาด้านซ้าย: 'term' เทอมนี้ · 'year' ปีการศึกษา · 'all' ทั้งหมด
+  String _scope = 'term';
+  String _sidebarQuery = '';
+
+  /// เทอมที่มีวันนี้อยู่ (จากปฏิทิน → เทอม & วันหยุด) · null = ยังไม่ได้ตั้งเทอม
+  ({int year, int term})? _currentTerm;
+
+  /// ป้ายบนหัววิชา: คาบถัดไป / สอบถัดไป
+  String? _nextClass;
+
+  /// แผนผัง: กล่องสีเริ่มต้น หรือสีประจำวิชา (จำไว้ใน setting)
+  bool _mapColorBySubject = false;
+  static const _mapColorKey = 'map_color';
+  String? _nextExam;
   static const _viewKey = 'study_view';
   Map<int, SubjectProgress> _progress = {};
 
@@ -124,6 +146,7 @@ class _StudyPageState extends State<StudyPage> {
     final chapters =
         selected == null ? <ChapterWithTopics>[] : await repo.chapters(selected);
     final view = await repo.getSetting(_viewKey);
+    final mapColor = await repo.getSetting(_mapColorKey);
     final links = await repo.subjectLinks();
     // ความคืบหน้าทุกวิชา (ใช้วาดแถบสีในแผนผัง)
     final progress = <int, SubjectProgress>{};
@@ -137,8 +160,18 @@ class _StudyPageState extends State<StudyPage> {
       );
     }
     if (!mounted) return; // ผู้ใช้ปิดหน้าไปแล้วระหว่างรอ → ไม่ต้องวาด
+    final cal = CalendarScope.of(context);
+    final today = DateTime.now();
+    final day = DateTime(today.year, today.month, today.day);
+    final term = (await cal.terms()).where((t) => !day.isBefore(t.start) && !day.isAfter(t.end)).firstOrNull;
+    final upcoming = selected == null ? null : _upcoming(await cal.activitiesForSubject(selected), day);
+    if (!mounted) return;
     refreshSubjectColors(repo);
     setState(() {
+      _mapColorBySubject = mapColor == 'subject';
+      _currentTerm = term == null ? null : (year: term.year, term: term.termNo);
+      _nextClass = upcoming?.$1;
+      _nextExam = upcoming?.$2;
       _subjects = subjects;
       _subjectId = selected;
       _chapters = chapters;
@@ -465,10 +498,350 @@ class _StudyPageState extends State<StudyPage> {
     _repo!.setSetting(_viewKey, map ? 'map' : 'detail');
   }
 
+  /// คาบถัดไป (ภายใน 2 สัปดาห์) และสอบถัดไปของวิชา → ข้อความสั้นบนหัววิชา
+  (String?, String?) _upcoming(List<Activity> acts, DateTime day) {
+    String? nextClass;
+    for (var k = 0; k < 14 && nextClass == null; k++) {
+      final d = day.add(Duration(days: k));
+      final hits = [
+        for (final a in acts)
+          if (a.kind == ActivityKind.classSession &&
+              a.repeat == RepeatKind.weekly &&
+              a.weekdays.contains(d.weekday) &&
+              !d.isBefore(dayOnly(a.startDate)) &&
+              (a.endDate == null || !d.isAfter(a.endDate!)))
+            a
+      ]..sort((x, y) => (x.startMinute ?? 0).compareTo(y.startMinute ?? 0));
+      if (hits.isEmpty) continue;
+      final a = hits.first;
+      nextClass = '${k == 0 ? 'วันนี้' : thaiWeekdayShort[d.weekday - 1]} ${fmtMinute(a.startMinute ?? 0)}'
+          '${a.classInfo.room == null ? '' : ' ห้อง ${a.classInfo.room}'}';
+    }
+    final exams = [
+      for (final a in acts)
+        if (a.kind == ActivityKind.exam && !dayOnly(a.startDate).isBefore(day)) a
+    ]..sort((x, y) => x.startDate.compareTo(y.startDate));
+    final nextExam = exams.isEmpty
+        ? null
+        : '${exams.first.name.split(' · ').first} · ${thaiShortDate(exams.first.startDate)}';
+    return (nextClass, nextExam);
+  }
+
+  // ---------- หน้ารายวิชา: รายชื่อซ้าย · หัววิชา · แท็บ ----------
+
+  /// รายชื่อวิชาด้านซ้าย + ตัวกรองขอบเขต เทอมนี้ / ปีการศึกษา / ทั้งหมด
+  Widget _subjectSidebar(BuildContext context, Subject? subject) {
+    final c = context.noir;
+    final cur = _currentTerm ??
+        (subject?.planYear == null ? null : (year: subject!.planYear!, term: subject.planTerm ?? 1));
+    int yearOf(Subject s) => s.planYear ?? 0;
+    final years = {for (final s in _subjects) yearOf(s)}.toList()
+      ..sort((a, b) => a == 0 ? 1 : (b == 0 ? -1 : a - b));
+    var year = _yearView ?? (subject == null ? null : yearOf(subject));
+    if (year == null || !years.contains(year)) year = years.isEmpty ? 0 : years.first;
+
+    final q = _sidebarQuery.trim().toLowerCase();
+    bool match(Subject s) =>
+        q.isEmpty || s.name.toLowerCase().contains(q) || (s.code ?? '').toLowerCase().contains(q);
+    final inScope = switch (_scope) {
+      'term' => [for (final s in _subjects) if (cur != null && s.planYear == cur.year && s.planTerm == cur.term) s],
+      'year' => [for (final s in _subjects) if (yearOf(s) == year) s],
+      _ => [..._subjects],
+    }.where(match).toList();
+    // กลุ่ม: ปี·ภาค (ทั้งหมด / ปี) · เทอมนี้ = กลุ่มเดียว
+    // ขอบเขตปี: ปีอยู่บนชิปแล้ว หัวกลุ่มบอกแค่ภาค
+    String termText(Subject s) => s.planTerm == 3 ? 'ฤดูร้อน' : 'ภาค ${s.planTerm ?? '-'}';
+    String groupOf(Subject s) => s.planYear == null
+        ? 'ยังไม่จัดปี'
+        : (_scope == 'year' ? termText(s) : 'ปี ${s.planYear} · ${termText(s)}');
+    int order(Subject s) => (s.planYear ?? 9) * 10 + (s.planTerm ?? 9);
+    inScope.sort((a, b) => order(a).compareTo(order(b)));
+    final groups = <String, List<Subject>>{};
+    for (final s in inScope) {
+      (groups[groupOf(s)] ??= []).add(s);
+    }
+
+    Widget item(Subject s) {
+      final color = subjectColorOf(s);
+      final avg = _progress[s.id]?.average;
+      final level = masteryOf(avg?.round());
+      final pctColor = switch (level) {
+        MasteryLevel.good => c.good,
+        MasteryLevel.warn => c.warn,
+        MasteryLevel.bad => c.bad,
+        MasteryLevel.none => c.muted,
+      };
+      final on = s.id == _subjectId;
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: GestureDetector(
+          onSecondaryTapUp: (d) => _subjectMenu(s, d.globalPosition, inDetail: true),
+          onLongPressStart: (d) => _subjectMenu(s, d.globalPosition, inDetail: true),
+          child: Material(
+            color: on ? Color.alphaBlend(color.withValues(alpha: 0.14), c.surface) : Colors.transparent,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+              side: BorderSide(color: on ? color : Colors.transparent),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: () {
+                _subjectId = s.id;
+                _reload();
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                child: Row(children: [
+                  Container(width: 5, height: 34, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(5))),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(s.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 14, color: c.text)),
+                      Text('${s.code ?? 'ไม่มีรหัส'} · ${s.credits ?? '—'}',
+                          maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: c.muted)),
+                    ]),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(avg == null ? '—' : '${avg.round()}%',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: pctColor)),
+                ]),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return ColoredBox(
+      color: c.side,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(12, 28, 12, 24),
+        children: [
+          SegmentedButton<String>(
+            style: const ButtonStyle(visualDensity: VisualDensity.compact),
+            showSelectedIcon: false,
+            segments: const [
+              ButtonSegment(value: 'term', label: Text('เทอมนี้')),
+              ButtonSegment(value: 'year', label: Text('ปีการศึกษา')),
+              ButtonSegment(value: 'all', label: Text('ทั้งหมด')),
+            ],
+            selected: {_scope},
+            onSelectionChanged: (v) => setState(() => _scope = v.first),
+          ),
+          if (_scope == 'year') ...[
+            const SizedBox(height: 8),
+            Wrap(spacing: 6, runSpacing: 6, children: [
+              for (final y in years)
+                ChoiceChip(
+                  label: Text('${y == 0 ? 'ยังไม่จัดปี' : 'ปี $y'} · ${_subjects.where((s) => yearOf(s) == y).length}'),
+                  selected: y == year,
+                  onSelected: (_) => setState(() => _yearView = y),
+                ),
+            ]),
+          ],
+          const SizedBox(height: 8),
+          TextField(
+            decoration: const InputDecoration(
+              isDense: true,
+              prefixIcon: Icon(Icons.search, size: 20),
+              hintText: 'ค้นหาชื่อหรือรหัส (ในขอบเขตนี้)',
+              border: OutlineInputBorder(),
+            ),
+            onChanged: (v) => setState(() => _sidebarQuery = v),
+          ),
+          const SizedBox(height: 8),
+          if (_scope == 'term' && cur == null)
+            Text('ยังไม่ได้ตั้งเทอม · ปฏิทิน → เทอม & วันหยุด', style: TextStyle(color: c.muted, fontSize: 13)),
+          for (final MapEntry(key: title, value: list) in groups.entries) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(4, 10, 4, 6),
+              child: Text(_scope == 'term' ? '$title (เทอมนี้)' : title,
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: c.muted)),
+            ),
+            for (final s in list) item(s),
+          ],
+          if (groups.isEmpty && !(_scope == 'term' && cur == null))
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Text('ไม่มีวิชาในขอบเขตนี้', style: TextStyle(color: c.muted, fontSize: 13)),
+            ),
+          const SizedBox(height: 12),
+          Text('คลิก = เปิด · คลิกขวา = ตัวเลือก', style: TextStyle(color: c.muted, fontSize: 12)),
+        ],
+      ),
+    );
+  }
+
+  /// หัววิชา: แถบสีวิชา · รหัส หน่วยกิต ชั่วโมง · ชื่อ · ป้ายคาบ/สอบถัดไป · วงกลม % ความเข้าใจ
+  Widget _subjectHeader(BuildContext context, Subject subject, List<Widget> actions) {
+    final c = context.noir;
+    final color = subjectColorOf(subject);
+    final h = parseCreditHours(subject.credits);
+    final avg = _progress[subject.id]?.average;
+    final level = masteryOf(avg?.round());
+    final (ringColor, levelText) = switch (level) {
+      MasteryLevel.good => (c.good, 'ดี'),
+      MasteryLevel.warn => (c.warn, 'พอได้'),
+      MasteryLevel.bad => (c.bad, 'ยังไม่ได้'),
+      MasteryLevel.none => (c.muted, 'ยังไม่ประเมิน'),
+    };
+    Widget pill(String text, {VoidCallback? onTap}) => Material(
+          color: c.surface2,
+          borderRadius: BorderRadius.circular(999),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(999),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              child: Text(text, style: TextStyle(fontSize: 13, color: c.text)),
+            ),
+          ),
+        );
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 16, 8, 16),
+      decoration: BoxDecoration(
+        color: Color.alphaBlend(color.withValues(alpha: 0.10), c.surface),
+        border: Border.all(color: color.withValues(alpha: 0.6)),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(width: 6, height: 76, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(6))),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(
+                [
+                  subject.code ?? 'ไม่มีรหัส',
+                  subject.credits ?? 'ยังไม่มีหน่วยกิต',
+                  if (h != null) 'ทฤษฎี ${h.theory} + ปฏิบัติ ${h.lab} ชม./สัปดาห์',
+                ].join(' · '),
+                style: TextStyle(fontSize: 13, color: c.muted),
+              ),
+              const SizedBox(height: 4),
+              Text(subject.name, style: TextStyle(fontSize: 26, fontWeight: FontWeight.w600, color: c.text)),
+              const SizedBox(height: 8),
+              Wrap(spacing: 8, runSpacing: 6, children: [
+                if (_nextClass != null) pill('คาบถัดไป · $_nextClass', onTap: () => setState(() => _tab = 2)),
+                if (_nextExam != null) pill(_nextExam!, onTap: () => setState(() => _tab = 2)),
+                pill('ความสำคัญ: ${subject.importanceLabel} · ${subject.sessionsPerWeek} รอบ/สัปดาห์ ✎',
+                    onTap: () => _changeSessions(subject)),
+              ]),
+            ]),
+          ),
+          const SizedBox(width: 12),
+          // วงกลม % ความเข้าใจเฉลี่ย (สีตามระดับ ดี / พอได้ / ยังไม่ได้)
+          SizedBox(
+            width: 84,
+            height: 84,
+            child: Stack(alignment: Alignment.center, children: [
+              SizedBox(
+                width: 84,
+                height: 84,
+                child: CircularProgressIndicator(
+                  value: (avg ?? 0) / 100,
+                  strokeWidth: 8,
+                  color: ringColor,
+                  backgroundColor: c.surface2,
+                ),
+              ),
+              Column(mainAxisSize: MainAxisSize.min, children: [
+                Text(avg == null ? '—' : '${avg.round()}%',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: c.text)),
+                Text(levelText, style: TextStyle(fontSize: 10, color: c.muted)),
+              ]),
+            ]),
+          ),
+          ...actions,
+        ],
+      ),
+    );
+  }
+
+  /// แท็บ ภาพรวม / บทเรียน / ตารางเรียน / ติว (เส้นใต้สีวิชา)
+  Widget _tabStrip(BuildContext context, Subject subject) {
+    final c = context.noir;
+    final color = subjectColorOf(subject);
+    const labels = ['ภาพรวม', 'บทเรียน', 'ตารางเรียน', 'ติว'];
+    return Container(
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: c.line))),
+      child: Wrap(children: [
+        for (final (i, label) in labels.indexed)
+          InkWell(
+            onTap: () => setState(() => _tab = i),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                border: Border(bottom: BorderSide(color: _tab == i ? color : Colors.transparent, width: 2)),
+              ),
+              child: Text(label,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: _tab == i ? FontWeight.w600 : FontWeight.w400,
+                    color: _tab == i ? c.text : c.muted,
+                  )),
+            ),
+          ),
+      ]),
+    );
+  }
+
+  /// แท็บภาพรวม: 3 ช่องสรุป (บทเรียน · หน่วยกิต · ติว)
+  Widget _overviewTiles(BuildContext context, Subject subject, List<Subtopic> topics) {
+    final c = context.noir;
+    final h = parseCreditHours(subject.credits);
+    final assessed = topics.where((t) => t.scores.isNotEmpty).length;
+    final flags = topics.where((t) => t.examFlag).length;
+    Widget tile(String label, String value, String sub, {VoidCallback? onTap}) => Material(
+          color: c.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: BorderSide(color: c.line)),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(label, style: TextStyle(fontSize: 13, color: c.muted)),
+                const SizedBox(height: 4),
+                Text(value, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: c.text)),
+                const SizedBox(height: 4),
+                Text(sub, style: TextStyle(fontSize: 13, color: c.muted)),
+              ]),
+            ),
+          ),
+        );
+    final tiles = [
+      tile('บทเรียน', '${_chapters.length} บท · ${topics.length} หัวข้อ', 'ประเมินแล้ว $assessed · ธงออกสอบ $flags',
+          onTap: () => setState(() => _tab = 1)),
+      tile('หน่วยกิต', subject.credits ?? '—',
+          h == null ? 'ยังไม่มีหน่วยกิต · แตะเพื่อใส่' : 'ทฤษฎี ${h.theory} · ปฏิบัติ ${h.lab} · ศึกษาเอง ${h.self} ชม./สัปดาห์',
+          onTap: h == null ? () => _editPlan(subject) : () => setState(() => _tab = 2)),
+      tile('รอบติว', '${subject.sessionsPerWeek} รอบ/สัปดาห์', 'ความสำคัญ ${subject.importanceLabel} · ดูแผนติว',
+          onTap: () => setState(() => _tab = 3)),
+    ];
+    return LayoutBuilder(builder: (context, size) {
+      if (size.maxWidth < 640) {
+        return Column(children: [
+          for (final t in tiles) Padding(padding: const EdgeInsets.only(bottom: 10), child: t),
+        ]);
+      }
+      return IntrinsicHeight(
+        child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          for (final (i, t) in tiles.indexed) ...[
+            if (i > 0) const SizedBox(width: 12),
+            Expanded(child: t),
+          ],
+        ]),
+      );
+    });
+  }
+
   /// คลิกกล่องวิชาในแผนผัง → เปิดรายละเอียดวิชานั้น
   void _openSubject(Subject s, {String from = 'map'}) {
     _subjectId = s.id;
     _yearView = null; // เปิดจากแผนผัง → ไปที่ปีของวิชานั้น
+    _scope = 'year'; // รายชื่อซ้ายโชว์ทั้งปีของวิชานั้น
     _returnTo = from;
     _setMapView(false);
     _reload();
@@ -898,6 +1271,20 @@ class _StudyPageState extends State<StudyPage> {
                 icon: const Icon(Icons.timeline, size: 18),
                 label: const Text('แก้เส้นเชื่อม'),
               ),
+            // สีกล่อง: เริ่มต้น / ตามวิชา (สีเดียวกับปฏิทิน ตารางเรียน หน้าวิชา)
+            SegmentedButton<bool>(
+              style: const ButtonStyle(visualDensity: VisualDensity.compact),
+              showSelectedIcon: false,
+              segments: const [
+                ButtonSegment(value: false, icon: Icon(Icons.crop_square, size: 16), label: Text('สีเริ่มต้น')),
+                ButtonSegment(value: true, icon: Icon(Icons.palette_outlined, size: 16), label: Text('สีวิชา')),
+              ],
+              selected: {_mapColorBySubject},
+              onSelectionChanged: (v) {
+                setState(() => _mapColorBySubject = v.first);
+                _repo!.setSetting(_mapColorKey, v.first ? 'subject' : 'default');
+              },
+            ),
           ],
         ),
         const SizedBox(height: 16),
@@ -907,6 +1294,7 @@ class _StudyPageState extends State<StudyPage> {
           selectedId: _mapSelectedId,
           onOpen: _openSubject,
           onContextMenu: _subjectMenu,
+          colorBySubject: _mapColorBySubject,
           focusYear: _mapYear,
           focusTerm: _mapTerm,
           links: _links,
@@ -932,7 +1320,6 @@ class _StudyPageState extends State<StudyPage> {
   }
 
   Widget _buildDetail(BuildContext context, NoirColors c) {
-
     final subject = _subject;
     final allTopics = [for (final ch in _chapters) ...ch.subtopics];
     final review = reviewOrder(allTopics, mode: _mode);
@@ -941,75 +1328,36 @@ class _StudyPageState extends State<StudyPage> {
       for (final ch in _chapters) ch.chapter.id: ch.chapter.name,
     };
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(24, 28, 24, 32),
-      children: [
-        _viewSwitch(),
-        const SizedBox(height: 12),
-        Text('Study Tree', style: TextStyle(fontSize: 13, color: c.muted)),
-        const SizedBox(height: 4),
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                subject?.name ?? 'ยังไม่มีวิชา',
-                style: TextStyle(
-                    fontSize: 28, fontWeight: FontWeight.w600, color: c.text),
-              ),
+    // ---- เนื้อหาแต่ละแท็บ ----
+    List<Widget> overviewTab(Subject subject) => [
+          _overviewTiles(context, subject, allTopics),
+          if (review.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _ReviewBox(
+              topics: review,
+              chapterNames: chapterNames,
+              collapsed: _collapsed.contains('review'),
+              onToggle: () => _toggle('review'),
             ),
-            if (subject != null)
-              PopupMenuButton<String>(
-                tooltip: 'ตัวเลือกวิชา',
-                onSelected: (v) {
-                  switch (v) {
-                    case 'rename':
-                      _renameSubject(subject);
-                    case 'importance':
-                      _changeImportance(subject);
-                    case 'sessions':
-                      _changeSessions(subject);
-                    case 'demo' || 'dupes' || 'terms':
-                      _onPageMenu(v);
-                    case 'plan':
-                      _editPlan(subject);
-                    case 'color':
-                      _pickColor(subject);
-                    default:
-                      _deleteSubject(subject);
-                  }
-                },
-                itemBuilder: (_) => [
-                  const PopupMenuItem(value: 'rename', child: Text('เปลี่ยนชื่อวิชา')),
-                  const PopupMenuItem(value: 'importance', child: Text('เปลี่ยนความสำคัญ')),
-                  const PopupMenuItem(value: 'sessions', child: Text('รอบติวต่อสัปดาห์')),
-                  const PopupMenuItem(value: 'plan', child: Text('ปี / เทอม ในแผนการเรียน')),
-                  const PopupMenuItem(value: 'color', child: Text('สีวิชา')),
-                  const PopupMenuItem(value: 'delete', child: Text('ลบวิชา')),
-                  const PopupMenuDivider(),
-                  ..._pageMenuItems,
-                ],
-              ),
           ],
-        ),
-        const SizedBox(height: 12),
+          if (exam.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _ExamBox(
+              topics: exam,
+              chapterNames: chapterNames,
+              mode: _mode,
+              collapsed: _collapsed.contains('exam'),
+              onToggle: () => _toggle('exam'),
+            ),
+          ],
+          if (review.isEmpty && exam.isEmpty) ...[
+            const SizedBox(height: 12),
+            Text('ยังไม่มีหัวข้อที่ต้องทวน · ประเมินหัวข้อในแท็บ "บทเรียน" ก่อน',
+                style: TextStyle(color: c.muted)),
+          ],
+        ];
 
-        // เลือกปี → เห็นเฉพาะวิชาของปีนั้น แบ่งแถวตามเทอม (แทนชิปทุกวิชาที่ยาวเกิน)
-        _yearPicker(context, subject),
-
-        if (subject != null) ...[
-          const SizedBox(height: 12),
-          _Pill(
-            text: 'ความสำคัญ: ${subject.importanceLabel} · '
-                '${subject.sessionsPerWeek} รอบ/สัปดาห์ ✎',
-            bg: c.navBg,
-            fg: c.navText,
-            onTap: () => _changeSessions(subject),
-          ),
-          const SizedBox(height: 12),
-          ClassScheduleCard(subject: subject, onEditPlan: () => _editPlan(subject)),
-          const SizedBox(height: 12),
-          TutorCard(subject: subject, chapters: _chapters),
-          const SizedBox(height: 16),
+    List<Widget> chaptersTab() => [
           const _Legend(),
           const SizedBox(height: 12),
           // สวิตช์โหมด EZ / Advanced (จำไว้ในฐานข้อมูล ทุกวิชาใช้ร่วมกัน)
@@ -1084,29 +1432,86 @@ class _StudyPageState extends State<StudyPage> {
               side: BorderSide(color: c.line2),
             ),
           ),
-          if (review.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            _ReviewBox(
-              topics: review,
-              chapterNames: chapterNames,
-              collapsed: _collapsed.contains('review'),
-              onToggle: () => _toggle('review'),
-            ),
-          ],
-          if (exam.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            _ExamBox(
-              topics: exam,
-              chapterNames: chapterNames,
-              mode: _mode,
-              collapsed: _collapsed.contains('exam'),
-              onToggle: () => _toggle('exam'),
-            ),
-          ],
-        ],
+        ];
+
+    List<Widget> headerMenu(Subject subject) => [
+              PopupMenuButton<String>(
+                tooltip: 'ตัวเลือกวิชา',
+                onSelected: (v) {
+                  switch (v) {
+                    case 'rename':
+                      _renameSubject(subject);
+                    case 'importance':
+                      _changeImportance(subject);
+                    case 'sessions':
+                      _changeSessions(subject);
+                    case 'demo' || 'dupes' || 'terms':
+                      _onPageMenu(v);
+                    case 'plan':
+                      _editPlan(subject);
+                    case 'color':
+                      _pickColor(subject);
+                    default:
+                      _deleteSubject(subject);
+                  }
+                },
+                itemBuilder: (_) => [
+                  const PopupMenuItem(value: 'rename', child: Text('เปลี่ยนชื่อวิชา')),
+                  const PopupMenuItem(value: 'importance', child: Text('เปลี่ยนความสำคัญ')),
+                  const PopupMenuItem(value: 'sessions', child: Text('รอบติวต่อสัปดาห์')),
+                  const PopupMenuItem(value: 'plan', child: Text('ปี / เทอม ในแผนการเรียน')),
+                  const PopupMenuItem(value: 'color', child: Text('สีวิชา')),
+                  const PopupMenuItem(value: 'delete', child: Text('ลบวิชา')),
+                  const PopupMenuDivider(),
+                  ..._pageMenuItems,
+                ],
+              ),
+    ];
+
+    final content = <Widget>[
+      _viewSwitch(),
+      const SizedBox(height: 16),
+      if (subject == null)
+        Text('ยังไม่มีวิชา · กด "เพิ่มวิชา" ในแผนผัง', style: TextStyle(color: c.muted))
+      else ...[
+        _subjectHeader(context, subject, headerMenu(subject)),
+        const SizedBox(height: 12),
+        _tabStrip(context, subject),
+        const SizedBox(height: 16),
+        ...switch (_tab) {
+          1 => chaptersTab(),
+          2 => [ClassScheduleCard(subject: subject, onEditPlan: () => _editPlan(subject))],
+          3 => [TutorCard(subject: subject, chapters: _chapters)],
+          _ => overviewTab(subject),
+        },
       ],
-    );
+    ];
+
+    // จอกว้าง: รายชื่อวิชาซ้าย (แบบ B) · จอแคบ: ชิปเลือกปีด้านบน (ที่เดิม)
+    return LayoutBuilder(builder: (context, size) {
+      final wide = size.maxWidth >= 1000;
+      final list = ListView(
+        padding: const EdgeInsets.fromLTRB(24, 28, 24, 32),
+        children: [
+          if (!wide) ...[
+            _yearPicker(context, subject),
+            const SizedBox(height: 12),
+          ],
+          ...content,
+        ],
+      );
+      if (!wide) return list;
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(width: 300, child: _subjectSidebar(context, subject)),
+          VerticalDivider(width: 1, color: c.line),
+          Expanded(child: list),
+        ],
+      );
+    });
   }
+
 }
 
 /// การ์ดของ 1 บท: หัวบท + หัวข้อย่อยทุกข้อ
@@ -1427,34 +1832,6 @@ class _Legend extends StatelessWidget {
         dot(c.bad, 'ยังไม่ได้ <60%'),
         dot(c.line2, 'ยังไม่ประเมิน'),
       ],
-    );
-  }
-}
-
-class _Pill extends StatelessWidget {
-  const _Pill({required this.text, required this.bg, required this.fg, this.onTap});
-
-  final String text;
-  final Color bg;
-  final Color fg;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Material(
-        color: bg,
-        borderRadius: BorderRadius.circular(999),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(999),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            child: Text(text, style: TextStyle(fontSize: 13, color: fg)),
-          ),
-        ),
-      ),
     );
   }
 }

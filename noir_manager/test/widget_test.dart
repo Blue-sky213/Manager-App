@@ -61,6 +61,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('DaVinci Resolve'), findsWidgets);
+    // หน้าวิชาเปิดที่แท็บภาพรวม → ไปแท็บบทเรียน
+    expect(find.text('ภาพรวม'), findsOneWidget);
+    await tester.tap(find.text('บทเรียน').first);
+    await tester.pumpAndSettle();
     expect(find.text('บท 1 · Interface & Media'), findsOneWidget);
     expect(find.text('ประเมินแล้ว 0/4 หัวข้อ'), findsOneWidget);
 
@@ -71,12 +75,14 @@ void main() {
     await tester.tap(find.text('บันทึก'));
     await tester.pumpAndSettle();
 
-    expect(find.text('55%'), findsOneWidget);
-    // กล่องทวน: หัวข้อแยกบรรทัด ไม่มีคะแนน → ชื่อหัวข้อขึ้น 2 ที่ (การ์ดบท + กล่องทวน)
-    expect(find.text('ต้องทวนก่อนสอบ · 1 หัวข้อ'), findsOneWidget);
-    expect(find.text('1.4 Keyboard Shortcut'), findsNWidgets(2));
-    expect(find.text('เช็กซ้ำ'), findsOneWidget); // ต่ำกว่า 60 → ป้ายเช็กซ้ำ
+    expect(find.text('55%'), findsWidgets); // แถวหัวข้อ + วงกลมบนหัววิชา
     expect(find.text('ประเมินแล้ว 1/4 หัวข้อ'), findsOneWidget);
+    expect(find.text('เช็กซ้ำ'), findsOneWidget); // ต่ำกว่า 60 → ป้ายเช็กซ้ำ
+    // แท็บภาพรวม: กล่องทวน
+    await tester.tap(find.text('ภาพรวม'));
+    await tester.pumpAndSettle();
+    expect(find.text('ต้องทวนก่อนสอบ · 1 หัวข้อ'), findsOneWidget);
+    expect(find.text('1.4 Keyboard Shortcut'), findsOneWidget);
   });
 
   testWidgets('หน้าวิชาใช้งานได้ที่ขนาดหน้าต่างเล็กสุด 420x640', (tester) async {
@@ -98,6 +104,8 @@ void main() {
     await tester.tap(find.text('วิชา').first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('รายวิชา')); // หน้าวิชาเปิดที่แผนผังก่อน → สลับไปรายละเอียด
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('บทเรียน').first);
     await tester.pumpAndSettle();
 
     expect(find.text('1.4 Keyboard Shortcut'), findsOneWidget);
@@ -320,14 +328,16 @@ void main() {
     expect(find.text('คณิตศาสตร์วิศวกรรม 1'), findsOneWidget);
     await tester.tap(find.textContaining('ปี 1 ·'));
     await tester.pumpAndSettle();
-    // หน้ารายวิชายาว (ตารางเรียน + รอบติว) → เลื่อนลงไปหาบทแรกแทนการเดาความสูงจอ
+    // แท็บบทเรียน → เลื่อนหาบทแรก (รายชื่อวิชาซ้ายก็เลื่อนได้ → ใช้ตัวเลื่อนของเนื้อหา = ตัวสุดท้าย)
+    await tester.tap(find.text('บทเรียน').first);
+    await tester.pumpAndSettle();
     final chapter1 = find.text('บท 1 · อัลกอริทึมและผังงาน [กลางภาค]');
     await tester.scrollUntilVisible(
       chapter1,
       300,
       scrollable: find
           .byWidgetPredicate((w) => w is Scrollable && w.axisDirection == AxisDirection.down)
-          .first,
+          .last,
     );
     expect(chapter1, findsOneWidget);
     expect(find.text('ตารางเรียน'), findsOneWidget);
@@ -427,13 +437,15 @@ void main() {
     await tester.tap(find.text('รายวิชา'));
     await tester.pumpAndSettle();
 
-    final exam = find.textContaining('สอบกลางภาค · ${thaiShortDate(examDay)}');
+    await tester.tap(find.text('ตารางเรียน').first); // แท็บตารางเรียน
+    await tester.pumpAndSettle();
+    final exam = find.textContaining('สอบกลางภาค · ${thaiShortDate(examDay)}').last;
     await tester.scrollUntilVisible(
       exam,
       300,
       scrollable: find
           .byWidgetPredicate((w) => w is Scrollable && w.axisDirection == AxisDirection.down)
-          .first,
+          .last,
     );
     // คลิกขวา (กดค้าง) = เมนู
     await tester.longPress(exam);
@@ -538,6 +550,50 @@ void main() {
     await tester.tap(find.text('อ่านหนังสือ'));
     await tester.pumpAndSettle();
     expect(find.byType(BottomSheet), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('หน้าวิชาใหม่: รายชื่อซ้าย เทอมนี้ / ปี / ทั้งหมด · 4 แท็บ · แผนผังเลือกสีกล่อง', (tester) async {
+    setScreen(tester, const Size(1400, 2000));
+    await tester.pumpWidget(buildApp());
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('วิชา').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('ตัวเลือก'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('ใส่ตัวอย่าง: แผน 4 ปี'));
+    await tester.pumpAndSettle();
+
+    // แผนผัง: สลับเป็นสีวิชา (จำไว้)
+    await tester.tap(find.text('สีวิชา'));
+    await tester.pumpAndSettle();
+    expect(tester.widget<SegmentedButton<bool>>(find.byType(SegmentedButton<bool>).last).selected, {true});
+
+    // เปิดวิชาจากแผนผัง → รายชื่อซ้ายเป็น "ปีการศึกษา" ของวิชานั้น
+    await tester.tap(find.text('การเขียนโปรแกรมคอมพิวเตอร์'));
+    await tester.pumpAndSettle();
+    expect(find.text('ภาค 1'), findsOneWidget);
+    expect(find.text('ภาค 2'), findsOneWidget);
+    expect(find.text('คณิตศาสตร์วิศวกรรม 1'), findsNothing); // ปี 2
+
+    // เทอมนี้ (ตัวอย่างตั้งเทอม ปี 1 ภาค 1 ไว้แล้ว)
+    await tester.tap(find.text('เทอมนี้'));
+    await tester.pumpAndSettle();
+    expect(find.text('ปี 1 · ภาค 1 (เทอมนี้)'), findsOneWidget);
+    expect(find.text('การแก้ปัญหาและขั้นตอนวิธี'), findsNothing); // ปี 1 ภาค 2
+
+    // ทั้งหมด → แบ่งกลุ่มตามปี·ภาค (รายชื่อยาว สร้างเฉพาะที่อยู่บนจอ → เช็กกลุ่มต้น ๆ)
+    await tester.tap(find.text('ทั้งหมด'));
+    await tester.pumpAndSettle();
+    expect(find.text('ปี 1 · ภาค 2'), findsOneWidget);
+    expect(find.text('ปี 1 · ภาค 1 (เทอมนี้)'), findsNothing);
+
+    // 4 แท็บ
+    for (final tab in ['บทเรียน', 'ตารางเรียน', 'ติว', 'ภาพรวม']) {
+      await tester.tap(find.text(tab).first);
+      await tester.pumpAndSettle();
+    }
+    expect(find.text('หน่วยกิต'), findsOneWidget); // ช่องสรุปในภาพรวม
     expect(tester.takeException(), isNull);
   });
 }
