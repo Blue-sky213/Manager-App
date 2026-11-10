@@ -582,10 +582,11 @@ void main() {
     expect(find.text('ปี 1 · ภาค 1 (เทอมนี้)'), findsOneWidget);
     expect(find.text('การแก้ปัญหาและขั้นตอนวิธี'), findsNothing); // ปี 1 ภาค 2
 
-    // ทั้งหมด → เห็นปี 4
+    // ทั้งหมด → แบ่งกลุ่มตามปี·ภาค (รายชื่อยาว สร้างเฉพาะที่อยู่บนจอ → เช็กกลุ่มต้น ๆ)
     await tester.tap(find.text('ทั้งหมด'));
     await tester.pumpAndSettle();
-    expect(find.text('ปี 4 · ภาค 1'), findsOneWidget);
+    expect(find.text('ปี 1 · ภาค 2'), findsOneWidget);
+    expect(find.text('ปี 1 · ภาค 1 (เทอมนี้)'), findsNothing);
 
     // 4 แท็บ
     for (final tab in ['บทเรียน', 'ตารางเรียน', 'ติว', 'ภาพรวม']) {
