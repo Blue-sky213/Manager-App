@@ -11,6 +11,7 @@ import '../widgets/dialogs.dart';
 import 'class_schedule_card.dart';
 import 'credit_hours.dart';
 import 'subject_colors.dart';
+import 'timetable_sim.dart';
 
 /// คาบเรียน 1 ช่องบนตาราง: วิชาเดียวกัน วันเดียวกัน เวลา/ประเภท/ห้อง/กลุ่มเดียวกัน
 /// คาบที่ถูกแยกช่วงวันที่ (เช่น ก่อน/หลังกลางภาค) รวมเป็นช่องเดียว จะได้ไม่ซ้อนกันเอง
@@ -107,9 +108,14 @@ class _WeekTimetablePageState extends State<WeekTimetablePage> with CalendarList
   // ตรวจหน่วยกิตต้องนับทีละสัปดาห์เสมอ → โหมดทุกช่วงใช้สัปดาห์นี้แทน
   DateTime get _creditWeek => _week ?? mondayOf(DateTime.now());
 
+  /// id ของคาบจำลองที่ยังอยู่ (ลบทั้งชุดได้)
+  List<int> _simIds = [];
+
   @override
   Future<void> reload() async {
     final subjects = await StudyScope.of(context).subjects();
+    final simText = await calendar!.getSetting(simIdsKey) ?? '';
+    final simIds = [for (final t in simText.split(',')) ?int.tryParse(t)];
     final by = <Subject, List<Activity>>{};
     for (final s in subjects) {
       by[s] = await calendar!.activitiesForSubject(s.id);
@@ -118,8 +124,101 @@ class _WeekTimetablePageState extends State<WeekTimetablePage> with CalendarList
     setState(() {
       _subjects = subjects;
       _bySubject = by;
+      // คาบจำลองที่นัวร์ลบเองไปแล้ว ไม่ต้องนับ
+      final alive = {for (final l in by.values) for (final a in l) a.id};
+      _simIds = [for (final id in simIds) if (alive.contains(id)) id];
       _loaded = true;
     });
+  }
+
+  /// จำลองตารางเรียน 1 ภาคตามกฎ (คาบ ≤ 2 ชม. · วิชา ≤ 4 ชม./สัปดาห์ · ทฤษฎี/ปฏิบัติแยกคาบ)
+  /// ไม่แตะคาบเดิม: ข้ามวิชาที่มีคาบแล้ว และวางไม่ให้ชนคาบเดิม
+  Future<void> _simulate() async {
+    final years = {for (final s in _subjects) if (s.planYear != null && s.planTerm != null) s.planYear!}.toList()..sort();
+    if (years.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('ยังไม่มีวิชาที่จัดปี/ภาค · ใส่แผน 4 ปีก่อน (หน้าวิชา ⋮)')));
+      return;
+    }
+    var year = years.first, term = 1;
+    final pick = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          title: const Text('จำลองตารางเรียน (ทดสอบ)'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('คาบละไม่เกิน 2 ชม. · ทฤษฎี/ปฏิบัติแยกคาบ · วิชาละไม่เกิน 4 ชม./สัปดาห์\n'
+                  'จ–ศ 08:00–18:00 พักเที่ยง · ไม่ชนคาบเดิม · ข้ามวิชาที่มีคาบแล้ว'),
+              const SizedBox(height: 12),
+              Wrap(spacing: 8, children: [
+                for (final y in years)
+                  ChoiceChip(label: Text('ปี $y'), selected: year == y, onSelected: (_) => setLocal(() => year = y)),
+              ]),
+              const SizedBox(height: 8),
+              Wrap(spacing: 8, children: [
+                for (final t in [1, 2])
+                  ChoiceChip(label: Text('ภาค $t'), selected: term == t, onSelected: (_) => setLocal(() => term = t)),
+              ]),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('ยกเลิก')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('จำลอง')),
+          ],
+        ),
+      ),
+    );
+    if (pick != true || !mounted) return;
+
+    final repo = calendar!;
+    final hasClass = {
+      for (final e in _bySubject.entries)
+        if (e.value.any((a) => a.kind == ActivityKind.classSession)) e.key.id
+    };
+    final target = [for (final s in _subjects) if (s.planYear == year && s.planTerm == term) s];
+    final todo = [for (final s in target) if (!hasClass.contains(s.id)) s];
+    // ช่วงเทอม: เทอมในปฏิทินที่ครอบวันนี้ · ไม่มี → 16 สัปดาห์จากสัปดาห์นี้
+    final today = dayOnly(DateTime.now());
+    final termNow = (await repo.terms()).where((t) => !today.isBefore(t.start) && !today.isAfter(t.end)).firstOrNull;
+    final from = termNow?.start ?? mondayOf(today);
+    final to = termNow?.end ?? mondayOf(today).add(const Duration(days: 16 * 7 - 3));
+    final busy = [
+      for (final w in buildWeekSlots(_bySubject, week: mondayOf(today)))
+        (weekday: w.weekday, start: w.start, end: w.end),
+    ];
+    final plan = planSimTimetable(todo, busy: busy);
+    final cat = studyCategoryId(await repo.categories());
+    final ids = [..._simIds];
+    for (final s in plan.sessions) {
+      ids.add(await repo.addActivity(simToActivity(s, categoryId: cat ?? 1, from: from, to: to)));
+    }
+    await repo.setSetting(simIdsKey, ids.join(','));
+    if (!mounted) return;
+    await reload(); // setting ไม่แจ้งเปลี่ยนเอง
+    if (!mounted) return;
+    setState(() => _week = mondayOf(today));
+    final skippedHas = target.length - todo.length;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('จำลอง ${plan.sessions.length} คาบ · ${todo.length - plan.skipped.length} วิชา'
+          '${skippedHas > 0 ? ' · ข้าม $skippedHas วิชาที่มีคาบแล้ว' : ''}'
+          '${plan.skipped.isNotEmpty ? ' · วางไม่ลง ${plan.skipped.length}' : ''}'),
+    ));
+  }
+
+  /// ลบเฉพาะคาบที่จำลอง (จำ id ไว้) · คาบที่ใส่เองไม่ถูกแตะ
+  Future<void> _clearSim() async {
+    final ok = await confirmDelete(context, 'ตารางจำลอง ${_simIds.length} คาบ');
+    if (!ok) return;
+    final repo = calendar!;
+    final existing = {for (final l in _bySubject.values) for (final a in l) a.id};
+    for (final id in _simIds) {
+      if (existing.contains(id)) await repo.deleteActivity(id);
+    }
+    await repo.setSetting(simIdsKey, '');
+    await reload();
   }
 
   Future<void> _add() async {
@@ -225,10 +324,20 @@ class _WeekTimetablePageState extends State<WeekTimetablePage> with CalendarList
         backgroundColor: c.bg,
         title: const Text('ตารางเรียนทั้งสัปดาห์'),
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: FilledButton.icon(onPressed: _add, icon: const Icon(Icons.add), label: const Text('เพิ่มคาบ')),
+          FilledButton.icon(onPressed: _add, icon: const Icon(Icons.add), label: const Text('เพิ่มคาบ')),
+          PopupMenuButton<String>(
+            tooltip: 'ตัวเลือก',
+            onSelected: (v) => v == 'sim' ? _simulate() : _clearSim(),
+            itemBuilder: (_) => [
+              const PopupMenuItem(value: 'sim', child: Text('จำลองตารางเรียน (ทดสอบ)')),
+              PopupMenuItem(
+                value: 'clear',
+                enabled: _simIds.isNotEmpty,
+                child: Text('ลบตารางจำลอง (${_simIds.length} คาบ)'),
+              ),
+            ],
           ),
+          const SizedBox(width: 8),
         ],
       ),
       body: !_loaded
