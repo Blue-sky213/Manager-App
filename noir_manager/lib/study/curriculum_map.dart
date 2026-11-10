@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../data/study_models.dart';
 import '../study/mastery.dart';
 import '../theme/noir_colors.dart';
+import 'subject_colors.dart';
 
 /// สรุปความคืบหน้าของ 1 วิชา (ใช้วาดแถบสีในกล่องวิชา)
 class SubjectProgress {
@@ -34,6 +35,7 @@ class CurriculumMap extends StatefulWidget {
     this.onFocus,
     this.links = const [],
     this.onContextMenu,
+    this.colorBySubject = false,
   });
 
   final List<Subject> subjects;
@@ -47,6 +49,9 @@ class CurriculumMap extends StatefulWidget {
 
   /// คลิกขวา / กดค้าง ที่กล่องวิชา → เมนูตัวเลือกตรงตำแหน่ง [at] (พิกัดบนจอ)
   final void Function(Subject subject, Offset at)? onContextMenu;
+
+  /// true = พื้น / กรอบกล่องใช้สีประจำวิชา (ชุดเดียวกับปฏิทิน ตารางเรียน) · false = สีเริ่มต้น
+  final bool colorBySubject;
 
   /// ดูเฉพาะปีนี้ (เห็นทุกเทอมของปีนั้นเต็มจอ) · null = ทั้งหลักสูตร
   final int? focusYear;
@@ -116,6 +121,7 @@ class _CurriculumMapState extends State<CurriculumMap> {
               onTap: () => (w.onSelect ?? w.onOpen)(s),
               onDoubleTap: w.onSelect == null ? null : () => w.onOpen(s),
               onContextMenu: w.onContextMenu == null ? null : (at) => w.onContextMenu!(s, at),
+              tint: w.colorBySubject ? subjectColorOf(s) : null,
             ),
           ),
         );
@@ -566,6 +572,7 @@ class _SubjectBox extends StatelessWidget {
     this.onContextMenu,
     this.selected = false,
     this.ghost = false,
+    this.tint,
   });
 
   final Subject subject;
@@ -574,6 +581,9 @@ class _SubjectBox extends StatelessWidget {
   final VoidCallback? onDoubleTap;
   final ValueChanged<Offset>? onContextMenu;
   final bool selected;
+
+  /// สีประจำวิชา (โหมดสีตามวิชา) · null = สีเริ่มต้น
+  final Color? tint;
 
   /// กล่องเงา (วิชาปี/ภาคอื่น): บรรทัดสถานะบอก "ปี N · ภาค N" แทนความคืบหน้า
   final bool ghost;
@@ -595,8 +605,9 @@ class _SubjectBox extends StatelessWidget {
       MasteryLevel.none => c.line2,
     };
     var pressAt = Offset.zero;
+    final t = tint;
     return Material(
-      color: c.surface,
+      color: t == null ? c.surface : Color.alphaBlend(t.withValues(alpha: 0.18), c.surface),
       borderRadius: BorderRadius.circular(8),
       child: InkWell(
         borderRadius: BorderRadius.circular(8),
@@ -611,7 +622,9 @@ class _SubjectBox extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
-              color: selected ? c.accent : (missing.isEmpty ? c.line2 : c.bad),
+              color: selected
+                  ? c.accent
+                  : (missing.isNotEmpty ? c.bad : (t == null ? c.line2 : t.withValues(alpha: 0.6))),
               width: selected || missing.isNotEmpty ? 2 : 1,
             ),
           ),
