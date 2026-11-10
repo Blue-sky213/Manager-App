@@ -443,6 +443,7 @@ class _StudyPageState extends State<StudyPage> {
         Wrap(spacing: 8, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
           if (years.isNotEmpty)
             MiniDropdown<int>(
+              width: 200,
               value: year,
               items: [
                 for (final y in years)
@@ -639,6 +640,7 @@ class _StudyPageState extends State<StudyPage> {
               Align(
                 alignment: Alignment.centerLeft,
                 child: MiniDropdown<int>(
+                  width: double.infinity,
                   value: year,
                   items: [
                     for (final y in years)

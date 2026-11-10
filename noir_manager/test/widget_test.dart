@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:noir_manager/widgets/mini_dropdown.dart';
 import 'package:noir_manager/app.dart';
 import 'package:noir_manager/shell/app_nav.dart';
 import 'package:noir_manager/data/memory_study_repository.dart';
@@ -34,7 +35,7 @@ void main() {
 
     await tester.tap(find.text('การเรียน').first);
     await tester.pumpAndSettle();
-    expect(find.text('Study Tree'), findsOneWidget);
+    expect(find.text('แผน 4 ปี'), findsWidgets);
 
     await tester.tap(find.text('โหมดสว่าง'));
     await tester.pumpAndSettle();
@@ -93,7 +94,7 @@ void main() {
     await tester.tap(find.text('การเรียน').last); // ปุ่มใน Bottom bar
     await tester.pumpAndSettle();
 
-    expect(find.text('Study Tree'), findsOneWidget);
+    expect(find.text('แผน 4 ปี'), findsWidgets);
     expect(tester.takeException(), isNull); // ไม่มี error ล้นจอ
   });
 
@@ -332,12 +333,18 @@ void main() {
     expect(find.text('กลับแผน 4 ปี'), findsOneWidget);
 
     // หน้ารายวิชาเปิดที่ปี 1 → เห็นเฉพาะวิชาปี 1 ไม่มีวิชาปี 2 ปนมา
-    expect(find.textContaining('ปี 1 ·'), findsOneWidget);
+    // ปีการศึกษาเป็นดรอปดาวน์: แตะ → เลือกปี
+    final yearDrop = find.byType(MiniDropdown<int>);
+    expect(tester.widget<MiniDropdown<int>>(yearDrop).value, 1);
     expect(find.text('คณิตศาสตร์วิศวกรรม 1'), findsNothing);
-    await tester.tap(find.textContaining('ปี 2 ·'));
+    await tester.tap(yearDrop);
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('ปี 2 ·').last);
     await tester.pumpAndSettle();
     expect(find.text('คณิตศาสตร์วิศวกรรม 1'), findsOneWidget);
-    await tester.tap(find.textContaining('ปี 1 ·'));
+    await tester.tap(yearDrop);
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('ปี 1 ·').last);
     await tester.pumpAndSettle();
     // แท็บบทเรียน → เลื่อนหาบทแรก (รายชื่อวิชาซ้ายก็เลื่อนได้ → ใช้ตัวเลื่อนของเนื้อหา = ตัวสุดท้าย)
     await tester.tap(find.text('บทเรียน').first);
@@ -420,7 +427,7 @@ void main() {
     // คลิกเปิดวิชาในมุมมองภาคเดียว → กลับแผน 4 ปีแล้วยังอยู่ที่ปี 1 ภาค 1
     await tester.tap(find.text('การเขียนโปรแกรมคอมพิวเตอร์'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('ปี 1 ·'), findsOneWidget);
+    expect(tester.widget<MiniDropdown<int>>(find.byType(MiniDropdown<int>)).value, 1);
     await tester.tap(find.text('กลับแผน 4 ปี'));
     await tester.pumpAndSettle();
     expect(find.text('การเรียน · ปี 1 · ภาค 1'), findsOneWidget);
@@ -600,7 +607,7 @@ void main() {
     expect(find.text('ปี 1 · ภาค 1 (เทอมนี้)'), findsNothing);
 
     // 4 แท็บ
-    for (final tab in ['บทเรียน', 'ตารางเรียน', 'ติว', 'ภาพรวม']) {
+    for (final tab in ['บทเรียน', 'เวลาเรียน', 'ติว', 'ภาพรวม']) {
       await tester.tap(find.text(tab).first);
       await tester.pumpAndSettle();
     }
