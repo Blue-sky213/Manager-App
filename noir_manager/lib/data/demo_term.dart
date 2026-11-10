@@ -487,9 +487,10 @@ Future<String> enrichDemoTerm(StudyRepository study, CalendarRepository calendar
   final cats = await calendar.categories();
   int cat(String name) => cats.firstWhere((c) => c.name == name, orElse: () => cats.first).id;
   final learn = studyCategoryId(cats) ?? cats.first.id;
+  // ของที่เพิ่มด้านล่างอยู่ใน 2 สัปดาห์แรกทั้งหมด → เช็กชื่อในช่วงนั้นพอ
   final have = <String>{
-    for (final d in [demoTermStart, demoTermStart.add(const Duration(days: 3))])
-      for (final o in await calendar.occurrencesOn(d)) o.title,
+    for (var k = 0; k < 14; k++)
+      for (final o in await calendar.occurrencesOn(demoTermStart.add(Duration(days: k)))) o.title,
     for (final o in await calendar.inbox()) o.title,
   };
   Future<int?> add(NewActivity a) async {
