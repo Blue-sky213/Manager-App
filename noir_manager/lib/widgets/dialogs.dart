@@ -91,3 +91,53 @@ Future<bool> confirmDelete(BuildContext context, String what) async {
   );
   return ok ?? false;
 }
+
+/// ปุ่มย้อนกลับของเมาส์ (ปุ่มข้าง "Back" = ปุ่ม 4) · ค่าเดียวกับ kBackMouseButton
+const int _mouseBackButton = 0x08;
+
+/// ฟังปุ่มเมาส์ 4 แล้วเรียก [onBack] · null = ไม่ทำอะไร (ปล่อยให้ตัวนอกจัดการ)
+class MouseBack extends StatelessWidget {
+  const MouseBack({super.key, required this.onBack, required this.child});
+
+  final VoidCallback? onBack;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: onBack == null
+            ? null
+            : (e) {
+                if (e.buttons & _mouseBackButton != 0) onBack!();
+              },
+        child: child,
+      );
+}
+
+/// 1 ตัวเลือกในเมนูคลิกขวา · [danger] = สีแดง แยกด้วยเส้นคั่น (เช่น ลบ)
+typedef ContextItem<T> = ({T value, IconData icon, String label, bool danger});
+
+ContextItem<T> ctxItem<T>(T value, IconData icon, String label, {bool danger = false}) =>
+    (value: value, icon: icon, label: label, danger: danger);
+
+/// เมนูคลิกขวาแบบ Windows: เด้งตรงตำแหน่งเมาส์ [at] (พิกัดบนจอ)
+Future<T?> showContextMenuAt<T>(BuildContext context, Offset at, List<ContextItem<T>> items) {
+  final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+  final local = overlay.globalToLocal(at);
+  final danger = Theme.of(context).colorScheme.error;
+  Widget row(ContextItem<T> i) => Row(children: [
+        Icon(i.icon, size: 18, color: i.danger ? danger : null),
+        const SizedBox(width: 12),
+        Text(i.label, style: i.danger ? TextStyle(color: danger) : null),
+      ]);
+  return showMenu<T>(
+    context: context,
+    position: RelativeRect.fromRect(local & const Size(1, 1), Offset.zero & overlay.size),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    items: [
+      for (final i in items.where((i) => !i.danger)) PopupMenuItem<T>(value: i.value, height: 40, child: row(i)),
+      if (items.any((i) => i.danger) && items.any((i) => !i.danger)) const PopupMenuDivider(),
+      for (final i in items.where((i) => i.danger)) PopupMenuItem<T>(value: i.value, height: 40, child: row(i)),
+    ],
+  );
+}

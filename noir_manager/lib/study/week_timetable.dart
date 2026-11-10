@@ -262,36 +262,15 @@ class _WeekTimetablePageState extends State<WeekTimetablePage> with CalendarList
     );
   }
 
-  Future<void> _slotMenu(WeekSlot slot) async {
-    final action = await showModalBottomSheet<String>(
-      context: context,
-      showDragHandle: true,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              title: Text(slot.subject.name),
-              subtitle: Text('${thaiWeekdayShort[slot.weekday - 1]} ${fmtMinute(slot.start)}–${fmtMinute(slot.end)}'
-                  ' · ${classTypeLabel(slot.info.type)}'
-                  '${slot.info.room == null ? '' : ' · ห้อง ${slot.info.room}'}'
-                  '${slot.info.section == null ? '' : ' · กลุ่ม ${slot.info.section}'}'),
-            ),
-            if (widget.onOpenSubject != null)
-              ListTile(
-                leading: const Icon(Icons.menu_book_outlined),
-                title: const Text('เปิดวิชา (แก้คาบ ประเภท ห้อง)'),
-                onTap: () => Navigator.pop(ctx, 'open'),
-              ),
-            ListTile(
-              leading: const Icon(Icons.delete_outline),
-              title: const Text('ลบคาบนี้'),
-              onTap: () => Navigator.pop(ctx, 'delete'),
-            ),
-          ],
-        ),
-      ),
-    );
+  /// คลิกซ้าย = เปิดวิชา (กลับมาด้วยปุ่ม "กลับตารางเรียน" / เมาส์ปุ่ม 4)
+  void _openSlot(WeekSlot slot) => widget.onOpenSubject?.call(slot.subject);
+
+  /// คลิกขวา / กดค้าง = เมนูตรงตำแหน่งเมาส์
+  Future<void> _slotMenu(WeekSlot slot, Offset at) async {
+    final action = await showContextMenuAt<String>(context, at, [
+      if (widget.onOpenSubject != null) ctxItem('open', Icons.open_in_new, 'เปิดวิชา (แก้คาบ ประเภท ห้อง)'),
+      ctxItem('delete', Icons.delete_outline, 'ลบคาบนี้', danger: true),
+    ]);
     if (!mounted) return;
     switch (action) {
       case 'open':
@@ -400,7 +379,7 @@ class _WeekTimetablePageState extends State<WeekTimetablePage> with CalendarList
                         textAlign: TextAlign.center, style: TextStyle(color: c.muted)),
                   )
                 else
-                  WeekGrid(slots: slots, clashes: clashes, onTap: _slotMenu),
+                  WeekGrid(slots: slots, clashes: clashes, onTap: _openSlot, onContextMenu: _slotMenu),
                 const SizedBox(height: 20),
                 _CreditTable(slots: creditSlots, weekText: range(_creditWeek)),
               ],
@@ -411,11 +390,12 @@ class _WeekTimetablePageState extends State<WeekTimetablePage> with CalendarList
 
 /// ตารางแบบมหาลัย: แถว = วัน · คอลัมน์ = ชั่วโมง · คาบชนกันแยกเป็นแถวย่อยในวันเดียวกัน
 class WeekGrid extends StatelessWidget {
-  const WeekGrid({super.key, required this.slots, required this.clashes, required this.onTap});
+  const WeekGrid({super.key, required this.slots, required this.clashes, required this.onTap, this.onContextMenu});
 
   final List<WeekSlot> slots;
   final Set<WeekSlot> clashes;
   final ValueChanged<WeekSlot> onTap;
+  final void Function(WeekSlot slot, Offset at)? onContextMenu;
 
   static const double _dayCol = 56;
   static const double _laneH = 64;
@@ -514,7 +494,12 @@ class WeekGrid extends StatelessWidget {
                   top: rowTop[s.weekday]! + lane[s]! * _laneH + 3,
                   width: s.minutes / 60 * hourW - 4,
                   height: _laneH - 6,
-                  child: _SlotBlock(slot: s, clash: clashes.contains(s), onTap: () => onTap(s)),
+                  child: _SlotBlock(
+                    slot: s,
+                    clash: clashes.contains(s),
+                    onTap: () => onTap(s),
+                    onContextMenu: onContextMenu == null ? null : (at) => onContextMenu!(s, at),
+                  ),
                 ),
             ],
           ),
@@ -525,11 +510,12 @@ class WeekGrid extends StatelessWidget {
 }
 
 class _SlotBlock extends StatelessWidget {
-  const _SlotBlock({required this.slot, required this.clash, required this.onTap});
+  const _SlotBlock({required this.slot, required this.clash, required this.onTap, this.onContextMenu});
 
   final WeekSlot slot;
   final bool clash;
   final VoidCallback onTap;
+  final ValueChanged<Offset>? onContextMenu;
 
   @override
   Widget build(BuildContext context) {
@@ -543,6 +529,7 @@ class _SlotBlock extends StatelessWidget {
       if (i.section != null) i.section!,
       '${fmtMinute(slot.start)}–${fmtMinute(slot.end)}',
     ].join(' · ');
+    var pressAt = Offset.zero;
     return Material(
         color: Color.alphaBlend(color.withValues(alpha: 0.16), c.surface),
         shape: RoundedRectangleBorder(
@@ -552,6 +539,10 @@ class _SlotBlock extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
+          onSecondaryTapUp: onContextMenu == null ? null : (d) => onContextMenu!(d.globalPosition),
+          // จอสัมผัส: กดค้าง = คลิกขวา
+          onTapDown: (d) => pressAt = d.globalPosition,
+          onLongPress: onContextMenu == null ? null : () => onContextMenu!(pressAt),
           child: Row(
             children: [
               Container(width: 4, color: color),

@@ -6,6 +6,7 @@ import 'data/study_repository.dart';
 import 'data/study_scope.dart';
 import 'shell/app_shell.dart';
 import 'theme/app_theme.dart';
+import 'widgets/dialogs.dart';
 
 /// ตัวแอปทั้งหมด: ถือ "ธีมปัจจุบัน" (มืด/สว่าง) และส่ง repository ลงไปให้ทุกหน้า
 class NoirManagerApp extends StatefulWidget {
@@ -26,6 +27,8 @@ class NoirManagerApp extends StatefulWidget {
 }
 
 class _NoirManagerAppState extends State<NoirManagerApp> {
+  final _nav = GlobalKey<NavigatorState>();
+
   // ค่าเริ่มต้น = โหมดมืด (ตาม Mockup)
   ThemeMode _themeMode = ThemeMode.dark;
 
@@ -44,6 +47,10 @@ class _NoirManagerAppState extends State<NoirManagerApp> {
         repository: widget.calendarRepository,
         child: MaterialApp(
           title: 'Noir Manager',
+          navigatorKey: _nav,
+          // ปุ่มเมาส์ 4 = ย้อนกลับ: ปิดหน้าที่เปิดซ้อน / เมนู / กล่อง (หน้าแรกสุดไม่มีที่ให้ย้อน → ไม่ทำอะไร)
+          builder: (context, child) =>
+              MouseBack(onBack: () => _nav.currentState?.maybePop(), child: child!),
           debugShowCheckedModeBanner: false,
           // ภาษาไทย: ปฏิทินเลือกวัน, นาฬิกาเลือกเวลา, ปุ่ม OK/Cancel ของระบบ
           locale: const Locale('th', 'TH'),

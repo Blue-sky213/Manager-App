@@ -130,12 +130,20 @@ void main() {
     expect(find.text('2/2 ✓'), findsNWidgets(2)); // ทฤษฎี 2 ชม. · ปฏิบัติ 2 ชม.
     expect(tester.takeException(), isNull);
 
+    // คลิกขวา (กดค้าง) = เมนูตรงตำแหน่ง
+    await tester.longPress(find.text('060233115').first);
+    await tester.pumpAndSettle();
+    expect(find.text('ลบคาบนี้'), findsOneWidget);
+    await tester.tapAt(const Offset(5, 5)); // ปิดเมนู
+    await tester.pumpAndSettle();
+
+    // คลิกซ้าย = เปิดวิชาทันที → ปุ่ม "กลับตารางเรียน" พากลับมา
     await tester.tap(find.text('060233115').first);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('เปิดวิชา (แก้คาบ ประเภท ห้อง)'));
-    await tester.pumpAndSettle();
-    expect(find.text('ตารางเรียนทั้งสัปดาห์'), findsOneWidget); // กลับมาหน้าวิชา (ปุ่มยังอยู่)
     expect(find.text('2 คาบ · 1 วิชา'), findsNothing);
+    await tester.tap(find.text('กลับตารางเรียน'));
+    await tester.pumpAndSettle();
+    expect(find.text('2 คาบ · 1 วิชา'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

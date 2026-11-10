@@ -33,6 +33,7 @@ class CurriculumMap extends StatefulWidget {
     this.focusTerm,
     this.onFocus,
     this.links = const [],
+    this.onContextMenu,
   });
 
   final List<Subject> subjects;
@@ -43,6 +44,9 @@ class CurriculumMap extends StatefulWidget {
 
   /// แตะครั้งเดียว = เลือก (กรอบสีเน้น) · null = แตะครั้งเดียวก็เปิดเลย
   final ValueChanged<Subject>? onSelect;
+
+  /// คลิกขวา / กดค้าง ที่กล่องวิชา → เมนูตัวเลือกตรงตำแหน่ง [at] (พิกัดบนจอ)
+  final void Function(Subject subject, Offset at)? onContextMenu;
 
   /// ดูเฉพาะปีนี้ (เห็นทุกเทอมของปีนั้นเต็มจอ) · null = ทั้งหลักสูตร
   final int? focusYear;
@@ -111,6 +115,7 @@ class _CurriculumMapState extends State<CurriculumMap> {
               selected: s.id == w.selectedId,
               onTap: () => (w.onSelect ?? w.onOpen)(s),
               onDoubleTap: w.onSelect == null ? null : () => w.onOpen(s),
+              onContextMenu: w.onContextMenu == null ? null : (at) => w.onContextMenu!(s, at),
             ),
           ),
         );
@@ -558,6 +563,7 @@ class _SubjectBox extends StatelessWidget {
     required this.progress,
     required this.onTap,
     this.onDoubleTap,
+    this.onContextMenu,
     this.selected = false,
     this.ghost = false,
   });
@@ -566,6 +572,7 @@ class _SubjectBox extends StatelessWidget {
   final SubjectProgress progress;
   final VoidCallback onTap;
   final VoidCallback? onDoubleTap;
+  final ValueChanged<Offset>? onContextMenu;
   final bool selected;
 
   /// กล่องเงา (วิชาปี/ภาคอื่น): บรรทัดสถานะบอก "ปี N · ภาค N" แทนความคืบหน้า
@@ -587,6 +594,7 @@ class _SubjectBox extends StatelessWidget {
       MasteryLevel.bad => c.bad,
       MasteryLevel.none => c.line2,
     };
+    var pressAt = Offset.zero;
     return Material(
       color: c.surface,
       borderRadius: BorderRadius.circular(8),
@@ -594,6 +602,10 @@ class _SubjectBox extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         onTap: onTap,
         onDoubleTap: onDoubleTap,
+        onSecondaryTapUp: onContextMenu == null ? null : (d) => onContextMenu!(d.globalPosition),
+        // แท็บเล็ต / มือถือไม่มีคลิกขวา → กดค้างแทน (จำจุดที่นิ้วแตะไว้ให้เมนูเด้งตรงนั้น)
+        onTapDown: (d) => pressAt = d.globalPosition,
+        onLongPress: onContextMenu == null ? null : () => onContextMenu!(pressAt),
         child: Container(
           height: _boxHeight,
           decoration: BoxDecoration(

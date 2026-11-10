@@ -38,8 +38,11 @@ class _StudyPageState extends State<StudyPage> {
   /// มุมมองหน้าวิชา: แผนผังแผนการเรียน หรือ รายละเอียดวิชา (จำไว้ใน setting)
   bool _mapView = true;
 
-  /// วิชาที่แตะครั้งเดียวในแผนผัง (ดับเบิลคลิกถึงเปิด) · ล้างทุกครั้งที่ออกจากแผนผัง
+  /// วิชาที่เลือก "ไฮไลต์สาย" ในแผนผัง (คลิกขวา) · ล้างทุกครั้งที่ออกจากแผนผัง
   int? _mapSelectedId;
+
+  /// เปิดรายละเอียดวิชามาจากไหน → ปุ่ม "กลับ" / เมาส์ปุ่ม 4 พากลับไปที่เดิม · null = ไม่มีที่ให้กลับ
+  String? _returnTo; // 'map' | 'week'
 
   /// ปีที่ดูในแผนผัง (แตะหัวปี/เทอม) · null = ทั้งหลักสูตร · คงไว้ตอนกลับจากหน้าวิชา
   int? _mapYear;
@@ -391,16 +394,58 @@ class _StudyPageState extends State<StudyPage> {
     setState(() {
       _mapView = map;
       _mapSelectedId = null; // ไม่ให้กรอบเลือกค้างตอนกลับมา
+      if (map) _returnTo = null;
     });
     _repo!.setSetting(_viewKey, map ? 'map' : 'detail');
   }
 
-  /// แตะกล่องวิชาในแผนผัง → เปิดรายละเอียดวิชานั้น
-  void _openSubject(Subject s) {
+  /// คลิกกล่องวิชาในแผนผัง → เปิดรายละเอียดวิชานั้น
+  void _openSubject(Subject s, {String from = 'map'}) {
     _subjectId = s.id;
     _yearView = null; // เปิดจากแผนผัง → ไปที่ปีของวิชานั้น
+    _returnTo = from;
     _setMapView(false);
     _reload();
+  }
+
+  /// ย้อนกลับจากรายละเอียดวิชา: ไปแผนผัง (ปี/ภาคเดิม) หรือเปิดตารางเรียนทั้งสัปดาห์อีกครั้ง
+  void _goBack() {
+    final to = _returnTo;
+    _returnTo = null;
+    if (to == 'week') {
+      setState(() {});
+      _openWeek();
+    } else {
+      _setMapView(true);
+    }
+  }
+
+  /// คลิกขวา / กดค้างที่กล่องวิชา → เมนูตรงตำแหน่งเมาส์
+  Future<void> _subjectMenu(Subject s, Offset at) async {
+    final chain = _mapSelectedId == s.id;
+    final pick = await showContextMenuAt<String>(context, at, [
+      ctxItem('open', Icons.open_in_new, 'เปิดวิชา'),
+      ctxItem('chain', Icons.timeline, chain ? 'เลิกไฮไลต์สายวิชา' : 'ไฮไลต์สายวิชานี้'),
+      ctxItem('links', Icons.share_outlined, 'แก้เส้นเชื่อม'),
+      ctxItem('plan', Icons.edit_calendar_outlined, 'แก้ รหัส / หน่วยกิต / ปี / ภาค'),
+      ctxItem('rename', Icons.drive_file_rename_outline, 'เปลี่ยนชื่อ'),
+      ctxItem('delete', Icons.delete_outline, 'ลบวิชา', danger: true),
+    ]);
+    if (!mounted) return;
+    switch (pick) {
+      case 'open':
+        _openSubject(s);
+      case 'chain':
+        setState(() => _mapSelectedId = chain ? null : s.id);
+      case 'links':
+        await _editLinks(s);
+      case 'plan':
+        await _editPlan(s);
+      case 'rename':
+        await _renameSubject(s);
+      case 'delete':
+        await _deleteSubject(s);
+    }
   }
 
   /// ย้ายวิชาไปปี/เทอมในแผน + รหัส/หน่วยกิต
@@ -690,6 +735,12 @@ class _StudyPageState extends State<StudyPage> {
         runSpacing: 8,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
+          if (!_mapView && _returnTo != null)
+            TextButton.icon(
+              onPressed: _goBack,
+              icon: const Icon(Icons.arrow_back),
+              label: Text(_returnTo == 'week' ? 'กลับตารางเรียน' : 'กลับแผนผัง'),
+            ),
           SegmentedButton<bool>(
           style: const ButtonStyle(visualDensity: VisualDensity.compact),
           segments: const [
@@ -714,7 +765,7 @@ class _StudyPageState extends State<StudyPage> {
       builder: (ctx) => WeekTimetablePage(
         onOpenSubject: (s) {
           Navigator.of(ctx).pop();
-          _openSubject(s);
+          _openSubject(s, from: 'week');
         },
       ),
     ));
@@ -760,9 +811,9 @@ class _StudyPageState extends State<StudyPage> {
         Text(
             _mapSelectedId == null
                 ? (_mapYear == null
-                    ? 'แตะหัวปี = ดูทั้งปี · แตะหัวภาค = ดูภาคเดียว · ดับเบิลคลิกกล่องวิชาเพื่อเปิด'
-                    : 'แตะกล่องวิชาเพื่อเลือก · ดับเบิลคลิกเพื่อเปิดดูบท คะแนน ตารางเรียน')
-                : 'เลือก "${_subjects.where((s) => s.id == _mapSelectedId).firstOrNull?.name ?? ''}" · ดับเบิลคลิกเพื่อเปิด',
+                    ? 'คลิกหัวปี / หัวภาค = ดูเฉพาะส่วนนั้น · คลิกวิชา = เปิด · คลิกขวา = ตัวเลือก'
+                    : 'คลิกวิชา = เปิดดูบท คะแนน ตารางเรียน · คลิกขวา (กดค้าง) = ตัวเลือก · ชี้ = ดูสายวิชา')
+                : 'ไฮไลต์สาย "${_subjects.where((s) => s.id == _mapSelectedId).firstOrNull?.name ?? ''}" · คลิกขวาอีกครั้งเพื่อเลิก',
             style: TextStyle(color: c.muted, fontSize: 13)),
             if (_subjects.where((s) => s.id == _mapSelectedId).firstOrNull case final sel?)
               TextButton.icon(
@@ -778,7 +829,7 @@ class _StudyPageState extends State<StudyPage> {
           progress: _progress,
           selectedId: _mapSelectedId,
           onOpen: _openSubject,
-          onSelect: (s) => setState(() => _mapSelectedId = _mapSelectedId == s.id ? null : s.id),
+          onContextMenu: _subjectMenu,
           focusYear: _mapYear,
           focusTerm: _mapTerm,
           links: _links,
@@ -800,6 +851,10 @@ class _StudyPageState extends State<StudyPage> {
     }
 
     if (_mapView) return _buildMap(context);
+    return MouseBack(onBack: _returnTo == null ? null : _goBack, child: _buildDetail(context, c));
+  }
+
+  Widget _buildDetail(BuildContext context, NoirColors c) {
 
     final subject = _subject;
     final allTopics = [for (final ch in _chapters) ...ch.subtopics];
