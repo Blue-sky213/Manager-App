@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
+import 'package:noir_manager/calendar/sqlite_calendar_repository.dart' show createCalendarSchema, createCalendarV5, createCalendarV7;
 import 'package:noir_manager/data/app_database.dart';
 import 'package:noir_manager/data/memory_study_repository.dart';
 import 'package:noir_manager/data/sqlite_study_repository.dart';
