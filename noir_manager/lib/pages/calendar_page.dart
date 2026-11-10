@@ -13,6 +13,7 @@ import '../data/study_scope.dart';
 import '../shell/app_nav.dart';
 import '../theme/noir_colors.dart';
 import '../utils/thai_date.dart';
+import '../widgets/mini_dropdown.dart';
 
 /// มุมมองปฏิทิน 4 แบบ
 enum CalView { day, week, month, year }
@@ -205,28 +206,45 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
       return ListView(
         padding: const EdgeInsets.fromLTRB(24, 28, 24, 32),
         children: [
-          Text('Calendar Core', style: TextStyle(fontSize: 13, color: c.muted)),
-          const SizedBox(height: 4),
-          Wrap(
-            alignment: WrapAlignment.spaceBetween,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 12,
-            runSpacing: 12,
+          Row(
             children: [
-              Text('ปฏิทิน',
-                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.w600, color: c.text)),
-              // สลับมุมมอง: ปุ่มเล็ก ไม่ยืดเต็มจอ
-              SegmentedButton<CalView>(
-                style: const ButtonStyle(visualDensity: VisualDensity.compact),
-                segments: const [
-                  ButtonSegment(value: CalView.day, label: Text('วัน')),
-                  ButtonSegment(value: CalView.week, label: Text('สัปดาห์')),
-                  ButtonSegment(value: CalView.month, label: Text('เดือน')),
-                  ButtonSegment(value: CalView.year, label: Text('ปี')),
+              Expanded(
+                child: Text('ปฏิทิน',
+                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.w600, color: c.text)),
+              ),
+              // มุมมอง + รูปแบบสัปดาห์ เป็นดรอปดาวน์ แทนแถวปุ่ม → หัวหน้าโล่ง
+              MiniDropdown<CalView>(
+                value: _view,
+                items: const [
+                  (CalView.day, 'วัน'),
+                  (CalView.week, 'สัปดาห์'),
+                  (CalView.month, 'เดือน'),
+                  (CalView.year, 'ปี'),
                 ],
-                selected: {_view},
-                showSelectedIcon: false,
-                onSelectionChanged: (s) => _go(view: s.first),
+                onChanged: (v) => _go(view: v),
+              ),
+              if (_view == CalView.week && !(box.maxWidth < 720)) ...[
+                const SizedBox(width: 8),
+                MiniDropdown<WeekStyle>(
+                  value: _weekStyle,
+                  items: const [
+                    (WeekStyle.timeline, 'ตารางเวลา'),
+                    (WeekStyle.list, 'ลิสต์'),
+                    (WeekStyle.cards, 'การ์ด'),
+                  ],
+                  onChanged: _setWeekStyle,
+                ),
+              ],
+              const SizedBox(width: 4),
+              // เครื่องมือรองเก็บไว้ใน ⋮
+              PopupMenuButton<String>(
+                tooltip: 'เพิ่มเติม',
+                icon: const Icon(Icons.more_vert),
+                onSelected: (v) => v == 'clash' ? openClashPage(context) : openTermsPage(context),
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: 'clash', child: Text('เช็กเวลาชน')),
+                  PopupMenuItem(value: 'terms', child: Text('เทอมและวันหยุด')),
+                ],
               ),
             ],
           ),
@@ -351,26 +369,6 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
       spacing: 8,
       runSpacing: 8,
       children: [
-        OutlinedButton.icon(
-          onPressed: () => openClashPage(context),
-          icon: Icon(Icons.warning_amber_rounded, color: c.bad),
-          label: const Text('ตารางเวลาชน'),
-          style: OutlinedButton.styleFrom(
-            minimumSize: const Size(0, 44),
-            foregroundColor: c.text,
-            side: BorderSide(color: c.line2),
-          ),
-        ),
-        OutlinedButton.icon(
-          onPressed: () => openTermsPage(context),
-          icon: const Icon(Icons.date_range_outlined),
-          label: const Text('เทอม & วันหยุด'),
-          style: OutlinedButton.styleFrom(
-            minimumSize: const Size(0, 44),
-            foregroundColor: c.text,
-            side: BorderSide(color: c.line2),
-          ),
-        ),
         if (_selected != today)
           OutlinedButton(
             onPressed: () => _go(day: today),
@@ -411,28 +409,7 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
         runSpacing: 8,
         children: [
           if (narrow)
-            Text('จอแคบ: แสดงแบบลิสต์', style: TextStyle(color: c.muted, fontSize: 13))
-          else
-            SegmentedButton<WeekStyle>(
-              style: const ButtonStyle(visualDensity: VisualDensity.compact),
-              segments: const [
-                ButtonSegment(
-                    value: WeekStyle.timeline,
-                    icon: Icon(Icons.view_week_outlined),
-                    label: Text('A ตารางเวลา')),
-                ButtonSegment(
-                    value: WeekStyle.list,
-                    icon: Icon(Icons.view_agenda_outlined),
-                    label: Text('B ลิสต์')),
-                ButtonSegment(
-                    value: WeekStyle.cards,
-                    icon: Icon(Icons.view_column_outlined),
-                    label: Text('C การ์ด')),
-              ],
-              selected: {style},
-              showSelectedIcon: false,
-              onSelectionChanged: (s) => _setWeekStyle(s.first),
-            ),
+            Text('จอแคบ: แสดงแบบลิสต์', style: TextStyle(color: c.muted, fontSize: 13)),
           _actions(today),
         ],
       ),

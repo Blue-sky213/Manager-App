@@ -8,7 +8,7 @@ import '../calendar/day_agenda.dart';
 import '../theme/noir_colors.dart';
 import '../utils/thai_date.dart';
 
-/// หน้า "วันนี้": แผนรายวัน + ชั่วโมงนอนคืนนี้ + Reminder Inbox
+/// หน้า "วันนี้": แผนรายวัน + ชั่วโมงนอนคืนนี้ + Updates
 class TodayPage extends StatefulWidget {
   const TodayPage({super.key});
 
@@ -218,7 +218,7 @@ class _InboxCard extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: Text('Reminder Inbox',
+                  child: Text('Updates',
                       style: TextStyle(
                           fontSize: 16, fontWeight: FontWeight.w600, color: c.text)),
                 ),

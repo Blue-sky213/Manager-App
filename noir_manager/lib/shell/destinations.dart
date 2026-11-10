@@ -37,7 +37,7 @@ const List<AppDestination> appDestinations = [
     page: CalendarPage(),
   ),
   AppDestination(
-    label: 'วิชา',
+    label: 'การเรียน',
     icon: Icons.account_tree_outlined,
     selectedIcon: Icons.account_tree,
     page: StudyPage(),

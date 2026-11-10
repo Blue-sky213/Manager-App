@@ -85,7 +85,7 @@ void main() {
       expect(tueItems.first.movedFromId, o.id);
     });
 
-    test('ยังไม่รู้วัน → Reminder Inbox → เลือกวันแทน', () async {
+    test('ยังไม่รู้วัน → Updates → เลือกวันแทน', () async {
       final repo = MemoryCalendarRepository();
       await repo.addActivity(gym(repeat: RepeatKind.none));
       final o = (await repo.occurrencesOn(mon)).single;

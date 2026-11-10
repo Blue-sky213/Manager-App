@@ -21,6 +21,7 @@ import '../study/score_history_dialog.dart';
 import '../study/subtopic_dialog.dart';
 import '../theme/noir_colors.dart';
 import '../utils/thai_date.dart';
+import '../widgets/mini_dropdown.dart';
 import '../widgets/dialogs.dart';
 
 /// หน้า "วิชา": Study Tree + Mastery Score
@@ -65,7 +66,7 @@ class _StudyPageState extends State<StudyPage> {
   String _scope = 'term';
   String _sidebarQuery = '';
 
-  /// เทอมที่มีวันนี้อยู่ (จากปฏิทิน → เทอม & วันหยุด) · null = ยังไม่ได้ตั้งเทอม
+  /// เทอมที่มีวันนี้อยู่ (จากปฏิทิน → เทอมและวันหยุด) · null = ยังไม่ได้ตั้งเทอม
   ({int year, int term})? _currentTerm;
 
   /// ป้ายบนหัววิชา: คาบถัดไป / สอบถัดไป
@@ -114,7 +115,7 @@ class _StudyPageState extends State<StudyPage> {
 
   /// เมาส์ปุ่ม 4 ตอนหน้าวิชาโชว์อยู่: กลับแผนผัง / ตารางเรียน · มาจากเมนูอื่น → ให้ shell พากลับ
   bool _onAppBack() {
-    if (currentTab.value != 'วิชา' || _mapView || _returnTo == null) return false;
+    if (currentTab.value != 'การเรียน' || _mapView || _returnTo == null) return false;
     if (_returnTo == 'jump') {
       setState(() => _returnTo = null);
       return false;
@@ -299,7 +300,7 @@ class _StudyPageState extends State<StudyPage> {
         content: const Text('เพิ่มให้วิชาตัวอย่างปี 1 ภาค 1:\n'
             '• คะแนนหัวข้อ · ห้องเรียน · สถานะบท\n'
             '• คาบที่ผ่านมา = ทำแล้ว + เวลาเลิกจริง (ยกเลิก 1 คาบ)\n'
-            '• รอบติว · วิ่ง / สตรีม / ส่งงาน · Reminder Inbox · วันหยุด\n\n'
+            '• รอบติว · วิ่ง / สตรีม / ส่งงาน · Updates · วันหยุด\n\n'
             'ของที่มีอยู่แล้วไม่ถูกทับ · ลบทีละรายการได้ · แนะนำให้สำรองข้อมูลก่อน'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('ยกเลิก')),
@@ -439,12 +440,16 @@ class _StudyPageState extends State<StudyPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Wrap(spacing: 6, runSpacing: 6, children: [
-          for (final y in years)
-            ChoiceChip(
-              label: Text('${y == 0 ? 'ยังไม่จัดปี' : 'ปี $y'} · ${_subjects.where((s) => yearOf(s) == y).length}'),
-              selected: y == year,
-              onSelected: (_) => setState(() => _yearView = y),
+        Wrap(spacing: 8, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
+          if (years.isNotEmpty)
+            MiniDropdown<int>(
+              width: 200,
+              value: year,
+              items: [
+                for (final y in years)
+                  (y, '${y == 0 ? 'ยังไม่จัดปี' : 'ปี $y'} · ${_subjects.where((s) => yearOf(s) == y).length} วิชา'),
+              ],
+              onChanged: (y) => setState(() => _yearView = y),
             ),
           ActionChip(
             avatar: const Icon(Icons.add, size: 18),
@@ -630,14 +635,20 @@ class _StudyPageState extends State<StudyPage> {
           ),
           if (_scope == 'year') ...[
             const SizedBox(height: 8),
-            Wrap(spacing: 6, runSpacing: 6, children: [
-              for (final y in years)
-                ChoiceChip(
-                  label: Text('${y == 0 ? 'ยังไม่จัดปี' : 'ปี $y'} · ${_subjects.where((s) => yearOf(s) == y).length}'),
-                  selected: y == year,
-                  onSelected: (_) => setState(() => _yearView = y),
+            // ปีการศึกษาเป็นดรอปดาวน์ แทนชิปหลายอัน
+            if (years.isNotEmpty)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: MiniDropdown<int>(
+                  width: double.infinity,
+                  value: year,
+                  items: [
+                    for (final y in years)
+                      (y, '${y == 0 ? 'ยังไม่จัดปี' : 'ปี $y'} · ${_subjects.where((s) => yearOf(s) == y).length} วิชา'),
+                  ],
+                  onChanged: (y) => setState(() => _yearView = y),
                 ),
-            ]),
+              ),
           ],
           const SizedBox(height: 8),
           TextField(
@@ -651,7 +662,7 @@ class _StudyPageState extends State<StudyPage> {
           ),
           const SizedBox(height: 8),
           if (_scope == 'term' && cur == null)
-            Text('ยังไม่ได้ตั้งเทอม · ปฏิทิน → เทอม & วันหยุด', style: TextStyle(color: c.muted, fontSize: 13)),
+            Text('ยังไม่ได้ตั้งเทอม · ปฏิทิน → เทอมและวันหยุด', style: TextStyle(color: c.muted, fontSize: 13)),
           for (final MapEntry(key: title, value: list) in groups.entries) ...[
             Padding(
               padding: const EdgeInsets.fromLTRB(4, 10, 4, 6),
@@ -763,7 +774,7 @@ class _StudyPageState extends State<StudyPage> {
   Widget _tabStrip(BuildContext context, Subject subject) {
     final c = context.noir;
     final color = subjectColorOf(subject);
-    const labels = ['ภาพรวม', 'บทเรียน', 'ตารางเรียน', 'ติว'];
+    const labels = ['ภาพรวม', 'บทเรียน', 'เวลาเรียน', 'ติว'];
     return Container(
       decoration: BoxDecoration(border: Border(bottom: BorderSide(color: c.line))),
       child: Wrap(children: [
@@ -908,7 +919,7 @@ class _StudyPageState extends State<StudyPage> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setLocal) => AlertDialog(
-          title: const Text('แผนการเรียน'),
+          title: const Text('จัดในแผน 4 ปี'),
           content: SizedBox(
             width: 400,
             child: Column(
@@ -1189,12 +1200,12 @@ class _StudyPageState extends State<StudyPage> {
             TextButton.icon(
               onPressed: _goBack,
               icon: const Icon(Icons.arrow_back),
-              label: Text(switch (_returnTo) { 'week' => 'กลับตารางเรียน', 'jump' => 'กลับหน้าเดิม', _ => 'กลับแผนผัง' }),
+              label: Text(switch (_returnTo) { 'week' => 'กลับตารางเรียน', 'jump' => 'กลับหน้าเดิม', _ => 'กลับแผน 4 ปี' }),
             ),
           SegmentedButton<bool>(
           style: const ButtonStyle(visualDensity: VisualDensity.compact),
           segments: const [
-            ButtonSegment(value: true, icon: Icon(Icons.account_tree_outlined), label: Text('แผนผัง')),
+            ButtonSegment(value: true, icon: Icon(Icons.account_tree_outlined), label: Text('แผน 4 ปี')),
             ButtonSegment(value: false, icon: Icon(Icons.menu_book_outlined), label: Text('รายวิชา')),
           ],
           selected: {_mapView},
@@ -1228,17 +1239,15 @@ class _StudyPageState extends State<StudyPage> {
       children: [
         _viewSwitch(),
         const SizedBox(height: 12),
-        Text('Study Tree', style: TextStyle(fontSize: 13, color: c.muted)),
-        const SizedBox(height: 4),
         Row(
           children: [
             Expanded(
               child: Text(
                   _mapYear == null
-                      ? 'แผนการเรียน'
+                      ? 'การเรียน'
                       : _mapTerm == null
-                          ? 'แผนการเรียน · ปี $_mapYear'
-                          : 'แผนการเรียน · ปี $_mapYear · ${_mapTerm == 3 ? 'ฤดูร้อน' : 'ภาค $_mapTerm'}',
+                          ? 'การเรียน · ปี $_mapYear'
+                          : 'การเรียน · ปี $_mapYear · ${_mapTerm == 3 ? 'ฤดูร้อน' : 'ภาค $_mapTerm'}',
                   style: TextStyle(fontSize: 28, fontWeight: FontWeight.w600, color: c.text)),
             ),
             FilledButton.icon(
@@ -1459,7 +1468,7 @@ class _StudyPageState extends State<StudyPage> {
                   const PopupMenuItem(value: 'rename', child: Text('เปลี่ยนชื่อวิชา')),
                   const PopupMenuItem(value: 'importance', child: Text('เปลี่ยนความสำคัญ')),
                   const PopupMenuItem(value: 'sessions', child: Text('รอบติวต่อสัปดาห์')),
-                  const PopupMenuItem(value: 'plan', child: Text('ปี / เทอม ในแผนการเรียน')),
+                  const PopupMenuItem(value: 'plan', child: Text('ปี / เทอม ในแผน 4 ปี')),
                   const PopupMenuItem(value: 'color', child: Text('สีวิชา')),
                   const PopupMenuItem(value: 'delete', child: Text('ลบวิชา')),
                   const PopupMenuDivider(),
@@ -1472,7 +1481,7 @@ class _StudyPageState extends State<StudyPage> {
       _viewSwitch(),
       const SizedBox(height: 16),
       if (subject == null)
-        Text('ยังไม่มีวิชา · กด "เพิ่มวิชา" ในแผนผัง', style: TextStyle(color: c.muted))
+        Text('ยังไม่มีวิชา · กด "เพิ่มวิชา" ในแผน 4 ปี', style: TextStyle(color: c.muted))
       else ...[
         _subjectHeader(context, subject, headerMenu(subject)),
         const SizedBox(height: 12),

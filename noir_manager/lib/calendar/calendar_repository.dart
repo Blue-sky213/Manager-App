@@ -42,7 +42,7 @@ abstract class CalendarRepository extends ChangeNotifier {
   /// งานทุกครั้งของวัน [day] (สร้างครั้งของงานซ้ำให้อัตโนมัติถ้ายังไม่มี)
   Future<List<Occurrence>> occurrencesOn(DateTime day);
 
-  /// Reminder Inbox: งานที่เลื่อนแล้วแต่ยังไม่มีวันแทน
+  /// Updates: งานที่เลื่อนแล้วแต่ยังไม่มีวันแทน
   Future<List<Occurrence>> inbox();
 
   Future<void> setDone(int occurrenceId, bool done);
@@ -50,7 +50,7 @@ abstract class CalendarRepository extends ChangeNotifier {
   /// ยกเลิก (ต้องมีเหตุผลเสมอ)
   Future<void> cancel(int occurrenceId, String reason);
 
-  /// เลื่อนแต่ยังไม่มีวันแทน → ไป Reminder Inbox
+  /// เลื่อนแต่ยังไม่มีวันแทน → ไป Updates
   Future<void> sendToInbox(int occurrenceId);
 
   /// เลื่อนเฉพาะครั้งนี้: ครั้งเดิม = moved · สร้างครั้งใหม่ในวัน [day]
