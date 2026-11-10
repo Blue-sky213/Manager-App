@@ -338,7 +338,7 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
           items: _items,
           categories: _categories,
           lifeBase: _lifeBase[_selected.weekday - 1],
-          onTap: (o) => openOccurrenceActions(context, repo, o),
+          onTap: (o) => openOccurrence(context, repo, o),
         ),
       ],
     );
@@ -398,7 +398,7 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
     final narrow = width < 720;
     // จอแคบ: A กับ C อ่านไม่ออก → ใช้ B อัตโนมัติ
     final style = narrow ? WeekStyle.list : _weekStyle;
-    void onOcc(Occurrence o) => openOccurrenceActions(context, calendar!, o);
+    void onOcc(Occurrence o) => openOccurrence(context, calendar!, o);
     void onDay(DateTime d) => _go(day: d, view: CalView.day);
 
     return [

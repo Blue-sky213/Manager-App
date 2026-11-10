@@ -6,7 +6,9 @@ import 'package:flutter/material.dart';
 
 import '../data/study_models.dart';
 import '../data/study_scope.dart';
+import '../shell/app_nav.dart';
 import '../study/tutor_plan.dart';
+import '../theme/noir_colors.dart';
 import '../utils/thai_date.dart';
 import '../widgets/dialogs.dart';
 import 'calendar_models.dart';
@@ -233,50 +235,59 @@ List<ContextItem<String>> occurrenceItems(Occurrence o) => [
       ctxItem('delete', Icons.delete_outline, o.repeats ? 'ลบงานซ้ำนี้ทั้งหมด' : 'ลบงานนี้', danger: true),
     ];
 
-/// คลิกซ้าย → แผ่นรายละเอียด + ตัวเลือกด้านล่าง · คลิกขวา / กดค้าง ([at] = ตำแหน่งเมาส์) → เมนูตรงนั้น
-Future<void> openOccurrenceActions(
-    BuildContext context, CalendarRepository repo, Occurrence o, {Offset? at}) async {
+/// คลิกซ้ายที่งาน: ผูกวิชา (คาบ / สอบ / ติว) → ไปหน้าวิชานั้น (เมาส์ปุ่ม 4 กลับมา)
+/// งานอื่น → แผ่นรายละเอียด · ตัวเลือกทั้งหมดอยู่ที่คลิกขวา / กดค้าง ไม่ซ้ำกัน
+Future<void> openOccurrence(BuildContext context, CalendarRepository repo, Occurrence o) async {
+  if (o.subjectId != null) {
+    subjectJump.go(o.subjectId!);
+    return;
+  }
+  await showOccurrenceDetails(context, o);
+}
+
+/// แผ่นรายละเอียดงาน 1 ครั้ง (ดูอย่างเดียว)
+Future<void> showOccurrenceDetails(BuildContext context, Occurrence o) {
+  final c = context.noir;
   final time = o.timed ? '${fmtTime(o.startAt!)}–${fmtTime(o.endAt!)} · ' : '';
-  final items = occurrenceItems(o);
-  final action = at != null
-      ? await showContextMenuAt<String>(context, at, items)
-      : await showModalBottomSheet<String>(
+  final status = switch (o.status) {
+    OccurrenceStatus.planned => 'ตามแผน',
+    OccurrenceStatus.done => 'ทำแล้ว',
+    OccurrenceStatus.cancelled => 'ยกเลิก',
+    OccurrenceStatus.inbox => 'อยู่ใน Inbox (ยังไม่มีวัน)',
+    OccurrenceStatus.moved => 'ถูกเลื่อนไปวันอื่นแล้ว',
+    OccurrenceStatus.shifted => 'เลื่อนไปรอบถัดไปแล้ว',
+  };
+  return showModalBottomSheet<void>(
     context: context,
     showDragHandle: true,
-    // เมนูยาวกว่าจอ (หน้าต่างเตี้ย) → ให้เลื่อนได้ แทนที่จะล้นขอบ
     isScrollControlled: true,
     builder: (ctx) => SafeArea(
       child: SingleChildScrollView(
-       child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListTile(
-            title: Text(o.title,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-            subtitle: Text('$time${thaiShortDate(o.day)}'
-                '${o.session == null ? '' : ' · ${o.session!.label}'}'
-                ' · ความสำคัญ: ${importanceText(o.importance)}'
-                '${o.actualEnd == null ? '' : '\nเลิกจริง ${fmtTime(o.actualEnd!)}'}'
-                '${o.reason == null ? '' : '\nยกเลิกเพราะ: ${o.reason}'}'),
-          ),
-          const Divider(height: 1),
-          if (o.status == OccurrenceStatus.shifted)
-            const ListTile(
-              leading: Icon(Icons.info_outline),
-              title: Text('ครั้งนี้เลื่อนไปรอบถัดไปแล้ว · วันสุดท้ายขยายให้แล้ว'),
-            ),
-          if (o.status == OccurrenceStatus.moved)
-            const ListTile(
-              leading: Icon(Icons.info_outline),
-              title: Text('ครั้งนี้ถูกเลื่อนไปแล้ว ดูที่วันใหม่'),
-            ),
-          for (final i in items) _tile(ctx, i.value, i.icon, i.label),
-          const SizedBox(height: 8),
-        ],
-       ),
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(o.title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 6),
+            Text('$time${thaiShortDate(o.day)}${o.session == null ? '' : ' · ${o.session!.label}'}'),
+            Text('สถานะ: $status · ความสำคัญ: ${importanceText(o.importance)}'),
+            if (o.actualEnd != null) Text('เลิกจริง ${fmtTime(o.actualEnd!)}'),
+            if (o.reason != null) Text('ยกเลิกเพราะ: ${o.reason}'),
+            const SizedBox(height: 12),
+            Text('คลิกขวา (หรือกดค้าง) ที่งาน = ทำแล้ว · แก้ · เลื่อน · ยกเลิก · ลบ',
+                style: TextStyle(fontSize: 13, color: c.muted)),
+          ],
+        ),
       ),
     ),
   );
+}
+
+/// คลิกขวา / กดค้าง ([at] = ตำแหน่งเมาส์) → เมนูตัวเลือกตรงนั้น
+Future<void> openOccurrenceActions(
+    BuildContext context, CalendarRepository repo, Occurrence o, {required Offset at}) async {
+  final action = await showContextMenuAt<String>(context, at, occurrenceItems(o));
   if (action == null || !context.mounted) return;
 
   switch (action) {
@@ -315,13 +326,6 @@ Future<void> openOccurrenceActions(
       }
   }
 }
-
-Widget _tile(BuildContext ctx, String value, IconData icon, String label) =>
-    ListTile(
-      leading: Icon(icon),
-      title: Text(label),
-      onTap: () => Navigator.pop(ctx, value),
-    );
 
 /// แก้เวลานอน/ตื่น
 Future<void> editLifeBaseFlow(BuildContext context, CalendarRepository repo) async {

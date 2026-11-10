@@ -6,6 +6,7 @@ import '../data/demo_term.dart';
 import '../data/study_models.dart';
 import '../data/study_repository.dart';
 import '../data/study_scope.dart';
+import '../shell/app_nav.dart';
 import '../study/advanced_rules.dart';
 import '../study/class_schedule_card.dart';
 import '../study/curriculum_map.dart';
@@ -42,7 +43,7 @@ class _StudyPageState extends State<StudyPage> {
   int? _mapSelectedId;
 
   /// เปิดรายละเอียดวิชามาจากไหน → ปุ่ม "กลับ" / เมาส์ปุ่ม 4 พากลับไปที่เดิม · null = ไม่มีที่ให้กลับ
-  String? _returnTo; // 'map' | 'week'
+  String? _returnTo; // 'map' | 'week' | 'jump' (มาจากเมนูอื่น)
 
   /// ปีที่ดูในแผนผัง (แตะหัวปี/เทอม) · null = ทั้งหลักสูตร · คงไว้ตอนกลับจากหน้าวิชา
   int? _mapYear;
@@ -67,6 +68,37 @@ class _StudyPageState extends State<StudyPage> {
       if (s.id == _subjectId) return s;
     }
     return null;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    subjectJump.addListener(_onSubjectJump);
+    appBack.add(_onAppBack);
+  }
+
+  @override
+  void dispose() {
+    subjectJump.removeListener(_onSubjectJump);
+    appBack.remove(_onAppBack);
+    super.dispose();
+  }
+
+  /// หน้าอื่นขอเปิดวิชา (คลิกคาบในปฏิทิน / วันนี้) → เปิดรายละเอียด · ย้อนกลับ = กลับหน้าเดิม
+  void _onSubjectJump() {
+    final s = _subjects.where((s) => s.id == subjectJump.subjectId).firstOrNull;
+    if (s != null && mounted) _openSubject(s, from: 'jump');
+  }
+
+  /// เมาส์ปุ่ม 4 ตอนหน้าวิชาโชว์อยู่: กลับแผนผัง / ตารางเรียน · มาจากเมนูอื่น → ให้ shell พากลับ
+  bool _onAppBack() {
+    if (currentTab.value != 'วิชา' || _mapView || _returnTo == null) return false;
+    if (_returnTo == 'jump') {
+      setState(() => _returnTo = null);
+      return false;
+    }
+    _goBack();
+    return true;
   }
 
   // ใช้ didChangeDependencies แทน initState เพราะต้องอ่าน StudyScope จาก context
@@ -105,6 +137,7 @@ class _StudyPageState extends State<StudyPage> {
       );
     }
     if (!mounted) return; // ผู้ใช้ปิดหน้าไปแล้วระหว่างรอ → ไม่ต้องวาด
+    refreshSubjectColors(repo);
     setState(() {
       _subjects = subjects;
       _subjectId = selected;
@@ -445,7 +478,10 @@ class _StudyPageState extends State<StudyPage> {
   void _goBack() {
     final to = _returnTo;
     _returnTo = null;
-    if (to == 'week') {
+    if (to == 'jump') {
+      setState(() {});
+      appBack.handle(); // shell พากลับเมนูเดิม (ปฏิทิน / วันนี้)
+    } else if (to == 'week') {
       setState(() {});
       _openWeek();
     } else {
@@ -780,7 +816,7 @@ class _StudyPageState extends State<StudyPage> {
             TextButton.icon(
               onPressed: _goBack,
               icon: const Icon(Icons.arrow_back),
-              label: Text(_returnTo == 'week' ? 'กลับตารางเรียน' : 'กลับแผนผัง'),
+              label: Text(switch (_returnTo) { 'week' => 'กลับตารางเรียน', 'jump' => 'กลับหน้าเดิม', _ => 'กลับแผนผัง' }),
             ),
           SegmentedButton<bool>(
           style: const ButtonStyle(visualDensity: VisualDensity.compact),
@@ -892,7 +928,7 @@ class _StudyPageState extends State<StudyPage> {
     }
 
     if (_mapView) return _buildMap(context);
-    return MouseBack(onBack: _returnTo == null ? null : _goBack, child: _buildDetail(context, c));
+    return _buildDetail(context, c);
   }
 
   Widget _buildDetail(BuildContext context, NoirColors c) {

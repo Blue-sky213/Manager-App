@@ -71,37 +71,17 @@ class _ClassScheduleCardState extends State<ClassScheduleCard>
 
   Future<void> _addSlot() => addClassSlot(context, calendar!, widget.subject);
 
-  Future<void> _slotMenu(List<Activity> group) async {
+  /// คลิกขวา / กดค้างที่คาบ → เมนูตรงตำแหน่งเมาส์
+  Future<void> _slotMenu(List<Activity> group, Offset at) async {
     final repo = calendar!;
     final a = group.first;
-    final action = await showModalBottomSheet<String>(
-      context: context,
-      showDragHandle: true,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (final g in group)
-              ListTile(
-                leading: const Icon(Icons.edit_outlined),
-                title: Text('แก้ไขช่วง ${thaiShortDate(g.startDate)} – '
-                    '${g.endDate == null ? 'ไม่กำหนด' : thaiShortDate(g.endDate!)}'),
-                onTap: () => Navigator.pop(ctx, 'edit:${g.id}'),
-              ),
-            ListTile(
-              leading: const Icon(Icons.sell_outlined),
-              title: const Text('ตั้งประเภท / ห้อง / กลุ่มเรียน'),
-              onTap: () => Navigator.pop(ctx, 'info'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.delete_outline),
-              title: const Text('ลบคาบนี้ (ทุกช่วง)'),
-              onTap: () => Navigator.pop(ctx, 'delete'),
-            ),
-          ],
-        ),
-      ),
-    );
+    final action = await showContextMenuAt<String>(context, at, [
+      for (final g in group)
+        ctxItem('edit:${g.id}', Icons.edit_outlined,
+            'แก้ไขช่วง ${thaiShortDate(g.startDate)} – ${g.endDate == null ? 'ไม่กำหนด' : thaiShortDate(g.endDate!)}'),
+      ctxItem('info', Icons.sell_outlined, 'ตั้งประเภท / ห้อง / กลุ่มเรียน'),
+      ctxItem('delete', Icons.delete_outline, 'ลบคาบนี้ (ทุกช่วง)', danger: true),
+    ]);
     if (action == null || !mounted) return;
     if (action == 'info') {
       final info = await _askClassInfo(context, a.classInfo);
@@ -119,29 +99,30 @@ class _ClassScheduleCardState extends State<ClassScheduleCard>
     }
   }
 
-  /// แตะวันสอบ → ไปดูวันนั้นในปฏิทิน หรือแก้วัน/เวลาสอบ
-  Future<void> _examMenu(Activity e) async {
-    final action = await showModalBottomSheet<String>(
-      context: context,
-      showDragHandle: true,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.calendar_month_outlined),
-              title: Text('ไปที่ ${thaiShortDate(e.startDate)} ในปฏิทิน'),
-              onTap: () => Navigator.pop(ctx, 'go'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.edit_outlined),
-              title: const Text('แก้วัน / เวลาสอบ'),
-              onTap: () => Navigator.pop(ctx, 'edit'),
-            ),
-          ],
-        ),
-      ),
-    );
+  /// คลิกซ้ายที่คาบ = ไปดูครั้งถัดไปในปฏิทิน (เมาส์ปุ่ม 4 กลับมา)
+  void _goToNextClass(List<Activity> group) {
+    final today = dayOnly(DateTime.now());
+    DateTime? next;
+    for (final g in group) {
+      final start = today.isBefore(g.startDate) ? dayOnly(g.startDate) : today;
+      for (var k = 0; k < 7; k++) {
+        final d = start.add(Duration(days: k));
+        if (!g.weekdays.contains(d.weekday)) continue;
+        if (g.endDate == null || !d.isAfter(g.endDate!)) {
+          if (next == null || d.isBefore(next)) next = d;
+        }
+        break;
+      }
+    }
+    calendarJump.go(next ?? group.first.startDate);
+  }
+
+  /// คลิกขวา / กดค้างที่วันสอบ → เมนู · คลิกซ้าย = ไปวันนั้นในปฏิทินเลย
+  Future<void> _examMenu(Activity e, Offset at) async {
+    final action = await showContextMenuAt<String>(context, at, [
+      ctxItem('go', Icons.calendar_month_outlined, 'ไปที่ ${thaiShortDate(e.startDate)} ในปฏิทิน'),
+      ctxItem('edit', Icons.edit_outlined, 'แก้วัน / เวลาสอบ'),
+    ]);
     if (action == null || !mounted) return;
     if (action == 'go') {
       calendarJump.go(e.startDate);
@@ -184,7 +165,8 @@ class _ClassScheduleCardState extends State<ClassScheduleCard>
                 group: group,
                 stats: classTimeStats(_occurrences.where(
                     (o) => group.any((g) => g.id == o.activityId))),
-                onTap: () => _slotMenu(group),
+                onTap: () => _goToNextClass(group),
+                onContextMenu: (at) => _slotMenu(group, at),
               ),
 
             // ----- วันสอบ -----
@@ -193,7 +175,10 @@ class _ClassScheduleCardState extends State<ClassScheduleCard>
               Text('วันสอบ', style: title),
               const SizedBox(height: 4),
               for (final e in _exams)
-                ListTile(
+                GestureDetector(
+                  onSecondaryTapUp: (d) => _examMenu(e, d.globalPosition),
+                  onLongPressStart: (d) => _examMenu(e, d.globalPosition),
+                  child: ListTile(
                   dense: true,
                   contentPadding: EdgeInsets.zero,
                   visualDensity: VisualDensity.compact,
@@ -204,8 +189,8 @@ class _ClassScheduleCardState extends State<ClassScheduleCard>
                     style: TextStyle(color: c.text),
                   ),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () => _examMenu(e),
-                ),
+                  onTap: () => calendarJump.go(e.startDate),
+                )),
             ],
 
             // ----- สถิติเวลาเลิก -----
@@ -243,11 +228,12 @@ class _ClassScheduleCardState extends State<ClassScheduleCard>
 }
 
 class _SlotTile extends StatelessWidget {
-  const _SlotTile({required this.group, required this.stats, required this.onTap});
+  const _SlotTile({required this.group, required this.stats, required this.onTap, required this.onContextMenu});
 
   final List<Activity> group;
   final ClassTimeStats stats;
   final VoidCallback onTap;
+  final ValueChanged<Offset> onContextMenu;
 
   @override
   Widget build(BuildContext context) {
@@ -259,7 +245,10 @@ class _SlotTile extends StatelessWidget {
     final to = ends.any((e) => e == null)
         ? null
         : ends.whereType<DateTime>().reduce((x, y) => x.isAfter(y) ? x : y);
-    return ListTile(
+    return GestureDetector(
+      onSecondaryTapUp: (d) => onContextMenu(d.globalPosition),
+      onLongPressStart: (d) => onContextMenu(d.globalPosition),
+      child: ListTile(
       contentPadding: EdgeInsets.zero,
       onTap: onTap,
       leading: CircleAvatar(
@@ -277,7 +266,7 @@ class _SlotTile extends StatelessWidget {
         if (stats.count > 0) 'เลิกจริงเฉลี่ย ${diffText(stats.averageDiff)}',
       ].join(' · ')),
       trailing: const Icon(Icons.chevron_right),
-    );
+    ));
   }
 }
 

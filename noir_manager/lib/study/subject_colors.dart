@@ -38,3 +38,11 @@ Color subjectColorOf(Subject s) => subjectPalette[(s.colorIndex ?? s.id) % subje
 /// สีตัวหนังสือที่อ่านออกบนพื้น [bg]
 Color onColor(Color bg) =>
     bg.computeLuminance() > 0.45 ? const Color(0xFF111316) : Colors.white;
+
+/// สีประจำวิชาของทั้งแอป (id → สี) · ปฏิทิน / วันนี้ / ตารางเรียน / แผนผัง ใช้ชุดเดียวกัน
+/// โหลดตอนเปิดแอป และหน้าวิชาอัปเดตทุกครั้งที่โหลดใหม่ (เปลี่ยนสี / เพิ่มวิชา)
+final subjectColors = ValueNotifier<Map<int, Color>>({});
+
+Future<void> refreshSubjectColors(StudyRepository repo) async {
+  subjectColors.value = await loadSubjectColors(repo);
+}
