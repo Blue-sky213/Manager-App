@@ -35,6 +35,8 @@ class MiniDropdown<T> extends StatelessWidget {
       child: DropdownButtonHideUnderline(
         child: DropdownButton<T>(
           value: value,
+          // ไม่ให้มีแถบเทาค้างหลังเลือก (โฟกัสคีย์บอร์ด)
+          focusColor: Colors.transparent,
           isExpanded: width != null,
           borderRadius: BorderRadius.circular(10),
           style: TextStyle(fontSize: 14, color: c.text),

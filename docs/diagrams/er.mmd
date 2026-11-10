@@ -4,6 +4,8 @@ erDiagram
   SUBJECT ||--o{ GRADE_PART : "ส่วนคะแนน"
   GRADE_PART ||--o{ GRADE_ITEM : "ชิ้นคะแนน"
   SUBJECT ||--o| GRADE_SETUP : "ช่วงเกรด/เงื่อนไข"
+  SUBJECT ||--o{ CLASS_LOG : "คาบเรียนถึงไหน"
+  CHAPTER |o--o{ CLASS_LOG : "บทที่เรียน"
   CHAPTER ||--o{ SUBTOPIC : "มีหัวข้อ"
   SUBTOPIC ||--o{ ASSESSMENT : "มีคะแนน"
   SUBJECT |o--o{ ACTIVITY : "คาบ/ติว/สอบ"
@@ -44,6 +46,18 @@ erDiagram
     int absent_over
     int missed_exam
     text official
+    int absent_count "v14"
+    int class_total "v14 null = นับจากปฏิทิน"
+    real absent_limit "v14"
+  }
+  CLASS_LOG {
+    int id PK
+    int subject_id FK
+    int occurrence_id FK "null = ไม่ผูกคาบ"
+    int chapter_id FK
+    text day
+    int finished
+    text note
   }
   SUBJECT_LINK {
     int from_id PK,FK "v12"

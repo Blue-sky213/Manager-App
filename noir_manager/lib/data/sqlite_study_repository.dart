@@ -173,7 +173,9 @@ class SqliteStudyRepository implements StudyRepository {
     return GradeSetup(
       scale: parseScale(r['scale'] as String?),
       flags: GradeFlags(
-        absentOver: (r['absent_over'] as int? ?? 0) == 1,
+        absentCount: r['absent_count'] as int? ?? 0,
+        classTotal: r['class_total'] as int?,
+        absentLimit: (r['absent_limit'] as num?)?.toDouble() ?? 20,
         missedExam: (r['missed_exam'] as int? ?? 0) == 1,
       ),
       official: r['official'] as String?,
@@ -187,13 +189,70 @@ class SqliteStudyRepository implements StudyRepository {
       {
         'subject_id': subjectId,
         'scale': encodeScale(setup.scale),
-        'absent_over': setup.flags.absentOver ? 1 : 0,
+        'absent_count': setup.flags.absentCount,
+        'class_total': setup.flags.classTotal,
+        'absent_limit': setup.flags.absentLimit,
         'missed_exam': setup.flags.missedExam ? 1 : 0,
         'official': setup.official,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }
+
+  @override
+  Future<List<ClassLog>> classLogs(int subjectId) async {
+    final rows = await _db.query('class_log',
+        where: 'subject_id = ?', whereArgs: [subjectId], orderBy: 'day DESC, id DESC');
+    return [
+      for (final r in rows)
+        ClassLog(
+          id: r['id'] as int,
+          subjectId: r['subject_id'] as int,
+          occurrenceId: r['occurrence_id'] as int?,
+          chapterId: r['chapter_id'] as int?,
+          day: DateTime.parse(r['day'] as String),
+          finished: (r['finished'] as int? ?? 0) == 1,
+          note: r['note'] as String?,
+        ),
+    ];
+  }
+
+  @override
+  Future<int> logClass(int subjectId, DateTime day,
+      {int? occurrenceId, int? chapterId, bool finished = false, String? note}) async {
+    final values = {
+      'subject_id': subjectId,
+      'occurrence_id': occurrenceId,
+      'chapter_id': chapterId,
+      'day': _dayText(day),
+      'finished': finished ? 1 : 0,
+      'note': (note == null || note.trim().isEmpty) ? null : note.trim(),
+    };
+    final int id;
+    final old = occurrenceId == null
+        ? const <Map<String, Object?>>[]
+        : await _db.query('class_log', columns: ['id'], where: 'occurrence_id = ?', whereArgs: [occurrenceId]);
+    if (old.isNotEmpty) {
+      id = old.first['id'] as int;
+      await _db.update('class_log', values, where: 'id = ?', whereArgs: [id]);
+    } else {
+      id = await _db.insert('class_log', values);
+    }
+    if (chapterId != null) await _promoteChapter(chapterId);
+    return id;
+  }
+
+  /// บทที่เรียนในคาบแล้ว: ยังไม่เริ่ม → กำลังติว (รอบติวจะหยิบบทนี้ก่อน)
+  Future<void> _promoteChapter(int chapterId) async {
+    await _db.update('chapter', {'status': ChapterStatus.learning.name},
+        where: 'id = ? AND status = ?', whereArgs: [chapterId, ChapterStatus.todo.name]);
+  }
+
+  @override
+  Future<void> deleteClassLog(int logId) => _db.delete('class_log', where: 'id = ?', whereArgs: [logId]);
+
+  String _dayText(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
   @override
   Future<List<SubjectLink>> subjectLinks() async {

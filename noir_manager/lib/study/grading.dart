@@ -110,11 +110,40 @@ class GradePart {
   }
 }
 
-/// เงื่อนไขได้ F ทันที
+/// เงื่อนไขได้ F ทันที: ขาดเรียนเกิน [absentLimit]% ของคาบทั้งหมด · ขาดสอบ
 class GradeFlags {
-  const GradeFlags({this.absentOver = false, this.missedExam = false});
-  final bool absentOver;
+  const GradeFlags({this.absentCount = 0, this.classTotal, this.absentLimit = 20, this.missedExam = false});
+
+  /// จำนวนคาบที่ขาด (นัวร์กด + ทุกครั้งที่ขาด)
+  final int absentCount;
+
+  /// คาบทั้งหมดของวิชา (null = ยังไม่รู้ → ยังคิด % ไม่ได้)
+  final int? classTotal;
+
+  /// เกณฑ์ขาดได้ไม่เกินกี่ % (ส่วนใหญ่ 20)
+  final double absentLimit;
   final bool missedExam;
+
+  double? get absentPercent =>
+      (classTotal == null || classTotal! <= 0) ? null : absentCount / classTotal! * 100;
+
+  /// เกินเกณฑ์ = มากกว่า 20% (20% พอดียังไม่ F)
+  bool get absentOver => (absentPercent ?? 0) > absentLimit + 1e-9;
+
+  /// ขาดได้อีกกี่คาบก่อนเกินเกณฑ์ (null = ยังไม่รู้คาบทั้งหมด)
+  int? get absentLeft {
+    if (classTotal == null || classTotal! <= 0) return null;
+    final max = (classTotal! * absentLimit / 100 + 1e-9).floor();
+    return max - absentCount;
+  }
+
+  GradeFlags copyWith({int? absentCount, int? classTotal, bool clearTotal = false, double? absentLimit, bool? missedExam}) =>
+      GradeFlags(
+        absentCount: absentCount ?? this.absentCount,
+        classTotal: clearTotal ? null : (classTotal ?? this.classTotal),
+        absentLimit: absentLimit ?? this.absentLimit,
+        missedExam: missedExam ?? this.missedExam,
+      );
 }
 
 class GradeResult {
@@ -152,7 +181,7 @@ GradeResult computeGrade(List<GradePart> parts, List<GradeBand> scale,
   final decided = parts.fold<double>(0, (s, p) => s + p.decided);
   final complete = parts.isNotEmpty && parts.every((p) => p.allGraded);
   final reason = flags.absentOver
-      ? 'ขาดเรียนเกิน 20% → F'
+      ? 'ขาดเรียนเกิน ${fmtScore(flags.absentLimit)}% → F'
       : flags.missedExam
           ? 'ขาดสอบ → F'
           : null;
@@ -214,4 +243,63 @@ String effectiveLetter(GradeSetup setup, List<GradePart> parts) {
   if (setup.official case final o? when o.isNotEmpty) return o;
   if (!parts.any((p) => p.anyGraded) && !setup.flags.absentOver && !setup.flags.missedExam) return '—';
   return computeGrade(parts, setup.scale, setup.flags).letter;
+}
+
+/// ข้อเสนอแนะหลังได้คะแนน / ประกาศเกรด: เสียคะแนนตรงไหน · ขาดอีกเท่าไหร่ถึงเกรดถัดไป · เก็บคืนจากส่วนไหนได้
+List<String> gradeFeedback(List<GradePart> parts, GradeSetup setup) {
+  final out = <String>[];
+  final r = computeGrade(parts, setup.scale, setup.flags);
+  final official = (setup.official == null || setup.official!.isEmpty) ? null : setup.official!;
+  final f = setup.flags;
+
+  if (f.missedExam) out.add('ขาดสอบ → F · ถ้ามีเหตุจำเป็น (ป่วย/ธุระ) ลองยื่นขอสอบย้อนหลังกับอาจารย์');
+  if (f.absentOver) {
+    out.add('ขาดเรียน ${f.absentCount}/${f.classTotal} คาบ (${fmtScore(f.absentPercent!)}%) เกินเกณฑ์ ${fmtScore(f.absentLimit)}% → F');
+  } else if (f.absentLeft != null && f.absentLeft! <= 1) {
+    out.add(f.absentLeft! <= 0
+        ? 'ขาดเรียนเต็มโควตาแล้ว · ขาดอีกคาบเดียวได้ F'
+        : 'ขาดเรียนได้อีกแค่ ${f.absentLeft} คาบ');
+  }
+
+  // เสียคะแนนตรงไหนมากสุด (นับเฉพาะชิ้นที่ได้คะแนนแล้ว)
+  final lost = [
+    for (final p in parts)
+      if (p.anyGraded && p.decided - p.earned > 0.05) (p, p.decided - p.earned),
+  ]..sort((a, b) => b.$2.compareTo(a.$2));
+  if (lost.isNotEmpty) {
+    out.add('เสียคะแนนมากสุด: ${lost.take(3).map((e) => '${e.$1.name} −${fmtScore(e.$2)}').join(' · ')}');
+  }
+
+  // ชิ้นที่ได้ 0 = อาจลืมส่ง
+  final zeros = [
+    for (final p in parts)
+      for (final i in p.items)
+        if (i.got == 0) i.name,
+  ];
+  if (zeros.isNotEmpty) out.add('ได้ 0: ${zeros.take(4).join(', ')} · ถ้าลืมส่ง ลองถามอาจารย์ว่าส่งช้าได้ไหม');
+
+  // ห่างเกรดถัดไปเท่าไหร่ · ส่วนไหนเก็บคืนได้พอ
+  if (r.reason == null && r.totalWeight > 0) {
+    final idx = setup.scale.indexWhere((b) => b.letter == r.letter);
+    final next = idx > 0 ? setup.scale[idx - 1] : (idx == -1 && setup.scale.isNotEmpty ? setup.scale.last : null);
+    if (next != null) {
+      final gap = next.min / 100 * r.totalWeight - r.earned;
+      if (gap > 0) {
+        final enough = [for (final e in lost) if (e.$2 + 1e-9 >= gap) e.$1.name];
+        out.add('ขาดอีก ${fmtScore(gap)} คะแนนจะได้ ${next.letter}'
+            '${enough.isEmpty ? '' : ' · ถ้า${enough.take(2).join(' หรือ ')}ได้เพิ่มอีก ${fmtScore(gap)} ก็ถึง'}');
+      }
+    }
+  }
+
+  // เกรดจริงไม่ตรงกับที่คำนวณ
+  if (official != null && const {'S', 'U'}.contains(official) == false && r.complete && official != r.letter) {
+    final up = (gradePoints(official) ?? 0) > (gradePoints(r.letter) ?? 0);
+    out.add(up
+        ? 'เกรดจริง $official สูงกว่าที่คำนวณ (${r.letter}) → อาจารย์อาจปรับเกณฑ์/อิงกลุ่ม'
+        : 'เกรดจริง $official ต่ำกว่าที่คำนวณ (${r.letter}) → เช็กว่าใส่คะแนนครบไหม หรือขอดูคะแนนกับอาจารย์');
+  } else if (official != null && !r.complete && parts.isNotEmpty) {
+    out.add('ประกาศเกรดแล้วแต่ยังใส่คะแนนไม่ครบ · ใส่ให้ครบจะเห็นว่าเสียคะแนนตรงไหน');
+  }
+  return out;
 }

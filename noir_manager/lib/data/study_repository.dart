@@ -33,6 +33,15 @@ abstract class StudyRepository {
   Future<GradeSetup> gradeSetup(int subjectId);
   Future<void> setGradeSetup(int subjectId, GradeSetup setup);
 
+  /// บันทึกคาบเรียน (ใหม่ → เก่า)
+  Future<List<ClassLog>> classLogs(int subjectId);
+
+  /// บันทึกว่าคาบนี้เรียนบท [chapterId] จบบทไหม · บทที่ยังไม่เริ่ม → กลายเป็นบทที่ต้องติวต่อ
+  /// คาบเดิม ([occurrenceId] ซ้ำ) → แก้บันทึกเดิมแทนเพิ่มใหม่
+  Future<int> logClass(int subjectId, DateTime day,
+      {int? occurrenceId, int? chapterId, bool finished = false, String? note});
+  Future<void> deleteClassLog(int logId);
+
   /// เส้นความสัมพันธ์ทั้งหมด (from ต้องเรียนก่อน to)
   Future<List<SubjectLink>> subjectLinks();
 

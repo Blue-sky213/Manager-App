@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../calendar/calendar_repository.dart';
 import '../data/study_models.dart';
 import '../data/study_scope.dart';
 import '../theme/noir_colors.dart';
 import '../widgets/mini_dropdown.dart';
+import 'attendance.dart';
 import 'grading.dart';
 import 'subject_colors.dart';
 
@@ -19,10 +21,18 @@ class GpaRow {
 /// โหลดเกรดของทุกวิชาในแผน (ใช้ทั้งหน้านี้และเทส)
 Future<List<GpaRow>> loadGpaRows(BuildContext context) async {
   final repo = StudyScope.of(context);
+  final cal = CalendarScope.of(context);
   final rows = <GpaRow>[];
   for (final s in await repo.subjects()) {
     final parts = await repo.gradeParts(s.id);
-    final setup = await repo.gradeSetup(s.id);
+    var setup = await repo.gradeSetup(s.id);
+    // ขาดเรียนเกินเกณฑ์ต้องนับด้วย → ใช้จำนวนคาบจากปฏิทินถ้าไม่ได้ใส่เอง
+    if (setup.flags.absentCount > 0 && setup.flags.classTotal == null) {
+      final auto = await plannedClassTotal(cal, s.id);
+      if (auto != null) {
+        setup = GradeSetup(scale: setup.scale, flags: setup.flags.copyWith(classTotal: auto), official: setup.official);
+      }
+    }
     final letter = effectiveLetter(setup, parts);
     final r = computeGrade(parts, setup.scale, setup.flags);
     final official = setup.official != null && setup.official!.isNotEmpty;

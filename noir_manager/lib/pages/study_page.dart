@@ -9,6 +9,7 @@ import '../data/study_models.dart';
 import '../data/study_repository.dart';
 import '../data/study_scope.dart';
 import '../shell/app_nav.dart';
+import '../study/class_log.dart';
 import '../study/gpa_page.dart';
 import '../study/grade_card.dart';
 import '../study/advanced_rules.dart';
@@ -1382,6 +1383,11 @@ class _StudyPageState extends State<StudyPage> {
         ];
 
     List<Widget> chaptersTab() => [
+          // คาบไหนเรียนบทไหน จบไหม → รอบติวหยิบบทที่เรียนแล้วไปติวต่อ
+          if (subject != null) ...[
+            ClassLogCard(subject: subject, chapters: _chapters, onChanged: _reload),
+            const SizedBox(height: 12),
+          ],
           const _Legend(),
           const SizedBox(height: 12),
           // สวิตช์โหมด EZ / Advanced (จำไว้ในฐานข้อมูล ทุกวิชาใช้ร่วมกัน)

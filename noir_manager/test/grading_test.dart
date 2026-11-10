@@ -5,6 +5,7 @@ import 'package:noir_manager/calendar/sqlite_calendar_repository.dart' show crea
 import 'package:noir_manager/data/app_database.dart';
 import 'package:noir_manager/data/memory_study_repository.dart';
 import 'package:noir_manager/data/sqlite_study_repository.dart';
+import 'package:noir_manager/data/study_models.dart';
 import 'package:noir_manager/data/study_repository.dart';
 import 'package:noir_manager/study/grading.dart';
 
@@ -46,8 +47,14 @@ Future<void> gradeRepoRules(StudyRepository repo) async {
   // ตั้งค่าเกรด: ค่าเริ่มต้น = ตาราง มก. · บันทึกแล้วอ่านกลับได้
   expect((await repo.gradeSetup(sid)).scale, kuGradeScale);
   await repo.setGradeSetup(sid,
-      GradeSetup(scale: withFCut(kuGradeScale, 45), flags: const GradeFlags(missedExam: true), official: 'B'));
+      GradeSetup(
+          scale: withFCut(kuGradeScale, 45),
+          flags: const GradeFlags(missedExam: true, absentCount: 3, classTotal: 30, absentLimit: 25),
+          official: 'B'));
   final g = await repo.gradeSetup(sid);
+  expect(g.flags.absentCount, 3);
+  expect(g.flags.classTotal, 30);
+  expect(g.flags.absentLimit, 25);
   expect(fCutOf(g.scale), 45);
   expect(g.flags.missedExam, isTrue);
   expect(g.official, 'B');
@@ -57,9 +64,21 @@ Future<void> gradeRepoRules(StudyRepository repo) async {
   parts = await repo.gradeParts(sid);
   expect(parts.single.items.length, 4);
 
-  // ลบวิชา → คะแนนหายตาม
+  // บันทึกคาบ (ไม่ผูกคาบในปฏิทิน): บทยังไม่เริ่ม → กำลังติว · ลบบท → บันทึกยังอยู่
+  final ch = await repo.addChapter(sid, 'บท 1');
+  await repo.logClass(sid, DateTime(2026, 11, 10, 9, 30), chapterId: ch, finished: true, note: ' ');
+  final log = (await repo.classLogs(sid)).single;
+  expect(log.day, DateTime(2026, 11, 10));
+  expect(log.finished, isTrue);
+  expect(log.note, isNull);
+  expect((await repo.chapters(sid)).single.chapter.status, ChapterStatus.learning);
+  await repo.deleteChapter(ch);
+  expect((await repo.classLogs(sid)).single.chapterId, isNull);
+
+  // ลบวิชา → คะแนน + บันทึกคาบหายตาม
   await repo.deleteSubject(sid);
   expect(await repo.gradeParts(sid), isEmpty);
+  expect(await repo.classLogs(sid), isEmpty);
 }
 
 void main() {
@@ -82,7 +101,8 @@ void main() {
     await createClassInfoV11(db);
     await createSubjectLinkV12(db);
     await createGradeV13(db);
-    await createGradeV13(db); // รันซ้ำก็ไม่พัง
+    await createClassLogV14(db);
+    await createClassLogV14(db); // รันซ้ำก็ไม่พัง
     await gradeRepoRules(SqliteStudyRepository(db));
     await db.close();
   });
@@ -122,7 +142,7 @@ void main() {
   });
 
   test('ขาดเรียนเกิน 20% / ขาดสอบ → F ทันที', () {
-    final a = computeGrade(sample(fin: 40), kuGradeScale, const GradeFlags(absentOver: true));
+    final a = computeGrade(sample(fin: 40), kuGradeScale, const GradeFlags(absentCount: 6, classTotal: 26));
     expect(a.letter, 'F');
     expect(a.reason, contains('ขาดเรียน'));
     final m = computeGrade(sample(fin: 40), kuGradeScale, const GradeFlags(missedExam: true));
@@ -155,5 +175,27 @@ void main() {
     final g = gpa([(3, 'B'), (3, 'B+'), (3, 'A'), (3, 'D+'), (3, 'A'), (1, 'B'), (1, 'S'), (3, '—')]);
     expect(g!.toStringAsFixed(2), '3.19');
     expect(gpa([(3, 'S')]), isNull);
+  });
+
+  test('ขาดเรียน: แอปคิด % เอง · 20% พอดียังไม่ F · บอกว่าขาดได้อีกกี่คาบ', () {
+    const ok = GradeFlags(absentCount: 4, classTotal: 30);
+    expect(ok.absentPercent, closeTo(13.33, 0.01));
+    expect(ok.absentLeft, 2);
+    expect(ok.absentOver, isFalse);
+    expect(const GradeFlags(absentCount: 6, classTotal: 30).absentOver, isFalse); // 20% พอดี
+    expect(const GradeFlags(absentCount: 7, classTotal: 30).absentOver, isTrue);
+    expect(const GradeFlags(absentCount: 7).absentOver, isFalse); // ยังไม่รู้คาบทั้งหมด
+    expect(const GradeFlags(absentCount: 7).absentLeft, isNull);
+  });
+
+  test('โอกาสปรับปรุง: เสียตรงไหน · ขาดอีกกี่คะแนนถึงเกรดถัดไป · เกรดจริงไม่ตรง', () {
+    final tips = gradeFeedback(sample(fin: 30), const GradeSetup(official: 'B'));
+    expect(tips.join('\n'), contains('เสียคะแนนมากสุด: ปลายภาค −10 · กลางภาค −5'));
+    expect(tips.join('\n'), contains('ขาดอีก 1 คะแนนจะได้ A'));
+    expect(tips.join('\n'), contains('เกรดจริง B ต่ำกว่าที่คำนวณ (B+)'));
+
+    final absent = gradeFeedback(sample(fin: 30), const GradeSetup(flags: GradeFlags(absentCount: 5, classTotal: 30)));
+    expect(absent.join('\n'), contains('ขาดเรียนได้อีกแค่ 1 คาบ'));
+    expect(gradeFeedback(const [], const GradeSetup()), isEmpty);
   });
 }
