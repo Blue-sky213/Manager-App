@@ -552,4 +552,47 @@ void main() {
     expect(find.byType(BottomSheet), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('หน้าวิชาใหม่: รายชื่อซ้าย เทอมนี้ / ปี / ทั้งหมด · 4 แท็บ · แผนผังเลือกสีกล่อง', (tester) async {
+    setScreen(tester, const Size(1400, 2000));
+    await tester.pumpWidget(buildApp());
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('วิชา').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('ตัวเลือก'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('ใส่ตัวอย่าง: แผน 4 ปี'));
+    await tester.pumpAndSettle();
+
+    // แผนผัง: สลับเป็นสีวิชา (จำไว้)
+    await tester.tap(find.text('สีวิชา'));
+    await tester.pumpAndSettle();
+    expect(tester.widget<SegmentedButton<bool>>(find.byType(SegmentedButton<bool>).last).selected, {true});
+
+    // เปิดวิชาจากแผนผัง → รายชื่อซ้ายเป็น "ปีการศึกษา" ของวิชานั้น
+    await tester.tap(find.text('การเขียนโปรแกรมคอมพิวเตอร์'));
+    await tester.pumpAndSettle();
+    expect(find.text('ภาค 1'), findsOneWidget);
+    expect(find.text('ภาค 2'), findsOneWidget);
+    expect(find.text('คณิตศาสตร์วิศวกรรม 1'), findsNothing); // ปี 2
+
+    // เทอมนี้ (ตัวอย่างตั้งเทอม ปี 1 ภาค 1 ไว้แล้ว)
+    await tester.tap(find.text('เทอมนี้'));
+    await tester.pumpAndSettle();
+    expect(find.text('ปี 1 · ภาค 1 (เทอมนี้)'), findsOneWidget);
+    expect(find.text('การแก้ปัญหาและขั้นตอนวิธี'), findsNothing); // ปี 1 ภาค 2
+
+    // ทั้งหมด → เห็นปี 4
+    await tester.tap(find.text('ทั้งหมด'));
+    await tester.pumpAndSettle();
+    expect(find.text('ปี 4 · ภาค 1'), findsOneWidget);
+
+    // 4 แท็บ
+    for (final tab in ['บทเรียน', 'ตารางเรียน', 'ติว', 'ภาพรวม']) {
+      await tester.tap(find.text(tab).first);
+      await tester.pumpAndSettle();
+    }
+    expect(find.text('หน่วยกิต'), findsOneWidget); // ช่องสรุปในภาพรวม
+    expect(tester.takeException(), isNull);
+  });
 }
