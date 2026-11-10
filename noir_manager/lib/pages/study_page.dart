@@ -1384,8 +1384,10 @@ class _StudyPageState extends State<StudyPage> {
 
     List<Widget> chaptersTab() => [
           // คาบไหนเรียนบทไหน จบไหม → รอบติวหยิบบทที่เรียนแล้วไปติวต่อ
-          ClassLogCard(subject: subject, chapters: _chapters, onChanged: _reload),
-          const SizedBox(height: 12),
+          if (subject != null) ...[
+            ClassLogCard(subject: subject, chapters: _chapters, onChanged: _reload),
+            const SizedBox(height: 12),
+          ],
           const _Legend(),
           const SizedBox(height: 12),
           // สวิตช์โหมด EZ / Advanced (จำไว้ในฐานข้อมูล ทุกวิชาใช้ร่วมกัน)
