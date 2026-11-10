@@ -1,4 +1,4 @@
-/// หน้า "ตารางเวลาชน": รวมทุกคู่ที่เวลาทับกัน แล้วแก้วัน/เวลาได้ในที่เดียว
+/// หน้า "เช็กเวลาชน": รวมทุกคู่ที่เวลาทับกัน แล้วแก้วัน/เวลาได้ในที่เดียว
 library;
 
 import 'package:flutter/material.dart';
@@ -117,7 +117,7 @@ class _ClashPageState extends State<ClashPage> {
     final ignored = _clashes.where((x) => _ignored.contains(x.key)).toList();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('ตารางเวลาชน')),
+      appBar: AppBar(title: const Text('เช็กเวลาชน')),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : ListView(

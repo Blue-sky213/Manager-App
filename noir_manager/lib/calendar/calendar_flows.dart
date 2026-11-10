@@ -166,7 +166,7 @@ Future<void> editOccurrenceTimeFlow(
   }
 }
 
-/// เลื่อนงาน (หรือเลือกวันแทนให้งานใน Reminder Inbox)
+/// เลื่อนงาน (หรือเลือกวันแทนให้งานใน Updates)
 Future<void> rescheduleFlow(
   BuildContext context,
   CalendarRepository repo,
@@ -179,7 +179,7 @@ Future<void> rescheduleFlow(
 
     if (r.toInbox) {
       await repo.sendToInbox(o.id);
-      if (context.mounted) _toast(context, 'ย้าย "${o.title}" ไป Reminder Inbox แล้ว');
+      if (context.mounted) _toast(context, 'ย้าย "${o.title}" ไป Updates แล้ว');
       return;
     }
 

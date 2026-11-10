@@ -136,7 +136,7 @@ String? _statusText(Occurrence o) => switch (o.status) {
           : 'เลิกจริง ${fmtTime(o.actualEnd!)} (${diffText(o.endDiffMinutes!)})',
       OccurrenceStatus.cancelled => 'ยกเลิก: ${o.reason ?? ''}',
       OccurrenceStatus.moved => 'เลื่อนไปวันอื่นแล้ว',
-      OccurrenceStatus.inbox => 'อยู่ใน Reminder Inbox',
+      OccurrenceStatus.inbox => 'อยู่ใน Updates',
       OccurrenceStatus.shifted => 'เลื่อนไปรอบถัดไป${o.reason == null ? '' : ' · ${o.reason}'}',
     };
 

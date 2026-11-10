@@ -417,7 +417,7 @@ final demoHoliday = DateTime(2026, 12, 10);
 /// เติมรายละเอียดให้วิชาตัวอย่างปี 1 ภาค 1 ครบทุกระบบที่แอปมี:
 /// ห้องเรียน · คะแนนหัวข้อ (ดี / พอได้ / ยังไม่ได้ / ยังไม่ประเมิน) · ประเภท/สถานะบท ·
 /// คาบที่เรียนไปแล้ว (ทำแล้ว + เวลาเลิกจริง / ยกเลิกพร้อมเหตุผล) · รอบติว ·
-/// งานหมวดอื่น (ออกกำลังกาย / สตรีม / งาน) · Reminder Inbox · วันหยุด
+/// งานหมวดอื่น (ออกกำลังกาย / สตรีม / งาน) · Updates · วันหยุด
 ///
 /// แตะเฉพาะวิชาตัวอย่าง (จับจากรหัส) · หัวข้อที่มีคะแนนแล้ว / คาบที่มีห้องแล้ว ไม่ทับ
 /// ทำซ้ำได้ (ครั้งที่สองไม่เพิ่มของซ้ำ) · [today] = วันนี้ (เทสส่งค่าคงที่ได้) · คืนสรุปสั้น ๆ
@@ -527,7 +527,7 @@ Future<String> enrichDemoTerm(StudyRepository study, CalendarRepository calendar
     day: demoTermStart.add(const Duration(days: 11)), startMinute: 21 * 60, durationMin: 60,
     subjectId: subjects.first.id,
   ));
-  // Reminder Inbox: งานยังไม่มีวัน
+  // Updates: งานยังไม่มีวัน
   final inboxId = await add(NewActivity(
     name: 'อ่านสไลด์บท 2 ก่อนเรียน', categoryId: learn, importance: 2, timed: false, day: demoTermStart,
   ));

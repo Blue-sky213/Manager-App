@@ -32,7 +32,7 @@ void main() {
     expect(find.text('Noir Manager'), findsOneWidget);
     expect(find.text('โหมดสว่าง'), findsOneWidget);
 
-    await tester.tap(find.text('วิชา').first);
+    await tester.tap(find.text('การเรียน').first);
     await tester.pumpAndSettle();
     expect(find.text('Study Tree'), findsOneWidget);
 
@@ -55,7 +55,7 @@ void main() {
     await tester.pumpWidget(buildApp());
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('วิชา').first);
+    await tester.tap(find.text('การเรียน').first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('รายวิชา')); // หน้าวิชาเปิดที่แผนผังก่อน → สลับไปรายละเอียด
     await tester.pumpAndSettle();
@@ -90,7 +90,7 @@ void main() {
     await tester.pumpWidget(buildApp());
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('วิชา').last); // ปุ่มใน Bottom bar
+    await tester.tap(find.text('การเรียน').last); // ปุ่มใน Bottom bar
     await tester.pumpAndSettle();
 
     expect(find.text('Study Tree'), findsOneWidget);
@@ -101,7 +101,7 @@ void main() {
     setScreen(tester, const Size(1280, 2600)); // หน้าวิชายาวขึ้น (การ์ดตารางเรียน + รอบติว)
     await tester.pumpWidget(buildApp());
     await tester.pumpAndSettle();
-    await tester.tap(find.text('วิชา').first);
+    await tester.tap(find.text('การเรียน').first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('รายวิชา')); // หน้าวิชาเปิดที่แผนผังก่อน → สลับไปรายละเอียด
     await tester.pumpAndSettle();
@@ -164,7 +164,7 @@ void main() {
     setScreen(tester, const Size(420, 640));
     await tester.pumpWidget(buildApp());
     await tester.pumpAndSettle();
-    expect(find.text('Reminder Inbox'), findsOneWidget);
+    expect(find.text('Updates'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -231,11 +231,16 @@ void main() {
     await tester.pumpAndSettle();
 
     final now = DateTime.now();
-    await tester.tap(find.text('เดือน'));
+    // มุมมองเป็นดรอปดาวน์: แตะค่าปัจจุบัน → เลือกค่าใหม่
+    await tester.tap(find.text('สัปดาห์').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('เดือน').last);
     await tester.pumpAndSettle();
     expect(find.text(thaiMonthYear(now)), findsOneWidget);
 
-    await tester.tap(find.text('ปี'));
+    await tester.tap(find.text('เดือน').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('ปี').last);
     await tester.pumpAndSettle();
     expect(find.text('พ.ศ. ${buddhistYear(now)}'), findsOneWidget);
 
@@ -251,13 +256,15 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text(thaiMonthYear(DateTime(now.year + 1, 1))), findsOneWidget);
 
-    await tester.tap(find.text('วัน'));
+    await tester.tap(find.text('เดือน').first); // แตะมกราคม → กลับมามุมมองเดือน
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('วัน').last);
     await tester.pumpAndSettle();
     expect(find.text('เพิ่มงาน'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('มุมมองสัปดาห์: เลือกแบบ A / B / C ได้ (จอกว้าง)', (tester) async {
+  testWidgets('มุมมองสัปดาห์: เลือกแบบ ตารางเวลา / ลิสต์ / การ์ด จากดรอปดาวน์ (จอกว้าง)', (tester) async {
     setScreen(tester, const Size(1280, 1000));
     final calendar = MemoryCalendarRepository();
     await calendar.addActivity(NewActivity(
@@ -274,13 +281,17 @@ void main() {
     await tester.tap(find.text('ปฏิทิน').first);
     await tester.pumpAndSettle();
 
-    expect(find.text('A ตารางเวลา'), findsOneWidget);
-    await tester.tap(find.text('B ลิสต์'));
+    expect(find.text('ตารางเวลา'), findsOneWidget);
+    await tester.tap(find.text('ตารางเวลา'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('ลิสต์').last);
     await tester.pumpAndSettle();
     expect(find.text('17:00–17:45 · วิ่ง'), findsOneWidget);
     expect(find.text('45 นาที'), findsOneWidget); // ชั่วโมงรวมของวัน
 
-    await tester.tap(find.text('C การ์ด'));
+    await tester.tap(find.text('ลิสต์').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('การ์ด').last);
     await tester.pumpAndSettle();
     expect(find.text('วิ่ง'), findsOneWidget);
     expect(find.text('17:45'), findsOneWidget);
@@ -293,10 +304,10 @@ void main() {
     setScreen(tester, const Size(1280, 2400));
     await tester.pumpWidget(buildApp());
     await tester.pumpAndSettle();
-    await tester.tap(find.text('วิชา').first);
+    await tester.tap(find.text('การเรียน').first);
     await tester.pumpAndSettle();
 
-    expect(find.text('แผนการเรียน'), findsOneWidget);
+    expect(find.text('การเรียน'), findsWidgets);
     await tester.tap(find.byTooltip('ตัวเลือก'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('ใส่ตัวอย่าง: แผน 4 ปี'));
@@ -315,10 +326,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('ปีการศึกษาที่ 1'), findsOneWidget);
     expect(find.textContaining('ไฮไลต์สาย "การเขียนโปรแกรมคอมพิวเตอร์"'), findsOneWidget);
-    // คลิกซ้าย = เปิดทันที · มีปุ่มกลับแผนผัง
+    // คลิกซ้าย = เปิดทันที · มีปุ่มกลับแผน 4 ปี
     await tester.tap(prog);
     await tester.pumpAndSettle();
-    expect(find.text('กลับแผนผัง'), findsOneWidget);
+    expect(find.text('กลับแผน 4 ปี'), findsOneWidget);
 
     // หน้ารายวิชาเปิดที่ปี 1 → เห็นเฉพาะวิชาปี 1 ไม่มีวิชาปี 2 ปนมา
     expect(find.textContaining('ปี 1 ·'), findsOneWidget);
@@ -349,7 +360,7 @@ void main() {
     setScreen(tester, const Size(1280, 2400));
     await tester.pumpWidget(buildApp());
     await tester.pumpAndSettle();
-    await tester.tap(find.text('วิชา').first);
+    await tester.tap(find.text('การเรียน').first);
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('ตัวเลือก'));
     await tester.pumpAndSettle();
@@ -359,7 +370,7 @@ void main() {
     // หัวปี → ปี 2 อย่างเดียว เห็นทั้ง 2 เทอม ไม่มีวิชาปี 1
     await tester.tap(find.text('ปีการศึกษาที่ 2'));
     await tester.pumpAndSettle();
-    expect(find.text('แผนการเรียน · ปี 2'), findsOneWidget);
+    expect(find.text('การเรียน · ปี 2'), findsOneWidget);
     expect(find.textContaining('ปีการศึกษาที่ 2 ·'), findsOneWidget);
     expect(find.text('ปีการศึกษาที่ 1'), findsNothing);
     expect(find.text('ภาคเรียนที่ 1'), findsOneWidget);
@@ -377,7 +388,7 @@ void main() {
     // ในปี 2 แตะหัวภาค 2 → เหลือภาค 2 อย่างเดียว
     await tester.tap(find.text('ภาคเรียนที่ 2'));
     await tester.pumpAndSettle();
-    expect(find.text('แผนการเรียน · ปี 2 · ภาค 2'), findsOneWidget);
+    expect(find.text('การเรียน · ปี 2 · ภาค 2'), findsOneWidget);
     expect(find.text('คณิตศาสตร์วิศวกรรม 2'), findsOneWidget);
     // คณิต 1 (ภาค 1) เหลือแค่กล่องเงาบอกว่าอยู่ภาคไหน
     expect(find.text('ปี 2 · ภาค 1'), findsWidgets);
@@ -386,7 +397,7 @@ void main() {
     // ชิป "ทั้งปี" → กลับมาเห็น 2 ภาค
     await tester.tap(find.widgetWithText(ChoiceChip, 'ทั้งปี'));
     await tester.pumpAndSettle();
-    expect(find.text('แผนการเรียน · ปี 2'), findsOneWidget);
+    expect(find.text('การเรียน · ปี 2'), findsOneWidget);
     expect(find.text('คณิตศาสตร์วิศวกรรม 1'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
@@ -394,7 +405,7 @@ void main() {
     await tester.tap(find.text('การฝึกงาน'));
     await tester.pump(const Duration(milliseconds: 400));
     await tester.pumpAndSettle();
-    expect(find.text('แผนการเรียน · ปี 3'), findsOneWidget);
+    expect(find.text('การเรียน · ปี 3'), findsOneWidget);
 
     // กลับทุกปี → แตะหัวภาคแรกสุด (ปี 1 ภาค 1) → ไปภาคนั้นตรง ๆ
     await tester.tap(find.widgetWithText(ChoiceChip, 'ทุกปี'));
@@ -402,17 +413,17 @@ void main() {
     expect(find.text('ปีการศึกษาที่ 4'), findsOneWidget);
     await tester.tap(find.text('ภาคเรียนที่ 1').first);
     await tester.pumpAndSettle();
-    expect(find.text('แผนการเรียน · ปี 1 · ภาค 1'), findsOneWidget);
+    expect(find.text('การเรียน · ปี 1 · ภาค 1'), findsOneWidget);
     expect(find.text('การเขียนโปรแกรมคอมพิวเตอร์'), findsOneWidget);
     expect(find.text('การแก้ปัญหาและขั้นตอนวิธี'), findsNothing); // ปี 1 ภาค 2
 
-    // คลิกเปิดวิชาในมุมมองภาคเดียว → กลับแผนผังแล้วยังอยู่ที่ปี 1 ภาค 1
+    // คลิกเปิดวิชาในมุมมองภาคเดียว → กลับแผน 4 ปีแล้วยังอยู่ที่ปี 1 ภาค 1
     await tester.tap(find.text('การเขียนโปรแกรมคอมพิวเตอร์'));
     await tester.pumpAndSettle();
     expect(find.textContaining('ปี 1 ·'), findsOneWidget);
-    await tester.tap(find.text('กลับแผนผัง'));
+    await tester.tap(find.text('กลับแผน 4 ปี'));
     await tester.pumpAndSettle();
-    expect(find.text('แผนการเรียน · ปี 1 · ภาค 1'), findsOneWidget);
+    expect(find.text('การเรียน · ปี 1 · ภาค 1'), findsOneWidget);
   });
 
   testWidgets('แตะวันสอบในหน้าวิชา → ไปวันนั้นในปฏิทิน', (tester) async {
@@ -432,12 +443,12 @@ void main() {
     ));
     await tester.pumpWidget(buildApp(calendar: cal));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('วิชา').first);
+    await tester.tap(find.text('การเรียน').first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('รายวิชา'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('ตารางเรียน').first); // แท็บตารางเรียน
+    await tester.tap(find.text('เวลาเรียน').first); // แท็บเวลาเรียน
     await tester.pumpAndSettle();
     final exam = find.textContaining('สอบกลางภาค · ${thaiShortDate(examDay)}').last;
     await tester.scrollUntilVisible(
@@ -481,7 +492,7 @@ void main() {
     setScreen(tester, const Size(1280, 2400));
     await tester.pumpWidget(buildApp());
     await tester.pumpAndSettle();
-    await tester.tap(find.text('วิชา').first);
+    await tester.tap(find.text('การเรียน').first);
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('ตัวเลือก'));
     await tester.pumpAndSettle();
@@ -557,7 +568,7 @@ void main() {
     setScreen(tester, const Size(1400, 2000));
     await tester.pumpWidget(buildApp());
     await tester.pumpAndSettle();
-    await tester.tap(find.text('วิชา').first);
+    await tester.tap(find.text('การเรียน').first);
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('ตัวเลือก'));
     await tester.pumpAndSettle();

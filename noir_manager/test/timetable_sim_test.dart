@@ -111,7 +111,7 @@ void main() {
 
     await tester.pumpWidget(NoirManagerApp(studyRepository: study, calendarRepository: cal));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('วิชา').first);
+    await tester.tap(find.text('การเรียน').first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('ตารางเรียนทั้งสัปดาห์'));
     await tester.pumpAndSettle();

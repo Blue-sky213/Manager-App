@@ -819,7 +819,7 @@ class _RescheduleDialogState extends State<_RescheduleDialog> {
           TextButton(
             onPressed: () =>
                 Navigator.pop(context, const RescheduleResult.toInbox()),
-            child: const Text('ยังไม่รู้วัน → Inbox'),
+            child: const Text('ยังไม่รู้วัน → Updates'),
           ),
         TextButton(
           onPressed: () => Navigator.pop(context),
@@ -858,7 +858,7 @@ Future<OverlapChoice?> askOverlap(BuildContext context, List<Occurrence> clashes
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(ctx, OverlapChoice.moveOthersToInbox),
-          child: const Text('ย้ายงานที่ทับเข้า Inbox'),
+          child: const Text('ย้ายงานที่ทับไป Updates'),
         ),
         TextButton(
           onPressed: () => Navigator.pop(ctx, OverlapChoice.allow),
