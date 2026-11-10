@@ -205,6 +205,7 @@ class _StudyPageState extends State<StudyPage> {
     PopupMenuItem(value: 'dupes', child: Text('ลบคาบเรียน/วันสอบที่ซ้ำ')),
     PopupMenuItem(value: 'demo', child: Text('ใส่ตัวอย่าง: แผน 4 ปี')),
     PopupMenuItem(value: 'links', child: Text('ใส่เส้นเชื่อมตามหลักสูตร 2567')),
+    PopupMenuItem(value: 'enrich', child: Text('เติมรายละเอียดตัวอย่างให้ครบ (ทดสอบ)')),
   ];
 
   void _onPageMenu(String v) {
@@ -215,9 +216,36 @@ class _StudyPageState extends State<StudyPage> {
         _removeDuplicates();
       case 'links':
         _loadLinks();
+      case 'enrich':
+        _enrichDemo();
       default:
         _loadDemo();
     }
+  }
+
+  /// เติมรายละเอียดให้วิชาตัวอย่าง (คะแนน ห้อง คาบที่เรียนแล้ว ติว งานหมวดอื่น วันหยุด)
+  /// แตะข้อมูลเดิม → ถามก่อน และแนะนำให้สำรองข้อมูลก่อน
+  Future<void> _enrichDemo() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('เติมรายละเอียดตัวอย่าง'),
+        content: const Text('เพิ่มให้วิชาตัวอย่างปี 1 ภาค 1:\n'
+            '• คะแนนหัวข้อ · ห้องเรียน · สถานะบท\n'
+            '• คาบที่ผ่านมา = ทำแล้ว + เวลาเลิกจริง (ยกเลิก 1 คาบ)\n'
+            '• รอบติว · วิ่ง / สตรีม / ส่งงาน · Reminder Inbox · วันหยุด\n\n'
+            'ของที่มีอยู่แล้วไม่ถูกทับ · ลบทีละรายการได้ · แนะนำให้สำรองข้อมูลก่อน'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('ยกเลิก')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('เติมเลย')),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final summary = await enrichDemoTerm(_repo!, CalendarScope.of(context));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(summary)));
+    await _reload();
   }
 
   /// เส้นตามหลักสูตร: จับคู่จากรหัสวิชา · เพิ่มอย่างเดียว เส้นที่ทำเองไม่หาย
