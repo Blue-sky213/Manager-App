@@ -9,6 +9,7 @@ import '../data/study_scope.dart';
 import '../study/advanced_rules.dart';
 import '../study/class_schedule_card.dart';
 import '../study/curriculum_map.dart';
+import '../study/week_timetable.dart';
 import '../study/subject_colors.dart';
 import '../study/tutor_card.dart';
 import '../study/mastery.dart';
@@ -684,9 +685,12 @@ class _StudyPageState extends State<StudyPage> {
       _collapsed.contains(key) ? ({..._collapsed}..remove(key)) : {..._collapsed, key});
 
   /// สลับ แผนผัง ↔ รายวิชา
-  Widget _viewSwitch() => Align(
-        alignment: Alignment.centerLeft,
-        child: SegmentedButton<bool>(
+  Widget _viewSwitch() => Wrap(
+        spacing: 12,
+        runSpacing: 8,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          SegmentedButton<bool>(
           style: const ButtonStyle(visualDensity: VisualDensity.compact),
           segments: const [
             ButtonSegment(value: true, icon: Icon(Icons.account_tree_outlined), label: Text('แผนผัง')),
@@ -695,8 +699,26 @@ class _StudyPageState extends State<StudyPage> {
           selected: {_mapView},
           showSelectedIcon: false,
           onSelectionChanged: (v) => _setMapView(v.first),
-        ),
+          ),
+          OutlinedButton.icon(
+            onPressed: _openWeek,
+            icon: const Icon(Icons.calendar_view_week_outlined),
+            label: const Text('ตารางเรียนทั้งสัปดาห์'),
+          ),
+        ],
       );
+
+  /// ตารางเรียนของทุกวิชา · "เปิดวิชา" จากคาบ → กลับมาหน้ารายวิชาของวิชานั้น
+  void _openWeek() {
+    Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (ctx) => WeekTimetablePage(
+        onOpenSubject: (s) {
+          Navigator.of(ctx).pop();
+          _openSubject(s);
+        },
+      ),
+    ));
+  }
 
   Widget _buildMap(BuildContext context) {
     final c = context.noir;

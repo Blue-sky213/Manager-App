@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../calendar/calendar_flows.dart';
 import '../calendar/calendar_listener.dart';
 import '../calendar/calendar_models.dart';
+import '../calendar/calendar_repository.dart';
 import '../calendar/calendar_ui.dart';
 import '../calendar/class_stats.dart';
 import '../data/study_models.dart';
@@ -68,54 +69,7 @@ class _ClassScheduleCardState extends State<ClassScheduleCard>
       _activities.where((a) => a.repeat == RepeatKind.none && a.kind != ActivityKind.tutor).toList()
         ..sort((a, b) => a.startDate.compareTo(b.startDate));
 
-  Future<void> _addSlot() async {
-    final repo = calendar!;
-    final draft = await _askSlot(context);
-    if (draft == null) return;
-    final learn = studyCategoryId(await repo.categories());
-
-    // เช็กเวลาทับ (คาบแรกของแต่ละวันที่เลือก) · ทับได้ แค่เตือนสั้น ๆ ด้านล่าง
-    final clashes = <String>{};
-    for (final wd in draft.weekdays) {
-      var d = draft.from;
-      while (d.weekday != wd) {
-        d = DateTime(d.year, d.month, d.day + 1);
-      }
-      if (d.isAfter(draft.to)) continue;
-      final start = atMinute(d, draft.start);
-      for (final o in findOverlaps(
-          await repo.occurrencesOn(d), start, start.add(Duration(minutes: draft.minutes)))) {
-        clashes.add('${o.title.replaceFirst('เรียน · ', '')} '
-            '(${thaiWeekdayShort[wd - 1]} ${fmtTime(o.startAt!)}–${fmtTime(o.endAt!)})');
-      }
-    }
-
-    await repo.addActivity(NewActivity(
-      name: 'เรียน · ${widget.subject.name}',
-      categoryId: learn,
-      importance: 3,
-      timed: true,
-      day: draft.from,
-      startMinute: draft.start,
-      durationMin: draft.minutes,
-      repeat: RepeatKind.weekly,
-      weekdays: draft.weekdays,
-      endDate: draft.to,
-      subjectId: widget.subject.id,
-      kind: ActivityKind.classSession,
-      classInfo: draft.info,
-    ));
-    if (clashes.isNotEmpty && mounted) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(
-          behavior: SnackBarBehavior.floating,
-          width: 420,
-          content: Text('⚠ ทับกับ ${clashes.join(', ')}',
-              maxLines: 2, overflow: TextOverflow.ellipsis),
-        ));
-    }
-  }
+  Future<void> _addSlot() => addClassSlot(context, calendar!, widget.subject);
 
   Future<void> _slotMenu(List<Activity> group) async {
     final repo = calendar!;
@@ -324,6 +278,56 @@ class _SlotTile extends StatelessWidget {
       ].join(' · ')),
       trailing: const Icon(Icons.chevron_right),
     );
+  }
+}
+
+/// เพิ่มคาบเรียนประจำของ [subject]: ถามวัน/เวลา/ประเภท → บันทึก · ทับคาบอื่นได้ แค่เตือนสั้น ๆ
+/// ใช้ร่วมกันทั้งการ์ดในหน้าวิชาและหน้าตารางเรียนทั้งสัปดาห์
+Future<void> addClassSlot(BuildContext context, CalendarRepository repo, Subject subject) async {
+  final draft = await _askSlot(context);
+  if (draft == null) return;
+  final learn = studyCategoryId(await repo.categories());
+
+  // เช็กเวลาทับ (คาบแรกของแต่ละวันที่เลือก) · ทับได้ แค่เตือนสั้น ๆ ด้านล่าง
+  final clashes = <String>{};
+  for (final wd in draft.weekdays) {
+    var d = draft.from;
+    while (d.weekday != wd) {
+      d = DateTime(d.year, d.month, d.day + 1);
+    }
+    if (d.isAfter(draft.to)) continue;
+    final start = atMinute(d, draft.start);
+    for (final o in findOverlaps(
+        await repo.occurrencesOn(d), start, start.add(Duration(minutes: draft.minutes)))) {
+      clashes.add('${o.title.replaceFirst('เรียน · ', '')} '
+          '(${thaiWeekdayShort[wd - 1]} ${fmtTime(o.startAt!)}–${fmtTime(o.endAt!)})');
+    }
+  }
+
+  await repo.addActivity(NewActivity(
+    name: 'เรียน · ${subject.name}',
+    categoryId: learn,
+    importance: 3,
+    timed: true,
+    day: draft.from,
+    startMinute: draft.start,
+    durationMin: draft.minutes,
+    repeat: RepeatKind.weekly,
+    weekdays: draft.weekdays,
+    endDate: draft.to,
+    subjectId: subject.id,
+    kind: ActivityKind.classSession,
+    classInfo: draft.info,
+  ));
+  if (clashes.isNotEmpty && context.mounted) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        behavior: SnackBarBehavior.floating,
+        width: 420,
+        content: Text('⚠ ทับกับ ${clashes.join(', ')}',
+            maxLines: 2, overflow: TextOverflow.ellipsis),
+      ));
   }
 }
 
