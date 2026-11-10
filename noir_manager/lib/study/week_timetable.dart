@@ -6,6 +6,7 @@ import '../calendar/calendar_ui.dart';
 import '../data/study_models.dart';
 import '../data/study_scope.dart';
 import '../theme/noir_colors.dart';
+import '../utils/thai_date.dart';
 import '../widgets/dialogs.dart';
 import 'class_schedule_card.dart';
 import 'credit_hours.dart';
@@ -32,15 +33,28 @@ bool _datesOverlap(Activity a, Activity b) {
   return !a.startDate.isAfter(bEnd) && !b.startDate.isAfter(aEnd);
 }
 
-/// รวมคาบประจำของทุกวิชาเป็นช่องบนตาราง · [onlyCurrent] = ซ่อนคาบที่จบไปแล้วก่อน [today]
-List<WeekSlot> buildWeekSlots(Map<Subject, List<Activity>> bySubject, {DateTime? today, bool onlyCurrent = true}) {
+/// วันจันทร์ของสัปดาห์ที่มี [d]
+DateTime mondayOf(DateTime d) => dayOnly(d).subtract(Duration(days: d.weekday - 1));
+
+/// รวมคาบประจำของทุกวิชาเป็นช่องบนตาราง
+/// [week] = วันจันทร์ของสัปดาห์ที่ดู → เอาเฉพาะคาบที่มีจริงในวันนั้น ๆ ของสัปดาห์นั้น
+/// (คาบก่อน/หลังกลางภาคจึงไม่ถูกนับซ้อนกัน) · null = ทุกช่วงของเทอมซ้อนกัน
+/// [onlyCurrent] (ใช้ตอน week = null) = ซ่อนคาบที่จบไปแล้วก่อน [today]
+List<WeekSlot> buildWeekSlots(Map<Subject, List<Activity>> bySubject,
+    {DateTime? today, bool onlyCurrent = true, DateTime? week}) {
   final day = dayOnly(today ?? DateTime.now());
   final slots = <String, WeekSlot>{};
   for (final MapEntry(key: subject, value: acts) in bySubject.entries) {
     for (final a in acts) {
       if (a.kind != ActivityKind.classSession || a.repeat != RepeatKind.weekly || !a.timed) continue;
-      if (onlyCurrent && a.endDate != null && a.endDate!.isBefore(day)) continue;
+      if (week == null && onlyCurrent && a.endDate != null && a.endDate!.isBefore(day)) continue;
       for (final wd in a.weekdays) {
+        if (week != null) {
+          final date = week.add(Duration(days: wd - 1));
+          if (date.isBefore(dayOnly(a.startDate)) || (a.endDate != null && date.isAfter(dayOnly(a.endDate!)))) {
+            continue;
+          }
+        }
         final i = a.classInfo;
         final key = '${subject.id}|$wd|${a.startMinute}|${a.durationMin}|${i.type}|${i.room}|${i.section}';
         (slots[key] ??= WeekSlot(
@@ -87,6 +101,11 @@ class _WeekTimetablePageState extends State<WeekTimetablePage> with CalendarList
   Map<Subject, List<Activity>> _bySubject = {};
   bool _onlyCurrent = true;
   bool _loaded = false;
+
+  /// สัปดาห์ที่ดู (วันจันทร์) · null = ทุกช่วงของเทอมซ้อนกัน
+  DateTime? _week = mondayOf(DateTime.now());
+  // ตรวจหน่วยกิตต้องนับทีละสัปดาห์เสมอ → โหมดทุกช่วงใช้สัปดาห์นี้แทน
+  DateTime get _creditWeek => _week ?? mondayOf(DateTime.now());
 
   @override
   Future<void> reload() async {
@@ -195,8 +214,11 @@ class _WeekTimetablePageState extends State<WeekTimetablePage> with CalendarList
   @override
   Widget build(BuildContext context) {
     final c = context.noir;
-    final slots = buildWeekSlots(_bySubject, onlyCurrent: _onlyCurrent);
+    final slots = buildWeekSlots(_bySubject, onlyCurrent: _onlyCurrent, week: _week);
     final clashes = findWeekClashes(slots);
+    final creditSlots = _week == null ? buildWeekSlots(_bySubject, week: _creditWeek) : slots;
+    final thisWeek = mondayOf(DateTime.now());
+    String range(DateTime m) => '${thaiShortDate(m)} – ${thaiShortDate(m.add(const Duration(days: 6)))}';
     return Scaffold(
       backgroundColor: c.bg,
       appBar: AppBar(
@@ -215,6 +237,32 @@ class _WeekTimetablePageState extends State<WeekTimetablePage> with CalendarList
               padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
               children: [
                 Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    IconButton(
+                      tooltip: 'สัปดาห์ก่อน',
+                      onPressed: () => setState(() => _week = (_week ?? thisWeek).subtract(const Duration(days: 7))),
+                      icon: const Icon(Icons.chevron_left),
+                    ),
+                    Text(_week == null ? 'ทุกช่วงของเทอม (ซ้อนกัน)' : 'สัปดาห์ ${range(_week!)}',
+                        style: TextStyle(fontWeight: FontWeight.w600, color: c.text)),
+                    IconButton(
+                      tooltip: 'สัปดาห์ถัดไป',
+                      onPressed: () => setState(() => _week = (_week ?? thisWeek).add(const Duration(days: 7))),
+                      icon: const Icon(Icons.chevron_right),
+                    ),
+                    if (_week != thisWeek)
+                      TextButton(onPressed: () => setState(() => _week = thisWeek), child: const Text('สัปดาห์นี้')),
+                    ChoiceChip(
+                      label: const Text('ทุกช่วงของเทอม'),
+                      selected: _week == null,
+                      onSelected: (on) => setState(() => _week = on ? null : thisWeek),
+                    ),
+                  ],
+                ),
+                Wrap(
                   spacing: 12,
                   runSpacing: 8,
                   crossAxisAlignment: WrapCrossAlignment.center,
@@ -224,24 +272,28 @@ class _WeekTimetablePageState extends State<WeekTimetablePage> with CalendarList
                     if (clashes.isNotEmpty)
                       Text('⚠ ชนกัน ${clashes.length} คาบ (ขอบแดง) · ยังใช้ได้ แค่เตือน',
                           style: TextStyle(color: c.bad, fontWeight: FontWeight.w600)),
-                    FilterChip(
-                      label: const Text('แสดงคาบที่จบเทอมแล้ว'),
-                      selected: !_onlyCurrent,
-                      onSelected: (v) => setState(() => _onlyCurrent = !v),
-                    ),
+                    if (_week == null)
+                      FilterChip(
+                        label: const Text('แสดงคาบที่จบเทอมแล้ว'),
+                        selected: !_onlyCurrent,
+                        onSelected: (v) => setState(() => _onlyCurrent = !v),
+                      ),
                   ],
                 ),
                 const SizedBox(height: 12),
                 if (slots.isEmpty)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 32),
-                    child: Text('ยังไม่มีคาบเรียน · กด "เพิ่มคาบ" แล้วเลือกวิชา',
+                    child: Text(
+                        _week != null && _bySubject.values.any((l) => l.any((a) => a.kind == ActivityKind.classSession))
+                            ? 'สัปดาห์นี้ไม่มีคาบเรียน (ปิดเทอม / ช่วงสอบ?) · กด ‹ › ดูสัปดาห์อื่น'
+                            : 'ยังไม่มีคาบเรียน · กด "เพิ่มคาบ" แล้วเลือกวิชา',
                         textAlign: TextAlign.center, style: TextStyle(color: c.muted)),
                   )
                 else
                   WeekGrid(slots: slots, clashes: clashes, onTap: _slotMenu),
                 const SizedBox(height: 20),
-                _CreditTable(bySubject: _bySubject, slots: slots),
+                _CreditTable(slots: creditSlots, weekText: range(_creditWeek)),
               ],
             ),
     );
@@ -382,9 +434,7 @@ class _SlotBlock extends StatelessWidget {
       if (i.section != null) i.section!,
       '${fmtMinute(slot.start)}–${fmtMinute(slot.end)}',
     ].join(' · ');
-    return Tooltip(
-      message: '${slot.subject.name}\n$detail${clash ? '\n⚠ ชนกับคาบอื่น' : ''}',
-      child: Material(
+    return Material(
         color: Color.alphaBlend(color.withValues(alpha: 0.16), c.surface),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
@@ -423,17 +473,46 @@ class _SlotBlock extends StatelessWidget {
             ],
           ),
         ),
-      ),
     );
   }
 }
 
+/// นาทีต่อสัปดาห์ของ [subject] จากช่องบนตาราง 1 สัปดาห์ (ช่อง = 1 วัน จึงบวกตรง ๆ ได้)
+WeeklyClassMinutes weekMinutes(Subject subject, List<WeekSlot> week) {
+  var theory = 0, lab = 0, unknown = 0;
+  for (final s in week.where((s) => s.subject == subject)) {
+    switch (s.info.type) {
+      case ClassType.theory:
+        theory += s.minutes;
+      case ClassType.lab:
+        lab += s.minutes;
+      case null:
+        unknown += s.minutes;
+    }
+  }
+  return WeeklyClassMinutes(theory: theory, lab: lab, unknown: unknown);
+}
+
+/// ตรวจหน่วยกิตจากคาบ 1 สัปดาห์ · หน่วยกิตอ่านไม่ได้ → null
+CreditCheck? weekCreditCheck(Subject subject, List<WeekSlot> week) {
+  final h = parseCreditHours(subject.credits);
+  if (h == null) return null;
+  final w = weekMinutes(subject, week);
+  return CreditCheck(
+    hours: h,
+    theory: HourCheck(w.theory, h.theory * 60),
+    lab: HourCheck(w.lab, h.lab * 60),
+    unknown: w.unknown,
+  );
+}
+
 /// ตรวจตามหลักหน่วยกิต ทุกวิชาที่มีคาบในตาราง
 class _CreditTable extends StatelessWidget {
-  const _CreditTable({required this.bySubject, required this.slots});
+  const _CreditTable({required this.slots, required this.weekText});
 
-  final Map<Subject, List<Activity>> bySubject;
+  /// คาบของ 1 สัปดาห์ (นับซ้อนหลายช่วงเทอมไม่ได้ ชั่วโมงจะเกินจริง)
   final List<WeekSlot> slots;
+  final String weekText;
 
   @override
   Widget build(BuildContext context) {
@@ -462,7 +541,7 @@ class _CreditTable extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('ตรวจตามหลักหน่วยกิต (ชม./สัปดาห์)',
+          Text('ตรวจตามหลักหน่วยกิต (ชม./สัปดาห์) · $weekText',
               style: TextStyle(fontWeight: FontWeight.w600, color: c.text)),
           const SizedBox(height: 8),
           SingleChildScrollView(
@@ -481,10 +560,8 @@ class _CreditTable extends StatelessWidget {
               rows: [
                 for (final s in shown)
                   () {
-                    // ใช้คาบชุดเดียวกับที่โชว์บนตาราง (ไม่นับคาบเทอมที่จบแล้ว)
-                    final acts = {for (final w in slots.where((w) => w.subject == s)) ...w.activities};
-                    final check = checkCredits(s.credits, acts);
-                    final w = weeklyClassMinutes(acts);
+                    final check = weekCreditCheck(s, slots);
+                    final w = weekMinutes(s, slots);
                     return DataRow(cells: [
                       DataCell(Text(s.name)),
                       DataCell(Text(s.credits ?? '—')),

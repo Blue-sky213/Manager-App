@@ -59,6 +59,27 @@ void main() {
     expect(buildWeekSlots(acts, today: today, onlyCurrent: false), hasLength(3));
   });
 
+  test('ดูทีละสัปดาห์: คาบก่อน/หลังกลางภาคไม่ซ้อนกัน · ชั่วโมงหน่วยกิตไม่เกินจริง', () async {
+    final (m1, _, cal) = await setup();
+        // ก่อนกลางภาค: พ 09–13 · หลังกลางภาค: ศ 16–20 (ทฤษฎีทั้งคู่ 4 ชม.)
+    await cal.addActivity(classOf(m1.id,
+        days: {3}, start: 540, minutes: 240, to: DateTime(2026, 12, 18), type: ClassType.theory));
+    await cal.addActivity(classOf(m1.id,
+        days: {5}, start: 960, minutes: 240, from: DateTime(2027, 1, 4), type: ClassType.theory));
+    final acts = {m1: await cal.activitiesForSubject(m1.id)};
+
+    // ซ้อนทุกช่วง = 8 ชม. (ที่เคยขึ้น "เกิน") · ทีละสัปดาห์ = 4 ชม.
+    expect(weekMinutes(m1, buildWeekSlots(acts, today: today)).theory, 480);
+    final nov = buildWeekSlots(acts, week: mondayOf(today));
+    expect(nov.map((s) => s.weekday), [3]);
+    expect(weekMinutes(m1, nov).theory, 240);
+    final jan = buildWeekSlots(acts, week: mondayOf(DateTime(2027, 1, 6)));
+    expect(jan.map((s) => s.weekday), [5]);
+    // ปิดเทอมระหว่างกลาง (ไม่มีคาบ)
+    expect(buildWeekSlots(acts, week: mondayOf(DateTime(2026, 12, 23))), isEmpty);
+    expect(mondayOf(DateTime(2026, 11, 15)), DateTime(2026, 11, 9)); // อาทิตย์ → จันทร์ก่อนหน้า
+  });
+
   test('ชน: วันเดียวกันเวลาซ้อน + ช่วงวันที่ทับ = ชน · ต่อกันพอดี / คนละช่วงเทอม = ไม่ชน', () async {
     final (m1, dc, cal) = await setup();
     await cal.addActivity(classOf(m1.id, days: {2}, start: 540)); // อ 09–11
@@ -105,7 +126,7 @@ void main() {
 
     expect(find.text('2 คาบ · 1 วิชา'), findsOneWidget);
     expect(find.textContaining('ชนกัน 2 คาบ'), findsOneWidget);
-    expect(find.text('ตรวจตามหลักหน่วยกิต (ชม./สัปดาห์)'), findsOneWidget);
+    expect(find.textContaining('ตรวจตามหลักหน่วยกิต (ชม./สัปดาห์)'), findsOneWidget);
     expect(find.text('2/2 ✓'), findsNWidgets(2)); // ทฤษฎี 2 ชม. · ปฏิบัติ 2 ชม.
     expect(tester.takeException(), isNull);
 
