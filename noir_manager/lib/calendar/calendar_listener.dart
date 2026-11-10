@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 
+import '../study/subject_colors.dart';
 import 'calendar_repository.dart';
 
 /// mixin = "ชิ้นส่วนเสริม" ใส่ให้ State ไหนก็ได้
@@ -19,6 +20,8 @@ mixin CalendarListener<T extends StatefulWidget> on State<T> {
     if (repo != calendar) {
       calendar?.removeListener(_onChanged);
       calendar = repo..addListener(_onChanged);
+      // เปลี่ยนสีวิชา → กล่องงานในปฏิทินเปลี่ยนสีตามทันที
+      subjectColors.addListener(_onChanged);
       reload();
     }
   }
@@ -30,6 +33,7 @@ mixin CalendarListener<T extends StatefulWidget> on State<T> {
   @override
   void dispose() {
     calendar?.removeListener(_onChanged);
+    subjectColors.removeListener(_onChanged);
     super.dispose();
   }
 }

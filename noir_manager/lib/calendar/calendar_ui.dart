@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../study/subject_colors.dart';
 import '../theme/noir_colors.dart';
 import '../utils/thai_date.dart';
 import 'calendar_models.dart';
@@ -26,6 +27,14 @@ String importanceText(int importance) => switch (importance) {
       'amber' => (c.amberBg, c.amberText),
       _ => (c.surface2, c.text),
     };
+
+/// สีกล่องงาน: งานที่ผูกวิชา (คาบ / สอบ / ติว) → สีประจำวิชา ชุดเดียวกับตารางเรียนและแผนผัง
+/// งานอื่น → สีหมวด · ตัวหนังสือใช้สีหลักของธีม อ่านออกทั้งมืด/สว่าง
+(Color, Color) occurrenceColors(NoirColors c, Occurrence o, String? colorKey) {
+  final sc = o.subjectId == null ? null : subjectColors.value[o.subjectId];
+  if (sc == null) return categoryColors(c, colorKey);
+  return (Color.alphaBlend(sc.withValues(alpha: 0.28), c.surface), c.text);
+}
 
 String durationText(int min) => min < 60
     ? '$min นาที'

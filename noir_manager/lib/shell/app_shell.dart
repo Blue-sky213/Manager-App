@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../pages/calendar_page.dart';
+import '../pages/study_page.dart';
 import '../theme/noir_colors.dart';
 import 'app_nav.dart';
 import 'destinations.dart';
@@ -29,23 +30,51 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   int _index = 0; // เมนูที่เลือกอยู่ (0 = วันนี้)
 
-  void _select(int i) => setState(() => _index = i);
+  /// เมนูก่อนหน้าที่ถูกพามา (เปิดวิชาจากปฏิทิน ฯลฯ) → ย้อนกลับไปทีละขั้น
+  final List<int> _history = [];
 
-  // หน้าอื่นขอเปิดปฏิทิน (เช่น แตะวันสอบ) → สลับเมนู
-  void _onJump() {
-    final i = appDestinations.indexWhere((d) => d.page is CalendarPage);
-    if (i >= 0) _select(i);
+  void _select(int i) {
+    setState(() => _index = i);
+    currentTab.value = appDestinations[i].label;
+  }
+
+  // ผู้ใช้กดเมนูเอง = เริ่มใหม่ ไม่ต้องจำทางกลับ
+  void _userSelect(int i) {
+    _history.clear();
+    _select(i);
+  }
+
+  void _jumpTo(bool Function(Widget page) isTarget) {
+    final i = appDestinations.indexWhere((d) => isTarget(d.page));
+    if (i < 0 || i == _index) return;
+    _history.add(_index);
+    _select(i);
+  }
+
+  // หน้าอื่นขอเปิดปฏิทิน (เช่น แตะวันสอบ) / เปิดวิชา (คลิกคาบในปฏิทิน) → สลับเมนู
+  void _onJump() => _jumpTo((p) => p is CalendarPage);
+  void _onSubjectJump() => _jumpTo((p) => p is StudyPage);
+
+  bool _onBack() {
+    if (_history.isEmpty) return false;
+    _select(_history.removeLast());
+    return true;
   }
 
   @override
   void initState() {
     super.initState();
+    currentTab.value = appDestinations[_index].label;
     calendarJump.addListener(_onJump);
+    subjectJump.addListener(_onSubjectJump);
+    appBack.add(_onBack);
   }
 
   @override
   void dispose() {
     calendarJump.removeListener(_onJump);
+    subjectJump.removeListener(_onSubjectJump);
+    appBack.remove(_onBack);
     super.dispose();
   }
 
@@ -67,7 +96,7 @@ class _AppShellState extends State<AppShell> {
               children: [
                 _Sidebar(
                   selectedIndex: _index,
-                  onSelect: _select,
+                  onSelect: _userSelect,
                   isDark: widget.isDark,
                   onToggleTheme: widget.onToggleTheme,
                 ),
@@ -93,7 +122,7 @@ class _AppShellState extends State<AppShell> {
           body: body,
           bottomNavigationBar: NavigationBar(
             selectedIndex: _index,
-            onDestinationSelected: _select,
+            onDestinationSelected: _userSelect,
             destinations: [
               for (final d in appDestinations)
                 NavigationDestination(

@@ -167,7 +167,7 @@ class _OccurrenceRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.noir;
-    final (rawBg, fg) = categoryColors(c, category?.colorKey);
+    final (rawBg, fg) = occurrenceColors(c, o, category?.colorKey);
     // รอบติว = พื้นจาง + กรอบ · คาบเรียน/สอบ = พื้นทึบ
     final tutor = o.kind == ActivityKind.tutor;
     final bg = tutor ? rawBg.withValues(alpha: 0.35) : rawBg;

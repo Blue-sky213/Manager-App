@@ -78,7 +78,7 @@ class _Chip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.noir;
-    final (bg, fg) = categoryColors(c, category?.colorKey);
+    final (bg, fg) = occurrenceColors(c, o, category?.colorKey);
     final label = o.timed
         ? '${fmtTime(o.startAt!)}–${fmtTime(o.endAt!)} · ${o.title}'
         : '○ ${o.title}';
@@ -176,7 +176,7 @@ class WeekTimeline extends StatelessWidget {
                 final (s, e) = _span(o);
                 final top = ((s - fromHour * 60) / 60 * _hourPx).clamp(0, height).toDouble();
                 final h = ((e - s) / 60 * _hourPx).clamp(14, height - top).toDouble();
-                final (bg, fg) = categoryColors(c, categories[o.categoryId]?.colorKey);
+                final (bg, fg) = occurrenceColors(c, o, categories[o.categoryId]?.colorKey);
                 return Positioned(
                   top: top,
                   height: h,
@@ -481,7 +481,7 @@ class _Card extends StatelessWidget {
     if (!o.timed) {
       return _Chip(o: o, category: category, onTap: onTap, dense: true);
     }
-    final (bg, fg) = categoryColors(c, category?.colorKey);
+    final (bg, fg) = occurrenceColors(c, o, category?.colorKey);
     return OccurrenceMenuArea(o: o, child: Opacity(
       opacity: o.active ? 1 : 0.45,
       child: Material(

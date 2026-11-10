@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:noir_manager/app.dart';
+import 'package:noir_manager/shell/app_nav.dart';
 import 'package:noir_manager/data/memory_study_repository.dart';
 import 'package:noir_manager/calendar/calendar_models.dart';
 import 'package:noir_manager/calendar/calendar_repository.dart';
@@ -134,7 +135,7 @@ void main() {
     expect(find.text('7.5 ชม.'), findsOneWidget); // นอน 23:30 → ตื่น 07:00
     expect(find.text('ไม่มีงานค้าง'), findsOneWidget);
 
-    await tester.tap(find.text('วิ่ง 5K'));
+    await tester.longPress(find.text('วิ่ง 5K')); // ตัวเลือกอยู่ที่คลิกขวา / กดค้าง
     await tester.pumpAndSettle();
     await tester.tap(find.text('ยกเลิก (ต้องใส่เหตุผล)'));
     await tester.pumpAndSettle();
@@ -174,7 +175,7 @@ void main() {
     await tester.pumpWidget(buildApp(calendar: calendar));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('RE4'));
+    await tester.longPress(find.text('RE4'));
     await tester.pumpAndSettle();
     expect(find.text('แก้เวลาเฉพาะวันนี้'), findsOneWidget);
     await tester.tap(find.text('แก้ไขงาน'));
@@ -434,14 +435,32 @@ void main() {
           .byWidgetPredicate((w) => w is Scrollable && w.axisDirection == AxisDirection.down)
           .first,
     );
-    await tester.tap(exam);
+    // คลิกขวา (กดค้าง) = เมนู
+    await tester.longPress(exam);
     await tester.pumpAndSettle();
     expect(find.text('แก้วัน / เวลาสอบ'), findsOneWidget);
-    await tester.tap(find.text('ไปที่ ${thaiShortDate(examDay)} ในปฏิทิน'));
+    await tester.tapAt(const Offset(5, 5));
+    await tester.pumpAndSettle();
+    // คลิกซ้าย = ไปวันนั้นในปฏิทินเลย
+    await tester.tap(exam);
     await tester.pumpAndSettle();
 
     // สลับมาเมนูปฏิทิน มุมมองวัน ที่วันสอบ
-    expect(find.text('${thaiShortDate(examDay)} ${buddhistYear(examDay)}'), findsWidgets);
+    final dayTitle = find.text('${thaiShortDate(examDay)} ${buddhistYear(examDay)}');
+    expect(dayTitle, findsWidgets);
+
+    // คลิกวันสอบในปฏิทิน (ผูกวิชา) → ไปหน้าวิชา · ย้อนกลับ (เมาส์ปุ่ม 4) → กลับปฏิทิน
+    await tester.tap(find.textContaining('สอบกลางภาค · DaVinci').first);
+    await tester.pumpAndSettle();
+    expect(find.text('กลับหน้าเดิม'), findsOneWidget);
+    appBack.handle();
+    await tester.pumpAndSettle();
+    expect(dayTitle, findsWidgets);
+    expect(find.text('กลับหน้าเดิม'), findsNothing);
+    // ย้อนอีกครั้ง → กลับหน้าวิชาที่มาตอนแรก
+    appBack.handle();
+    await tester.pumpAndSettle();
+    expect(find.text('รายวิชา'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

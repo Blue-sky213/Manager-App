@@ -58,7 +58,7 @@ class _TodayPageState extends State<TodayPage> with CalendarListener<TodayPage> 
       items: _items,
       categories: _categories,
       lifeBase: todayLb,
-      onTap: (o) => openOccurrenceActions(context, repo, o),
+      onTap: (o) => openOccurrence(context, repo, o),
     );
     final side = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

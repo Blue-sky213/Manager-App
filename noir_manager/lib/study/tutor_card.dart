@@ -208,7 +208,8 @@ class _TutorCardState extends State<TutorCard> with CalendarListener<TutorCard> 
               const SizedBox(height: 12),
               Text('จองแล้ว', style: title),
               for (final o in tutors)
-                ListTile(
+                // คลิก = รายละเอียด · คลิกขวา / กดค้าง = ทำแล้ว / เลื่อน / ลบ
+                OccurrenceMenuArea(o: o, child: ListTile(
                   contentPadding: EdgeInsets.zero,
                   dense: true,
                   leading: Icon(
@@ -217,8 +218,8 @@ class _TutorCardState extends State<TutorCard> with CalendarListener<TutorCard> 
                   ),
                   title: Text('${thaiShortDate(o.day)} · ${fmtTime(o.startAt!)}–${fmtTime(o.endAt!)}'),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () => openOccurrenceActions(context, calendar!, o),
-                ),
+                  onTap: () => showOccurrenceDetails(context, o),
+                )),
             ],
           ],
         ),
