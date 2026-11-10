@@ -128,12 +128,14 @@ Future<T?> showContextMenuAt<T>(BuildContext context, Offset at, List<ContextIte
   Widget row(ContextItem<T> i) => Row(children: [
         Icon(i.icon, size: 18, color: i.danger ? danger : null),
         const SizedBox(width: 12),
-        Text(i.label, style: i.danger ? TextStyle(color: danger) : null),
+        Flexible(child: Text(i.label, style: i.danger ? TextStyle(color: danger) : null)),
       ]);
   return showMenu<T>(
     context: context,
     position: RelativeRect.fromRect(local & const Size(1, 1), Offset.zero & overlay.size),
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    // เมนูเริ่มต้นของ Flutter แคบ (≤ 280) → ข้อความไทยยาวล้น
+    constraints: const BoxConstraints(minWidth: 200, maxWidth: 360),
     items: [
       for (final i in items.where((i) => !i.danger)) PopupMenuItem<T>(value: i.value, height: 40, child: row(i)),
       if (items.any((i) => i.danger) && items.any((i) => !i.danger)) const PopupMenuDivider(),
