@@ -9,6 +9,8 @@ import '../data/study_models.dart';
 import '../data/study_repository.dart';
 import '../data/study_scope.dart';
 import '../shell/app_nav.dart';
+import '../study/gpa_page.dart';
+import '../study/grade_card.dart';
 import '../study/advanced_rules.dart';
 import '../study/class_schedule_card.dart';
 import '../study/credit_hours.dart';
@@ -774,7 +776,7 @@ class _StudyPageState extends State<StudyPage> {
   Widget _tabStrip(BuildContext context, Subject subject) {
     final c = context.noir;
     final color = subjectColorOf(subject);
-    const labels = ['ภาพรวม', 'บทเรียน', 'เวลาเรียน', 'ติว'];
+    const labels = ['ภาพรวม', 'บทเรียน', 'เวลาเรียน', 'ติว', 'เกรด'];
     return Container(
       decoration: BoxDecoration(border: Border(bottom: BorderSide(color: c.line))),
       child: Wrap(children: [
@@ -1217,8 +1219,21 @@ class _StudyPageState extends State<StudyPage> {
             icon: const Icon(Icons.calendar_view_week_outlined),
             label: const Text('ตารางเรียนทั้งสัปดาห์'),
           ),
+          OutlinedButton.icon(
+            onPressed: _openGpa,
+            icon: const Icon(Icons.school_outlined),
+            label: const Text('เกรดและหน่วยกิต'),
+          ),
         ],
       );
+
+  /// เกรดและหน่วยกิตทุกเทอม · เปิดที่เทอมปัจจุบันถ้ามี
+  void _openGpa() {
+    final t = _currentTerm;
+    Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => GpaPage(initialTerm: t == null ? null : (t.year, t.term)),
+    ));
+  }
 
   /// ตารางเรียนของทุกวิชา · "เปิดวิชา" จากคาบ → กลับมาหน้ารายวิชาของวิชานั้น
   void _openWeek() {
@@ -1491,6 +1506,7 @@ class _StudyPageState extends State<StudyPage> {
           1 => chaptersTab(),
           2 => [ClassScheduleCard(subject: subject, onEditPlan: () => _editPlan(subject))],
           3 => [TutorCard(subject: subject, chapters: _chapters)],
+          4 => [GradeCard(subject: subject)],
           _ => overviewTab(subject),
         },
       ],

@@ -1,5 +1,6 @@
 import 'package:sqflite/sqflite.dart';
 
+import '../study/grading.dart';
 import '../study/mastery.dart';
 import 'study_models.dart';
 import 'study_repository.dart';
@@ -77,6 +78,121 @@ class SqliteStudyRepository implements StudyRepository {
   Future<void> deleteSubject(int subjectId) async {
     // CASCADE: ลบบท → หัวข้อย่อย → คะแนน ของวิชานี้ตามไปทั้งหมด
     await _db.delete('subject', where: 'id = ?', whereArgs: [subjectId]);
+  }
+
+  @override
+  Future<List<GradePart>> gradeParts(int subjectId) async {
+    final parts = await _db.query('grade_part',
+        where: 'subject_id = ?', whereArgs: [subjectId], orderBy: 'sort, id');
+    if (parts.isEmpty) return const [];
+    final ids = [for (final p in parts) p['id'] as int];
+    final items = await _db.query('grade_item',
+        where: 'part_id IN (${List.filled(ids.length, '?').join(',')})',
+        whereArgs: ids,
+        orderBy: 'sort, id');
+    return [
+      for (final p in parts)
+        GradePart(
+          id: p['id'] as int,
+          name: p['name'] as String,
+          weight: (p['weight'] as num).toDouble(),
+          items: [
+            for (final i in items.where((i) => i['part_id'] == p['id']))
+              GradeItem(
+                id: i['id'] as int,
+                name: i['name'] as String,
+                full: (i['full_score'] as num).toDouble(),
+                got: (i['got_score'] as num?)?.toDouble(),
+              ),
+          ],
+        ),
+    ];
+  }
+
+  @override
+  Future<int> addGradePart(int subjectId, String name, double weight,
+      {int items = 1, double? itemFull}) {
+    return _db.transaction((txn) async {
+      final sort = Sqflite.firstIntValue(await txn.rawQuery(
+              'SELECT COALESCE(MAX(sort), -1) + 1 FROM grade_part WHERE subject_id = ?',
+              [subjectId])) ??
+          0;
+      final id = await txn.insert('grade_part',
+          {'subject_id': subjectId, 'name': name, 'weight': weight, 'sort': sort});
+      final n = items < 1 ? 1 : items;
+      for (var k = 0; k < n; k++) {
+        await txn.insert('grade_item', {
+          'part_id': id,
+          'name': n == 1 ? name : '$name ${k + 1}',
+          'full_score': itemFull ?? weight / n,
+          'sort': k,
+        });
+      }
+      return id;
+    });
+  }
+
+  @override
+  Future<void> updateGradePart(int partId, {String? name, double? weight}) async {
+    final v = <String, Object?>{'name': ?name, 'weight': ?weight};
+    if (v.isEmpty) return;
+    await _db.update('grade_part', v, where: 'id = ?', whereArgs: [partId]);
+  }
+
+  @override
+  Future<void> deleteGradePart(int partId) =>
+      _db.delete('grade_part', where: 'id = ?', whereArgs: [partId]);
+
+  @override
+  Future<int> addGradeItem(int partId, String name, double full) async {
+    final sort = Sqflite.firstIntValue(await _db.rawQuery(
+            'SELECT COALESCE(MAX(sort), -1) + 1 FROM grade_item WHERE part_id = ?', [partId])) ??
+        0;
+    return _db.insert('grade_item',
+        {'part_id': partId, 'name': name, 'full_score': full, 'sort': sort});
+  }
+
+  @override
+  Future<void> updateGradeItem(int itemId,
+      {String? name, double? full, double? got, bool clearGot = false}) async {
+    final v = <String, Object?>{'name': ?name, 'full_score': ?full, 'got_score': ?got};
+    if (clearGot) v['got_score'] = null;
+    if (v.isEmpty) return;
+    await _db.update('grade_item', v, where: 'id = ?', whereArgs: [itemId]);
+  }
+
+  @override
+  Future<void> deleteGradeItem(int itemId) =>
+      _db.delete('grade_item', where: 'id = ?', whereArgs: [itemId]);
+
+  @override
+  Future<GradeSetup> gradeSetup(int subjectId) async {
+    final rows = await _db.query('grade_setup', where: 'subject_id = ?', whereArgs: [subjectId]);
+    if (rows.isEmpty) return const GradeSetup();
+    final r = rows.first;
+    return GradeSetup(
+      scale: parseScale(r['scale'] as String?),
+      flags: GradeFlags(
+        absentOver: (r['absent_over'] as int? ?? 0) == 1,
+        missedExam: (r['missed_exam'] as int? ?? 0) == 1,
+      ),
+      official: r['official'] as String?,
+    );
+  }
+
+  @override
+  Future<void> setGradeSetup(int subjectId, GradeSetup setup) async {
+    await _db.insert(
+      'grade_setup',
+      {
+        'subject_id': subjectId,
+        'scale': encodeScale(setup.scale),
+        'absent_over': setup.flags.absentOver ? 1 : 0,
+        'missed_exam': setup.flags.missedExam ? 1 : 0,
+        'official': setup.official,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   @override

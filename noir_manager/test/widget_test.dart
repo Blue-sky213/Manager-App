@@ -614,4 +614,50 @@ void main() {
     expect(find.text('หน่วยกิต'), findsOneWidget); // ช่องสรุปในภาพรวม
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('แท็บเกรด: ใส่คะแนนชิ้น → เกรดเปลี่ยน · หน้าเกรดและหน่วยกิตคิด GPA', (tester) async {
+    setScreen(tester, const Size(1400, 2000));
+    final study = MemoryStudyRepository.seeded();
+    final sid = (await study.subjects()).first.id;
+    await study.setSubjectPlan(sid, credits: '3(2-2-5)', year: 1, term: 1);
+    await study.addGradePart(sid, 'งาน', 20, items: 4, itemFull: 5);
+    final exam = await study.addGradePart(sid, 'สอบ', 80);
+    final examItem = (await study.gradeParts(sid)).firstWhere((p) => p.id == exam).items.single;
+    await study.updateGradeItem(examItem.id, got: 60);
+    await tester.pumpWidget(NoirManagerApp(studyRepository: study, calendarRepository: MemoryCalendarRepository()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('การเรียน').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('รายวิชา'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('เกรด'));
+    await tester.pumpAndSettle();
+    expect(find.text('ช่วงเกรด'), findsOneWidget);
+    expect(find.text('60 / 80 คะแนน'), findsOneWidget);
+
+    // คลิกชิ้น "งาน 1" → ใส่ 5 → 65/85 = C+ (ยังไม่ครบ)
+    await tester.tap(find.text('งาน 1 · —/5'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, 'ได้'), '5');
+    await tester.tap(find.text('บันทึก'));
+    await tester.pumpAndSettle();
+    expect(find.text('65 / 85 คะแนน'), findsOneWidget);
+    expect(find.text('C+'), findsNWidgets(2)); // ตัวใหญ่ + แถว "ต้องได้อีกเท่าไหร่"
+    expect(find.text('ตอนนี้ (ยังไม่ครบทุกส่วน)'), findsOneWidget);
+
+    // ขาดสอบ → F ทันที
+    await tester.tap(find.text('ขาดสอบ'));
+    await tester.pumpAndSettle();
+    expect(find.text('ขาดสอบ → F'), findsOneWidget);
+    await tester.tap(find.text('ขาดสอบ'));
+    await tester.pumpAndSettle();
+
+    // หน้าเกรดและหน่วยกิต: C+ × 3 หน่วยกิต → GPA 2.50
+    await tester.tap(find.text('เกรดและหน่วยกิต'));
+    await tester.pumpAndSettle();
+    expect(find.text('ปี 1 · ภาค 1'), findsWidgets);
+    expect(find.text('2.50'), findsOneWidget);
+    expect(find.text('7.5'), findsOneWidget); // แต้ม × หน่วยกิต
+    expect(tester.takeException(), isNull);
+  });
 }

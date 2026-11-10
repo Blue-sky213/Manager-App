@@ -5,6 +5,7 @@
 /// เนื้อหาบท/หัวข้อย่อยเป็นการคาดเดาจากชื่อวิชา ไม่ใช่ประมวลรายวิชาจริง
 library;
 
+import '../study/grading.dart';
 import '../calendar/calendar_models.dart';
 import '../calendar/calendar_repository.dart';
 import 'study_models.dart';
@@ -546,8 +547,36 @@ Future<String> enrichDemoTerm(StudyRepository study, CalendarRepository calendar
     extras++;
   }
 
+  // ---- เกรด: งาน 20 (4×5) · สอบย่อย 15 (3×5) · เข้าเรียน 5 · กลางภาค 20 · ปลายภาค 40 ----
+  // ใส่คะแนนชิ้นที่ผ่านไปแล้ว (งาน 3 ชิ้น · ย่อย 2 ครั้ง) · สอบยังไม่ถึง → ยังไม่มีคะแนน
+  var gradeSubjects = 0;
+  for (final (i, s) in subjects.indexed) {
+    if ((await study.gradeParts(s.id)).isNotEmpty) continue; // มีของนัวร์อยู่แล้ว → ไม่แตะ
+    for (final (name, weight, n) in const [
+      ('งาน', 20.0, 4),
+      ('สอบย่อย', 15.0, 3),
+      ('เข้าเรียน', 5.0, 1),
+      ('สอบกลางภาค', 20.0, 1),
+      ('สอบปลายภาค', 40.0, 1),
+    ]) {
+      await study.addGradePart(s.id, name, weight, items: n, itemFull: n == 1 ? weight : 5);
+    }
+    final parts = await study.gradeParts(s.id);
+    for (final (k, item) in parts[0].items.take(3).indexed) {
+      await study.updateGradeItem(item.id, got: (5 - (i + k) % 3).toDouble());
+    }
+    for (final (k, item) in parts[1].items.take(2).indexed) {
+      await study.updateGradeItem(item.id, got: (2 + (i * 2 + k) % 4).toDouble());
+    }
+    await study.updateGradeItem(parts[2].items.single.id, got: i == 3 ? 3 : 5);
+    // วิชาที่ 4 (อังกฤษ): อาจารย์ตัด F ที่ 45
+    if (i == 3) await study.setGradeSetup(s.id, GradeSetup(scale: withFCut(kuGradeScale, 45)));
+    gradeSubjects++;
+  }
+
   return 'คะแนน $scores ครั้ง · ห้อง $rooms คาบ · เรียนแล้ว $done คาบ'
-      '${cancelled ? ' · ยกเลิก 1' : ''} · ของอื่น $extras รายการ';
+      '${cancelled ? ' · ยกเลิก 1' : ''} · ของอื่น $extras รายการ'
+      '${gradeSubjects > 0 ? ' · คะแนนเก็บ $gradeSubjects วิชา' : ''}';
 }
 
 /// ชั่วโมงปฏิบัติจากหน่วยกิต "3(2-2-5)" → 2 · อ่านไม่ได้ → null
