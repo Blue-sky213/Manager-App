@@ -100,7 +100,7 @@ abstract class CalendarRepository extends ChangeNotifier {
   /// อ่านกิจกรรมเต็มทีละตัว (cache ต่อรอบ) เพราะโหมดเลือกวันเองต้องรู้ทุกวันถึงจะนับได้
   @protected
   Future<List<Occurrence>> attachSessions(List<Occurrence> items) async {
-    final cache = <int, Activity>{};
+    final cache = <int, Activity?>{};
     final skipped = <int, Set<DateTime>>{};
     final out = <Occurrence>[];
     for (final o in items) {
@@ -108,7 +108,16 @@ abstract class CalendarRepository extends ChangeNotifier {
         out.add(o);
         continue;
       }
-      final a = cache[o.activityId] ??= await activity(o.activityId);
+      if (!cache.containsKey(o.activityId)) {
+        try {
+          cache[o.activityId] = await activity(o.activityId);
+        } catch (_) {
+          // งานถูกลบระหว่างหน้ากำลังโหลด (เช่น ลบหลายคาบติดกัน) → ข้าม รอบโหลดถัดไปก็ไม่มีแล้ว
+          cache[o.activityId] = null;
+        }
+      }
+      final a = cache[o.activityId];
+      if (a == null) continue;
       final skip = skipped[o.activityId] ??= await shiftedDays(o.activityId);
       out.add(o.withSession(sessionCount(a, o.rootDay!, skipped: skip)));
     }
