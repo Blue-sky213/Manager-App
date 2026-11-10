@@ -4,6 +4,7 @@ import 'package:noir_manager/calendar/calendar_models.dart';
 import 'package:noir_manager/calendar/memory_calendar_repository.dart';
 import 'package:noir_manager/data/demo_term.dart';
 import 'package:noir_manager/data/memory_study_repository.dart';
+import 'package:noir_manager/study/grading.dart';
 import 'package:noir_manager/study/mastery.dart';
 
 void main() {
@@ -51,6 +52,18 @@ void main() {
     expect((await cal.occurrencesOn(DateTime(2026, 11, 10))).map((o) => o.title), contains('วิ่ง 5K'));
     expect((await cal.inbox()).map((o) => o.title), contains('อ่านสไลด์บท 2 ก่อนเรียน'));
     expect((await cal.holidays()).map((h) => h.day), contains(demoHoliday));
+
+    // เกรด: ทุกวิชาตัวอย่างมี 5 ส่วน รวม 100 · มีคะแนนบางชิ้น · ปลายภาคยังไม่มี
+    expect(first, contains('คะแนนเก็บ 6 วิชา'));
+    final demo = (await study.subjects()).where((s) => s.planYear == 1 && s.planTerm == 1).toList();
+    for (final s in demo) {
+      final parts = await study.gradeParts(s.id);
+      if (parts.isEmpty) continue;
+      expect(parts.fold<double>(0, (a, p) => a + p.weight), 100);
+      final r = computeGrade(parts, kuGradeScale);
+      expect(r.complete, isFalse);
+      expect(r.earned, greaterThan(0));
+    }
 
     // ทำซ้ำ: ไม่เพิ่มคะแนน / ของอื่นซ้ำ
     final again = await enrichDemoTerm(study, cal, today: today);

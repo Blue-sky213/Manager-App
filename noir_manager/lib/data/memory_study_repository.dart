@@ -1,3 +1,4 @@
+import '../study/grading.dart';
 import '../study/mastery.dart';
 import 'seed_data.dart';
 import 'study_models.dart';
@@ -28,6 +29,9 @@ class MemoryStudyRepository implements StudyRepository {
   final List<_TopicRow> _topics = [];
   final List<_ScoreRow> _scores = [];
   final Set<SubjectLink> _links = {};
+  final List<({int id, int subjectId, String name, double weight})> _parts = [];
+  final List<({int id, int partId, String name, double full, double? got})> _items = [];
+  final Map<int, GradeSetup> _setups = {};
 
   int _insertSubject(String name, int importance) {
     final id = _nextId++;
@@ -119,7 +123,71 @@ class MemoryStudyRepository implements StudyRepository {
     }
     _subjects.removeWhere((s) => s.id == subjectId);
     _links.removeWhere((l) => l.from == subjectId || l.to == subjectId); // = CASCADE
+    for (final p in _parts.where((p) => p.subjectId == subjectId).toList()) {
+      await deleteGradePart(p.id);
+    }
+    _setups.remove(subjectId);
   }
+
+  @override
+  Future<List<GradePart>> gradeParts(int subjectId) async => [
+        for (final p in _parts.where((p) => p.subjectId == subjectId))
+          GradePart(id: p.id, name: p.name, weight: p.weight, items: [
+            for (final i in _items.where((i) => i.partId == p.id))
+              GradeItem(id: i.id, name: i.name, full: i.full, got: i.got),
+          ]),
+      ];
+
+  @override
+  Future<int> addGradePart(int subjectId, String name, double weight,
+      {int items = 1, double? itemFull}) async {
+    final id = _nextId++;
+    _parts.add((id: id, subjectId: subjectId, name: name, weight: weight));
+    final n = items < 1 ? 1 : items;
+    for (var k = 0; k < n; k++) {
+      _items.add((id: _nextId++, partId: id, name: n == 1 ? name : '$name ${k + 1}', full: itemFull ?? weight / n, got: null));
+    }
+    return id;
+  }
+
+  @override
+  Future<void> updateGradePart(int partId, {String? name, double? weight}) async {
+    final i = _parts.indexWhere((p) => p.id == partId);
+    if (i < 0) return;
+    final p = _parts[i];
+    _parts[i] = (id: p.id, subjectId: p.subjectId, name: name ?? p.name, weight: weight ?? p.weight);
+  }
+
+  @override
+  Future<void> deleteGradePart(int partId) async {
+    _parts.removeWhere((p) => p.id == partId);
+    _items.removeWhere((i) => i.partId == partId); // = CASCADE
+  }
+
+  @override
+  Future<int> addGradeItem(int partId, String name, double full) async {
+    final id = _nextId++;
+    _items.add((id: id, partId: partId, name: name, full: full, got: null));
+    return id;
+  }
+
+  @override
+  Future<void> updateGradeItem(int itemId,
+      {String? name, double? full, double? got, bool clearGot = false}) async {
+    final k = _items.indexWhere((i) => i.id == itemId);
+    if (k < 0) return;
+    final i = _items[k];
+    _items[k] = (id: i.id, partId: i.partId, name: name ?? i.name, full: full ?? i.full, got: clearGot ? null : (got ?? i.got));
+  }
+
+  @override
+  Future<void> deleteGradeItem(int itemId) async => _items.removeWhere((i) => i.id == itemId);
+
+  @override
+  Future<GradeSetup> gradeSetup(int subjectId) async => _setups[subjectId] ?? const GradeSetup();
+
+  @override
+  Future<void> setGradeSetup(int subjectId, GradeSetup setup) async => _setups[subjectId] = setup;
 
   @override
   Future<List<SubjectLink>> subjectLinks() async => _links.toList()

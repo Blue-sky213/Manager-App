@@ -1,4 +1,5 @@
 import '../study/mastery.dart';
+import '../study/grading.dart';
 import 'study_models.dart';
 
 /// "สัญญา" ว่าที่เก็บข้อมูลวิชาต้องทำอะไรได้บ้าง
@@ -14,6 +15,23 @@ abstract class StudyRepository {
   /// เลือกจำนวนรอบติวเอง (ถูกบีบให้อยู่ในช่วงของความสำคัญ)
   Future<void> setSessionsPerWeek(int subjectId, int sessions);
   Future<void> deleteSubject(int subjectId);
+
+  /// ระบบเกรด: ส่วนคะแนน (พร้อมชิ้นคะแนน) เรียงตาม sort
+  Future<List<GradePart>> gradeParts(int subjectId);
+
+  /// เพิ่มส่วนคะแนน เช่น "งาน" เก็บ 20 · สร้างชิ้นคะแนน [items] ชิ้น ชิ้นละเต็ม [itemFull]
+  Future<int> addGradePart(int subjectId, String name, double weight,
+      {int items = 1, double? itemFull});
+  Future<void> updateGradePart(int partId, {String? name, double? weight});
+  Future<void> deleteGradePart(int partId);
+  Future<int> addGradeItem(int partId, String name, double full);
+
+  /// [clearGot] = ลบคะแนนที่ได้ (กลับเป็น "ยังไม่ได้คะแนน")
+  Future<void> updateGradeItem(int itemId,
+      {String? name, double? full, double? got, bool clearGot = false});
+  Future<void> deleteGradeItem(int itemId);
+  Future<GradeSetup> gradeSetup(int subjectId);
+  Future<void> setGradeSetup(int subjectId, GradeSetup setup);
 
   /// เส้นความสัมพันธ์ทั้งหมด (from ต้องเรียนก่อน to)
   Future<List<SubjectLink>> subjectLinks();

@@ -10,7 +10,7 @@ import 'seed_data.dart';
 import 'study_repository.dart';
 
 /// เวอร์ชันโครงตาราง: ถ้าวันหลังเพิ่มตาราง/คอลัมน์ ให้เพิ่มเลขนี้ + เขียน onUpgrade
-const int _schemaVersion = 12; // v2 setting · v3 cleared_at · v4 ปฏิทิน · v5 Preset · v6 วิชาง่าย 2 รอบ · v7 คาบผูกวิชา + เวลาจริง · v8 แผนการเรียน · v9 เรียน/ติว + ประเภท/สถานะบท · v10 เทอม/วันหยุด/บันทึกติว + ย้ายค่าวิชาออกจาก setting · v11 ประเภทคาบ/ห้อง/กลุ่ม · v12 เส้นความสัมพันธ์วิชา
+const int _schemaVersion = 13; // v2 setting · v3 cleared_at · v4 ปฏิทิน · v5 Preset · v6 วิชาง่าย 2 รอบ · v7 คาบผูกวิชา + เวลาจริง · v8 แผนการเรียน · v9 เรียน/ติว + ประเภท/สถานะบท · v10 เทอม/วันหยุด/บันทึกติว + ย้ายค่าวิชาออกจาก setting · v11 ประเภทคาบ/ห้อง/กลุ่ม · v12 เส้นความสัมพันธ์วิชา · v13 คะแนนเก็บ/เกรด
 
 /// เปิด (หรือสร้างครั้งแรก) ไฟล์ฐานข้อมูล noir_manager.db
 Future<Database> openAppDatabase() async {
@@ -43,6 +43,7 @@ Future<Database> openAppDatabase() async {
       await createTermV10(db);
       await createClassInfoV11(db);
       await createSubjectLinkV12(db);
+      await createGradeV13(db);
       await seedStudyData(db);
     },
     // เครื่องที่มีไฟล์ v1 อยู่แล้ว (เครื่องนัวร์): เพิ่มเฉพาะส่วนที่ขาด ข้อมูลเดิมไม่หาย
@@ -64,6 +65,7 @@ Future<Database> openAppDatabase() async {
       if (oldVersion < 10) await createTermV10(db);
       if (oldVersion < 11) await createClassInfoV11(db);
       if (oldVersion < 12) await createSubjectLinkV12(db);
+      if (oldVersion < 13) await createGradeV13(db);
     },
   );
 }
@@ -217,6 +219,40 @@ Future<void> createSubjectLinkV12(DatabaseExecutor db) async {
     )''');
   await db.execute(
       'CREATE INDEX IF NOT EXISTS idx_subject_link_to ON subject_link(to_id)');
+}
+
+/// v13: ระบบเกรด — ส่วนคะแนน (งาน/สอบย่อย/สอบ) → ชิ้นคะแนน · ตั้งค่าเกรดต่อวิชา
+/// ตารางใหม่อย่างเดียว ไม่แตะข้อมูลเดิม · ลบวิชา → คะแนนของวิชานั้นหายตาม (CASCADE)
+Future<void> createGradeV13(DatabaseExecutor db) async {
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS grade_part (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      subject_id INTEGER NOT NULL REFERENCES subject(id) ON DELETE CASCADE,
+      name       TEXT NOT NULL,
+      weight     REAL NOT NULL,
+      sort       INTEGER NOT NULL DEFAULT 0
+    )''');
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS grade_item (
+      id      INTEGER PRIMARY KEY AUTOINCREMENT,
+      part_id INTEGER NOT NULL REFERENCES grade_part(id) ON DELETE CASCADE,
+      name    TEXT NOT NULL,
+      full_score REAL NOT NULL,
+      got_score  REAL,
+      sort    INTEGER NOT NULL DEFAULT 0
+    )''');
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS grade_setup (
+      subject_id  INTEGER PRIMARY KEY REFERENCES subject(id) ON DELETE CASCADE,
+      scale       TEXT,
+      absent_over INTEGER NOT NULL DEFAULT 0,
+      missed_exam INTEGER NOT NULL DEFAULT 0,
+      official    TEXT
+    )''');
+  await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_grade_part_subject ON grade_part(subject_id)');
+  await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_grade_item_part ON grade_item(part_id)');
 }
 
 /// ตารางตั้งค่าแบบ key → value เช่น grading_mode → ez / advanced

@@ -1,6 +1,9 @@
 erDiagram
   SUBJECT ||--o{ CHAPTER : "มีบท"
   SUBJECT ||--o{ SUBJECT_LINK : "เรียนก่อน → ต่อยอด"
+  SUBJECT ||--o{ GRADE_PART : "ส่วนคะแนน"
+  GRADE_PART ||--o{ GRADE_ITEM : "ชิ้นคะแนน"
+  SUBJECT ||--o| GRADE_SETUP : "ช่วงเกรด/เงื่อนไข"
   CHAPTER ||--o{ SUBTOPIC : "มีหัวข้อ"
   SUBTOPIC ||--o{ ASSESSMENT : "มีคะแนน"
   SUBJECT |o--o{ ACTIVITY : "คาบ/ติว/สอบ"
@@ -21,6 +24,26 @@ erDiagram
     text credits
     int plan_year
     int plan_term
+  }
+  GRADE_PART {
+    int id PK
+    int subject_id FK
+    text name
+    real weight "คะแนนเก็บ"
+  }
+  GRADE_ITEM {
+    int id PK
+    int part_id FK
+    text name
+    real full_score
+    real got_score "null = ยังไม่ได้"
+  }
+  GRADE_SETUP {
+    int subject_id PK
+    text scale "A:80,B+:75,..."
+    int absent_over
+    int missed_exam
+    text official
   }
   SUBJECT_LINK {
     int from_id PK,FK "v12"

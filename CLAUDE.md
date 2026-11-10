@@ -12,7 +12,7 @@
 | เรื่อง | ค่า |
 |---|---|
 | Framework | Flutter (Dart SDK `^3.13.7`) · Material 3 |
-| ฐานข้อมูล | SQLite — `sqflite` (Android/iOS), `sqflite_common_ffi` (Windows) · schema **v12** |
+| ฐานข้อมูล | SQLite — `sqflite` (Android/iOS), `sqflite_common_ffi` (Windows) · schema **v13** |
 | Migration | `onUpgrade` + `addColumnIfMissing` — ห้ามแก้ migration เก่า เพิ่มเวอร์ชันใหม่เท่านั้น |
 | แพลตฟอร์ม | Windows (หลัก) · Android · iPhone/iPad (ติดตั้งเทสเอง ไม่ขึ้น App Store) |
 | ฟอนต์ | IBM Plex Sans Thai (`assets/fonts/`) |
