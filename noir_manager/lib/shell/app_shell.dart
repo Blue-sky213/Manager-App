@@ -41,6 +41,7 @@ class _AppShellState extends State<AppShell> {
   // ผู้ใช้กดเมนูเอง = เริ่มใหม่ ไม่ต้องจำทางกลับ
   void _userSelect(int i) {
     _history.clear();
+    appForward.clear();
     _select(i);
   }
 
@@ -48,6 +49,7 @@ class _AppShellState extends State<AppShell> {
     final i = appDestinations.indexWhere((d) => isTarget(d.page));
     if (i < 0 || i == _index) return;
     _history.add(_index);
+    appForward.clear(); // ไปที่ใหม่ = ทางข้างหน้าเดิมใช้ไม่ได้แล้ว
     _select(i);
   }
 
@@ -57,7 +59,14 @@ class _AppShellState extends State<AppShell> {
 
   bool _onBack() {
     if (_history.isEmpty) return false;
+    final from = _index;
     _select(_history.removeLast());
+    // ปุ่ม 5 → กลับไปหน้าที่เพิ่งย้อนออกมา
+    appForward.push(() {
+      if (!mounted || from == _index) return;
+      _history.add(_index);
+      _select(from);
+    });
     return true;
   }
 
@@ -68,6 +77,7 @@ class _AppShellState extends State<AppShell> {
     calendarJump.addListener(_onJump);
     subjectJump.addListener(_onSubjectJump);
     appBack.add(_onBack);
+    appForward.clear(); // เปิดแอปใหม่ = ไม่มีทางข้างหน้าค้าง
   }
 
   @override

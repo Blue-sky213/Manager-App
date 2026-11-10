@@ -181,6 +181,10 @@ class _ClassLogDialogState extends State<_ClassLogDialog> {
   late DateTime? _due = widget.existing?.dueAt;
   int? _gradePart;
 
+  /// กดบันทึกแล้วยังขาดช่องที่ต้องกรอก → ขึ้นแดงที่ช่องนั้น
+  bool _showErrors = false;
+  String? _err(TextEditingController t, String msg) => _showErrors && t.text.trim().isEmpty ? msg : null;
+
   @override
   void dispose() {
     _newName.dispose();
@@ -310,7 +314,14 @@ class _ClassLogDialogState extends State<_ClassLogDialog> {
               TextField(
                 controller: _newName,
                 autofocus: true,
-                decoration: const InputDecoration(labelText: 'ชื่อบทใหม่', hintText: 'เช่น บท 3 ฟังก์ชัน'),
+                onChanged: (_) {
+                  if (_showErrors) setState(() {});
+                },
+                decoration: InputDecoration(
+                  labelText: 'ชื่อบทใหม่ *',
+                  hintText: 'เช่น บท 3 ฟังก์ชัน',
+                  errorText: _err(_newName, 'ใส่ชื่อบท'),
+                ),
               ),
 
             // ---- หัวข้อ ----
@@ -370,7 +381,14 @@ class _ClassLogDialogState extends State<_ClassLogDialog> {
             if (_hw) ...[
               TextField(
                 controller: _hwName,
-                decoration: const InputDecoration(labelText: 'งานอะไร', hintText: 'เช่น การบ้านบท 2 ข้อ 1–10'),
+                onChanged: (_) {
+                  if (_showErrors) setState(() {});
+                },
+                decoration: InputDecoration(
+                  labelText: 'งานอะไร *',
+                  hintText: 'เช่น การบ้านบท 2 ข้อ 1–10',
+                  errorText: _err(_hwName, 'ใส่ชื่องาน หรือกดดาวออกถ้าไม่มีงาน'),
+                ),
               ),
               label('กำหนดส่ง'),
               Wrap(spacing: 6, runSpacing: 6, children: [
@@ -432,8 +450,10 @@ class _ClassLogDialogState extends State<_ClassLogDialog> {
         FilledButton(
           onPressed: () {
             final isNew = _chapter == _newId;
-            if (isNew && _newName.text.trim().isEmpty) return;
-            if (_hw && _hwName.text.trim().isEmpty) return;
+            if ((isNew && _newName.text.trim().isEmpty) || (_hw && _hwName.text.trim().isEmpty)) {
+              setState(() => _showErrors = true);
+              return;
+            }
             Navigator.pop(
               context,
               ClassLogInput(

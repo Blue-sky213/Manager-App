@@ -63,9 +63,14 @@ class _NoirManagerAppState extends State<NoirManagerApp> {
         child: MaterialApp(
           title: 'Noir Manager',
           navigatorKey: _nav,
-          // ปุ่มเมาส์ 4 = ย้อนกลับ: ปิดหน้าที่เปิดซ้อน / เมนู / กล่อง (หน้าแรกสุดไม่มีที่ให้ย้อน → ไม่ทำอะไร)
+          // ปุ่มเมาส์ 4 = ย้อนกลับ · ปุ่ม 5 = ไปหน้าที่เพิ่งย้อนมา: ปิดหน้าที่เปิดซ้อน / เมนู / กล่อง (หน้าแรกสุดไม่มีที่ให้ย้อน → ไม่ทำอะไร)
           builder: (context, child) =>
-              MouseBack(onBack: _back, child: child!),
+              MouseBack(
+                onBack: _back,
+                onForward: () => appForward.handle(),
+                onPointer: (p) => lastPointerDown = p,
+                child: child!,
+              ),
           debugShowCheckedModeBanner: false,
           // ภาษาไทย: ปฏิทินเลือกวัน, นาฬิกาเลือกเวลา, ปุ่ม OK/Cancel ของระบบ
           locale: const Locale('th', 'TH'),

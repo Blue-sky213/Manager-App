@@ -473,6 +473,7 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
                     isToday: d == today,
                     dimmed: d.month != _selected.month,
                     dots: _dots(d),
+                    marks: {for (final o in _byDay[d] ?? const <Occurrence>[]) ?markOf(o)},
                     onTap: () => _go(day: d),
                   ),
                 ),
@@ -576,6 +577,7 @@ class _MiniDay extends StatelessWidget {
     required this.isToday,
     required this.dimmed,
     required this.dots,
+    this.marks = const {},
     required this.onTap,
   });
 
@@ -584,6 +586,9 @@ class _MiniDay extends StatelessWidget {
   final bool isToday;
   final bool dimmed;
   final List<Color> dots;
+
+  /// วันสอบ / วันส่งงาน → สัญลักษณ์แทนจุด เห็นได้ทันทีในตารางเดือน
+  final Set<DayMark> marks;
   final VoidCallback onTap;
 
   @override
@@ -616,6 +621,17 @@ class _MiniDay extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 2),
+            if (marks.isNotEmpty)
+              SizedBox(
+                height: 12,
+                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  if (marks.contains(DayMark.exam))
+                    Icon(Icons.edit_note, size: 12, color: c.bad, semanticLabel: 'วันสอบ'),
+                  if (marks.contains(DayMark.homework))
+                    Icon(Icons.star, size: 11, color: c.warn, semanticLabel: 'วันส่งงาน'),
+                ]),
+              )
+            else
             SizedBox(
               height: 4,
               child: Row(

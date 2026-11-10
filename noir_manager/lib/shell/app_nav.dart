@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 
 /// คำขอ "เปิดปฏิทินที่วันนี้" จากหน้าอื่น (เช่น แตะวันสอบในหน้าวิชา)
 ///
@@ -44,6 +44,27 @@ class AppBack {
 }
 
 final appBack = AppBack();
+
+/// ไปข้างหน้า (เมาส์ปุ่ม 5): ย้อนกลับครั้งไหน ทำซ้ำกลับไปหน้านั้นได้
+/// ตัวที่ย้อนกลับฝากวิธี "กลับไปที่เดิม" ไว้ · ผู้ใช้ไปหน้าใหม่เอง → ล้างทิ้ง (เหมือนเว็บเบราว์เซอร์)
+class AppForward {
+  final _stack = <VoidCallback>[];
+
+  bool get canForward => _stack.isNotEmpty;
+  void push(VoidCallback redo) => _stack.add(redo);
+  void clear() => _stack.clear();
+
+  bool handle() {
+    if (_stack.isEmpty) return false;
+    _stack.removeLast()();
+    return true;
+  }
+}
+
+final appForward = AppForward();
+
+/// ตำแหน่งเมาส์ล่าสุดที่กด (ทั้งแอป) · คลิกซ้ายที่งานใช้เปิดเมนูตรงตำแหน่งนั้น
+Offset lastPointerDown = Offset.zero;
 
 /// ชื่อเมนูที่เปิดอยู่ · หน้าที่ซ่อนอยู่ใน IndexedStack ใช้เช็กว่าตัวเองกำลังโชว์ไหม
 final currentTab = ValueNotifier<String>('วันนี้');

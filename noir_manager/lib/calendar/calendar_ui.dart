@@ -28,6 +28,23 @@ String importanceText(int importance) => switch (importance) {
       _ => (c.surface2, c.text),
     };
 
+/// สัญลักษณ์ของวันสำคัญ: วันสอบ · กำหนดส่งงาน/การบ้าน (งาน "ส่ง: …" จากบันทึกคาบ)
+enum DayMark { exam, homework }
+
+DayMark? markOf(Occurrence o) {
+  if (!o.active) return null;
+  if (o.kind == ActivityKind.exam) return DayMark.exam;
+  if (o.title.startsWith('ส่ง:')) return DayMark.homework;
+  return null;
+}
+
+/// ชื่องานพร้อมสัญลักษณ์นำหน้า (📝 สอบ · ⭐ ส่งงาน) ให้เห็นแต่ไกล
+String markedTitle(Occurrence o) => switch (markOf(o)) {
+      DayMark.exam => '📝 ${o.title}',
+      DayMark.homework => '⭐ ${o.title}',
+      null => o.title,
+    };
+
 /// สีกล่องงาน: งานที่ผูกวิชา (คาบ / สอบ / ติว) → สีประจำวิชา ชุดเดียวกับตารางเรียนและแผนผัง
 /// งานอื่น → สีหมวด · ตัวหนังสือใช้สีหลักของธีม อ่านออกทั้งมืด/สว่าง
 (Color, Color) occurrenceColors(NoirColors c, Occurrence o, String? colorKey) {

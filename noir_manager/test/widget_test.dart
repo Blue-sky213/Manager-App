@@ -144,9 +144,9 @@ void main() {
     expect(find.text('7.5 ชม.'), findsOneWidget); // นอน 23:30 → ตื่น 07:00
     expect(find.text('ไม่มีงานค้าง'), findsOneWidget);
 
-    await tester.longPress(find.text('วิ่ง 5K')); // ตัวเลือกอยู่ที่คลิกขวา / กดค้าง
+    await tester.tap(find.text('วิ่ง 5K')); // คลิกซ้าย = กรอกผล (ยกเลิกอยู่ตรงนี้)
     await tester.pumpAndSettle();
-    await tester.tap(find.text('ยกเลิก (ต้องใส่เหตุผล)'));
+    await tester.tap(find.text('ยกเลิก · วันหยุด / ติดธุระ (ใส่เหตุผล)'));
     await tester.pumpAndSettle();
 
     // ยังไม่ใส่เหตุผล → ปุ่มยืนยันกดไม่ได้
@@ -479,8 +479,17 @@ void main() {
     final dayTitle = find.text('${thaiShortDate(examDay)} ${buddhistYear(examDay)}');
     expect(dayTitle, findsWidgets);
 
-    // คลิกวันสอบในปฏิทิน (ผูกวิชา) → ไปหน้าวิชา · ย้อนกลับ (เมาส์ปุ่ม 4) → กลับปฏิทิน
+    // คลิกซ้ายวันสอบในปฏิทิน = กรอกผล (ทำแล้ว / เลื่อน) ไม่ใช่ไปหน้าวิชา
     await tester.tap(find.textContaining('สอบกลางภาค · DaVinci').first);
+    await tester.pumpAndSettle();
+    expect(find.text('ทำแล้ว'), findsOneWidget);
+    expect(find.text('เกี่ยวกับวิชา (เปิดหน้าวิชา)'), findsNothing);
+    await tester.tapAt(const Offset(5, 5));
+    await tester.pumpAndSettle();
+    // คลิกขวา → เกี่ยวกับวิชา → ไปหน้าวิชา · ย้อนกลับ (เมาส์ปุ่ม 4) → กลับปฏิทิน
+    await tester.longPress(find.textContaining('สอบกลางภาค · DaVinci').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('เกี่ยวกับวิชา (เปิดหน้าวิชา)'));
     await tester.pumpAndSettle();
     expect(find.text('กลับหน้าเดิม'), findsOneWidget);
     appBack.handle();
@@ -491,6 +500,14 @@ void main() {
     appBack.handle();
     await tester.pumpAndSettle();
     expect(find.text('รายวิชา'), findsOneWidget);
+    // เมาส์ปุ่ม 5 → ไปข้างหน้ากลับปฏิทินที่เพิ่งย้อนออกมา
+    expect(appForward.handle(), isTrue);
+    await tester.pumpAndSettle();
+    expect(dayTitle, findsWidgets);
+    // ผู้ใช้กดเมนูเอง → ทางข้างหน้าเดิมหายไป
+    await tester.tap(find.text('วันนี้').first);
+    await tester.pumpAndSettle();
+    expect(appForward.handle(), isFalse);
     expect(tester.takeException(), isNull);
   });
 
@@ -539,7 +556,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('หน้าวันนี้: คลิกซ้าย = แผ่นรายละเอียด · กดค้าง (คลิกขวา) = เมนูตรงตำแหน่ง', (tester) async {
+  testWidgets('หน้าวันนี้: คลิกซ้าย = กรอกผล · คลิกขวา (กดค้าง) = แก้ไข / ตรวจสอบ', (tester) async {
     setScreen(tester, const Size(1280, 1400));
     final calendar = MemoryCalendarRepository();
     await calendar.addActivity(NewActivity(
@@ -554,18 +571,23 @@ void main() {
     await tester.pumpWidget(buildApp(calendar: calendar));
     await tester.pumpAndSettle();
 
-    // กดค้าง → เมนู (ไม่มีแผ่นล่างที่มีชื่องานเป็นหัว)
-    await tester.longPress(find.text('อ่านหนังสือ'));
+    // คลิกซ้าย → เมนูกรอกผลตรงเมาส์ (ไม่มีแก้ไข / ลบ)
+    await tester.tap(find.text('อ่านหนังสือ'));
     await tester.pumpAndSettle();
     expect(find.text('ทำแล้ว'), findsOneWidget);
-    expect(find.text('ลบงานนี้'), findsOneWidget);
-    expect(find.byType(BottomSheet), findsNothing);
+    expect(find.text('เลื่อน'), findsOneWidget);
+    expect(find.text('ลบงานนี้'), findsNothing);
     await tester.tap(find.text('ทำแล้ว'));
     await tester.pumpAndSettle();
     expect(find.textContaining('ทำแล้ว 1/1'), findsOneWidget);
 
-    // คลิกซ้าย → แผ่นรายละเอียด
-    await tester.tap(find.text('อ่านหนังสือ'));
+    // คลิกขวา → แก้ไข / ตรวจสอบ (ไม่มีทำแล้ว)
+    await tester.longPress(find.text('อ่านหนังสือ'));
+    await tester.pumpAndSettle();
+    expect(find.text('ลบงานนี้'), findsOneWidget);
+    expect(find.text('ยังไม่ได้ทำ'), findsNothing);
+    expect(find.byType(BottomSheet), findsNothing);
+    await tester.tap(find.text('ดูรายละเอียด'));
     await tester.pumpAndSettle();
     expect(find.byType(BottomSheet), findsOneWidget);
     expect(tester.takeException(), isNull);

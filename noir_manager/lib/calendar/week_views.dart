@@ -80,8 +80,8 @@ class _Chip extends StatelessWidget {
     final c = context.noir;
     final (bg, fg) = occurrenceColors(c, o, category?.colorKey);
     final label = o.timed
-        ? '${fmtTime(o.startAt!)}–${fmtTime(o.endAt!)} · ${o.title}'
-        : '○ ${o.title}';
+        ? '${fmtTime(o.startAt!)}–${fmtTime(o.endAt!)} · ${markedTitle(o)}'
+        : '○ ${markedTitle(o)}';
     return OccurrenceMenuArea(o: o, child: Opacity(
       opacity: o.active ? 1 : 0.45,
       child: Material(
@@ -204,7 +204,7 @@ class WeekTimeline extends StatelessWidget {
                           child: Text.rich(
                             TextSpan(children: [
                               TextSpan(
-                                text: o.title,
+                                text: markedTitle(o),
                                 style: TextStyle(
                                   fontWeight: FontWeight.w600,
                                   decoration: o.active ? null : TextDecoration.lineThrough,
@@ -495,7 +495,7 @@ class _Card extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(o.title,
+                Text(markedTitle(o),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
