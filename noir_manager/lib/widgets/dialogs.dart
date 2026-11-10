@@ -92,24 +92,28 @@ Future<bool> confirmDelete(BuildContext context, String what) async {
   return ok ?? false;
 }
 
-/// ปุ่มย้อนกลับของเมาส์ (ปุ่มข้าง "Back" = ปุ่ม 4) · ค่าเดียวกับ kBackMouseButton
+/// ปุ่มข้างของเมาส์: ปุ่ม 4 = ย้อนกลับ · ปุ่ม 5 = ไปข้างหน้า (ค่าเดียวกับ kBack/kForwardMouseButton)
 const int _mouseBackButton = 0x08;
+const int _mouseForwardButton = 0x10;
 
-/// ฟังปุ่มเมาส์ 4 แล้วเรียก [onBack] · null = ไม่ทำอะไร (ปล่อยให้ตัวนอกจัดการ)
+/// ฟังปุ่มเมาส์ 4 / 5 · null = ไม่ทำอะไร (ปล่อยให้ตัวนอกจัดการ)
+/// [onPointer] = ทุกครั้งที่กดเมาส์ (เก็บตำแหน่งไว้เปิดเมนูตรงเมาส์)
 class MouseBack extends StatelessWidget {
-  const MouseBack({super.key, required this.onBack, required this.child});
+  const MouseBack({super.key, required this.onBack, this.onForward, this.onPointer, required this.child});
 
   final VoidCallback? onBack;
+  final VoidCallback? onForward;
+  final ValueChanged<Offset>? onPointer;
   final Widget child;
 
   @override
   Widget build(BuildContext context) => Listener(
         behavior: HitTestBehavior.translucent,
-        onPointerDown: onBack == null
-            ? null
-            : (e) {
-                if (e.buttons & _mouseBackButton != 0) onBack!();
-              },
+        onPointerDown: (e) {
+          onPointer?.call(e.position);
+          if (e.buttons & _mouseBackButton != 0) onBack?.call();
+          if (e.buttons & _mouseForwardButton != 0) onForward?.call();
+        },
         child: child,
       );
 }

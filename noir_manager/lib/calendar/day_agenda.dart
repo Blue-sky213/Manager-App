@@ -231,7 +231,7 @@ class _OccurrenceRow extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                o.title,
+                                markedTitle(o),
                                 style: TextStyle(
                                   fontSize: 15,
                                   fontWeight: o.importance == 3 ? FontWeight.w600 : FontWeight.w400,

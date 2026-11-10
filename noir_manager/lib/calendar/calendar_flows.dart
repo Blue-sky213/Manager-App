@@ -218,34 +218,43 @@ Future<void> rescheduleFlow(
   }
 }
 
-/// ตัวเลือกของงาน 1 ครั้ง (ใช้ร่วมกันทั้งแผ่นล่างและเมนูคลิกขวา ให้ตัวเลือกตรงกันเสมอ)
-List<ContextItem<String>> occurrenceItems(Occurrence o) => [
-      if (o.status == OccurrenceStatus.planned) ...[
-        ctxItem('done', Icons.check_circle_outline, 'ทำแล้ว'),
-        if (o.timed) ctxItem('time', Icons.schedule, 'แก้เวลาเฉพาะวันนี้'),
-        ctxItem('move', Icons.redo, 'เลื่อน'),
-        if (o.repeats) ctxItem('shift', Icons.fast_forward, 'เลื่อนไปรอบถัดไป (เนื้อหาไหลไปครั้งหน้า)'),
-        ctxItem('cancel', Icons.block, 'ยกเลิก (ต้องใส่เหตุผล)'),
-      ],
+/// คลิกซ้าย = "กรอกผล" ของงานครั้งนี้: ทำแล้ว · บันทึกเรียนถึงไหน · เลื่อน · ยกเลิก (วันหยุด/ติดธุระ)
+List<ContextItem<String>> resultItems(Occurrence o) => [
+      if (o.status == OccurrenceStatus.planned) ctxItem('done', Icons.check_circle_outline, 'ทำแล้ว'),
       if (o.kind == ActivityKind.classSession && o.subjectId != null && o.status != OccurrenceStatus.cancelled)
         ctxItem('classlog', Icons.menu_book_outlined, 'บันทึกเรียนถึงไหน'),
       if (o.status == OccurrenceStatus.done && o.subjectId != null && o.timed)
         ctxItem('actual', Icons.timer_outlined, o.actualEnd == null ? 'บันทึกเวลาเลิกจริง' : 'แก้เวลาเลิกจริง'),
+      if (o.status == OccurrenceStatus.planned) ...[
+        ctxItem('move', Icons.redo, 'เลื่อน'),
+        if (o.repeats) ctxItem('shift', Icons.fast_forward, 'เลื่อนไปรอบถัดไป (เนื้อหาไหลไปครั้งหน้า)'),
+        ctxItem('cancel', Icons.block, 'ยกเลิก · วันหยุด / ติดธุระ (ใส่เหตุผล)'),
+      ],
       if (o.status == OccurrenceStatus.done) ctxItem('undo', Icons.undo, 'ยังไม่ได้ทำ'),
       if (o.status == OccurrenceStatus.cancelled) ctxItem('undo', Icons.undo, 'คืนเป็นตามแผน'),
       if (o.status == OccurrenceStatus.inbox) ctxItem('schedule', Icons.event, 'เลือกวันแทน'),
+    ];
+
+/// คลิกขวา = "แก้ / ตรวจสอบ": รายละเอียด · เกี่ยวกับวิชา · แก้เวลา · แก้ไขงาน · ลบ
+List<ContextItem<String>> modifyItems(Occurrence o) => [
+      ctxItem('details', Icons.info_outline, 'ดูรายละเอียด'),
+      if (o.subjectId != null) ctxItem('subject', Icons.school_outlined, 'เกี่ยวกับวิชา (เปิดหน้าวิชา)'),
+      if (o.status == OccurrenceStatus.planned && o.timed) ctxItem('time', Icons.schedule, 'แก้เวลาเฉพาะวันนี้'),
       ctxItem('edit', Icons.edit_outlined, o.repeats ? 'แก้ไขงาน (ทุกครั้งจากนี้ไป)' : 'แก้ไขงาน'),
       ctxItem('delete', Icons.delete_outline, o.repeats ? 'ลบงานซ้ำนี้ทั้งหมด' : 'ลบงานนี้', danger: true),
     ];
 
-/// คลิกซ้ายที่งาน: ผูกวิชา (คาบ / สอบ / ติว) → ไปหน้าวิชานั้น (เมาส์ปุ่ม 4 กลับมา)
-/// งานอื่น → แผ่นรายละเอียด · ตัวเลือกทั้งหมดอยู่ที่คลิกขวา / กดค้าง ไม่ซ้ำกัน
-Future<void> openOccurrence(BuildContext context, CalendarRepository repo, Occurrence o) async {
-  if (o.subjectId != null) {
-    subjectJump.go(o.subjectId!);
+/// คลิกซ้ายที่งาน → เมนู "กรอกผล" ตรงตำแหน่งเมาส์ · ไม่มีอะไรให้กรอก (เช่น ถูกเลื่อนไปแล้ว) → รายละเอียด
+/// แก้ไข / ไปหน้าวิชา อยู่ที่คลิกขวา ไม่ซ้ำกัน
+Future<void> openOccurrence(BuildContext context, CalendarRepository repo, Occurrence o, {Offset? at}) async {
+  final items = resultItems(o);
+  if (items.isEmpty) {
+    await showOccurrenceDetails(context, o);
     return;
   }
-  await showOccurrenceDetails(context, o);
+  final action = await showContextMenuAt<String>(context, at ?? lastPointerDown, items);
+  if (action == null || !context.mounted) return;
+  await runOccurrenceAction(context, repo, o, action);
 }
 
 /// แผ่นรายละเอียดงาน 1 ครั้ง (ดูอย่างเดียว)
@@ -256,7 +265,7 @@ Future<void> showOccurrenceDetails(BuildContext context, Occurrence o) {
     OccurrenceStatus.planned => 'ตามแผน',
     OccurrenceStatus.done => 'ทำแล้ว',
     OccurrenceStatus.cancelled => 'ยกเลิก',
-    OccurrenceStatus.inbox => 'อยู่ใน Inbox (ยังไม่มีวัน)',
+    OccurrenceStatus.inbox => 'อยู่ใน Updates (ยังไม่มีวัน)',
     OccurrenceStatus.moved => 'ถูกเลื่อนไปวันอื่นแล้ว',
     OccurrenceStatus.shifted => 'เลื่อนไปรอบถัดไปแล้ว',
   };
@@ -278,7 +287,7 @@ Future<void> showOccurrenceDetails(BuildContext context, Occurrence o) {
             if (o.actualEnd != null) Text('เลิกจริง ${fmtTime(o.actualEnd!)}'),
             if (o.reason != null) Text('ยกเลิกเพราะ: ${o.reason}'),
             const SizedBox(height: 12),
-            Text('คลิกขวา (หรือกดค้าง) ที่งาน = ทำแล้ว · แก้ · เลื่อน · ยกเลิก · ลบ',
+            Text('คลิก = กรอกผล (ทำแล้ว · บันทึกเรียน · เลื่อน · ยกเลิก) · คลิกขวา = แก้ไข · เกี่ยวกับวิชา · ลบ',
                 style: TextStyle(fontSize: 13, color: c.muted)),
           ],
         ),
@@ -287,13 +296,21 @@ Future<void> showOccurrenceDetails(BuildContext context, Occurrence o) {
   );
 }
 
-/// คลิกขวา / กดค้าง ([at] = ตำแหน่งเมาส์) → เมนูตัวเลือกตรงนั้น
+/// คลิกขวา / กดค้าง ([at] = ตำแหน่งเมาส์) → เมนูแก้ไข / ตรวจสอบตรงนั้น
 Future<void> openOccurrenceActions(
     BuildContext context, CalendarRepository repo, Occurrence o, {required Offset at}) async {
-  final action = await showContextMenuAt<String>(context, at, occurrenceItems(o));
+  final action = await showContextMenuAt<String>(context, at, modifyItems(o));
   if (action == null || !context.mounted) return;
+  await runOccurrenceAction(context, repo, o, action);
+}
 
+/// ทำตามตัวเลือกที่เลือกจากเมนูซ้าย / ขวา
+Future<void> runOccurrenceAction(BuildContext context, CalendarRepository repo, Occurrence o, String action) async {
   switch (action) {
+    case 'details':
+      await showOccurrenceDetails(context, o);
+    case 'subject':
+      subjectJump.go(o.subjectId!);
     case 'done':
       await repo.setDone(o.id, true);
       // รอบติว → ถามว่าบทที่ติวจบหรือยัง (รอบหน้าจะได้ไล่บทถัดไป)

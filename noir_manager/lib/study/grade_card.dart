@@ -89,42 +89,77 @@ class _GradeCardState extends State<GradeCard> {
     final weight = TextEditingController(text: part == null ? '' : fmtScore(part.weight));
     final count = TextEditingController(text: '1');
     final full = TextEditingController();
+    var showErr = false;
+    String? err(TextEditingController t, String msg, {bool number = false}) {
+      if (!showErr) return null;
+      final v = t.text.trim();
+      if (v.isEmpty) return msg;
+      if (number && ((double.tryParse(v) ?? 0) <= 0)) return 'ใส่ตัวเลขมากกว่า 0';
+      return null;
+    }
+
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(part == null ? 'เพิ่มส่วนคะแนน' : 'แก้ส่วนคะแนน'),
-        content: SizedBox(
-          width: 380,
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            TextField(
-              controller: name,
-              autofocus: part == null,
-              decoration: const InputDecoration(labelText: 'ชื่อ', hintText: 'เช่น งาน, สอบย่อย, สอบปลายภาค'),
-            ),
-            TextField(
-              controller: weight,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(labelText: 'คะแนนเก็บ (จาก 100)', hintText: 'เช่น 20'),
-            ),
-            if (part == null) ...[
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          title: Text(part == null ? 'เพิ่มส่วนคะแนน' : 'แก้ส่วนคะแนน'),
+          content: SizedBox(
+            width: 380,
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
               TextField(
-                controller: count,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'จำนวนชิ้น', hintText: 'เช่น งาน 4 ชิ้น'),
+                controller: name,
+                autofocus: part == null,
+                onChanged: (_) {
+                  if (showErr) setLocal(() {});
+                },
+                decoration: InputDecoration(
+                  labelText: 'ชื่อ *',
+                  hintText: 'เช่น งาน, สอบย่อย, สอบปลายภาค',
+                  errorText: err(name, 'ใส่ชื่อส่วนคะแนน'),
+                ),
               ),
               TextField(
-                controller: full,
+                controller: weight,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(
-                    labelText: 'เต็มชิ้นละ (เว้นว่าง = แบ่งเท่ากัน)', hintText: 'เช่น งานละ 5 · สอบเต็ม 60'),
+                onChanged: (_) {
+                  if (showErr) setLocal(() {});
+                },
+                decoration: InputDecoration(
+                  labelText: 'คะแนนเก็บ (จาก 100) *',
+                  hintText: 'เช่น 20',
+                  errorText: err(weight, 'ใส่คะแนนเก็บ', number: true),
+                ),
               ),
-            ],
-          ]),
+              if (part == null) ...[
+                TextField(
+                  controller: count,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'จำนวนชิ้น', hintText: 'เช่น งาน 4 ชิ้น'),
+                ),
+                TextField(
+                  controller: full,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                      labelText: 'เต็มชิ้นละ (เว้นว่าง = แบ่งเท่ากัน)', hintText: 'เช่น งานละ 5 · สอบเต็ม 60'),
+                ),
+              ],
+            ]),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('ยกเลิก')),
+            FilledButton(
+              onPressed: () {
+                final w = double.tryParse(weight.text.trim());
+                if (name.text.trim().isEmpty || w == null || w <= 0) {
+                  setLocal(() => showErr = true);
+                  return;
+                }
+                Navigator.pop(ctx, true);
+              },
+              child: Text(part == null ? 'เพิ่ม' : 'บันทึก'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('ยกเลิก')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(part == null ? 'เพิ่ม' : 'บันทึก')),
-        ],
       ),
     );
     if (ok != true || !mounted) return;

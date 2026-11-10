@@ -872,7 +872,15 @@ class _StudyPageState extends State<StudyPage> {
       setState(() {});
       _openWeek();
     } else {
+      final id = _subjectId;
       _setMapView(true);
+      // ปุ่ม 5 → เปิดวิชาที่เพิ่งย้อนออกมาอีกครั้ง
+      if (id != null) {
+        appForward.push(() {
+          final s = _subjects.where((x) => x.id == id).firstOrNull;
+          if (mounted && s != null) _openSubject(s);
+        });
+      }
     }
   }
 
