@@ -549,9 +549,11 @@ class _StudyPageState extends State<StudyPage> {
       _ => [..._subjects],
     }.where(match).toList();
     // กลุ่ม: ปี·ภาค (ทั้งหมด / ปี) · เทอมนี้ = กลุ่มเดียว
+    // ขอบเขตปี: ปีอยู่บนชิปแล้ว หัวกลุ่มบอกแค่ภาค
+    String termText(Subject s) => s.planTerm == 3 ? 'ฤดูร้อน' : 'ภาค ${s.planTerm ?? '-'}';
     String groupOf(Subject s) => s.planYear == null
         ? 'ยังไม่จัดปี'
-        : 'ปี ${s.planYear} · ${s.planTerm == 3 ? 'ฤดูร้อน' : 'ภาค ${s.planTerm ?? '-'}'}';
+        : (_scope == 'year' ? termText(s) : 'ปี ${s.planYear} · ${termText(s)}');
     int order(Subject s) => (s.planYear ?? 9) * 10 + (s.planTerm ?? 9);
     inScope.sort((a, b) => order(a).compareTo(order(b)));
     final groups = <String, List<Subject>>{};
@@ -1830,34 +1832,6 @@ class _Legend extends StatelessWidget {
         dot(c.bad, 'ยังไม่ได้ <60%'),
         dot(c.line2, 'ยังไม่ประเมิน'),
       ],
-    );
-  }
-}
-
-class _Pill extends StatelessWidget {
-  const _Pill({required this.text, required this.bg, required this.fg, this.onTap});
-
-  final String text;
-  final Color bg;
-  final Color fg;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Material(
-        color: bg,
-        borderRadius: BorderRadius.circular(999),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(999),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            child: Text(text, style: TextStyle(fontSize: 13, color: fg)),
-          ),
-        ),
-      ),
     );
   }
 }
