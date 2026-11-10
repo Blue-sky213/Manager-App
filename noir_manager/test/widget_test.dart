@@ -297,17 +297,19 @@ void main() {
     expect(find.text('ปีการศึกษาที่ 4'), findsOneWidget);
     expect(find.text('จำนวนหน่วยกิตตลอดหลักสูตร 125 หน่วยกิต'), findsOneWidget);
 
-    // แตะครั้งเดียว = เลือก (ยังอยู่หน้าแผนผัง) · ดับเบิลคลิก = เปิด
+    // กดค้าง (= คลิกขวา) → เมนูตัวเลือก → ไฮไลต์สาย (ยังอยู่หน้าแผนผัง)
     final prog = find.text('การเขียนโปรแกรมคอมพิวเตอร์');
-    await tester.tap(prog);
-    await tester.pump(const Duration(milliseconds: 400)); // รอให้พ้นช่วงรอดับเบิลคลิก → นับเป็นแตะครั้งเดียว
+    await tester.longPress(prog);
+    await tester.pumpAndSettle();
+    expect(find.text('ลบวิชา'), findsOneWidget);
+    await tester.tap(find.text('ไฮไลต์สายวิชานี้'));
     await tester.pumpAndSettle();
     expect(find.text('ปีการศึกษาที่ 1'), findsOneWidget);
-    expect(find.textContaining('ดับเบิลคลิกเพื่อเปิด'), findsOneWidget);
-    await tester.tap(prog);
-    await tester.pump(const Duration(milliseconds: 60));
+    expect(find.textContaining('ไฮไลต์สาย "การเขียนโปรแกรมคอมพิวเตอร์"'), findsOneWidget);
+    // คลิกซ้าย = เปิดทันที · มีปุ่มกลับแผนผัง
     await tester.tap(prog);
     await tester.pumpAndSettle();
+    expect(find.text('กลับแผนผัง'), findsOneWidget);
 
     // หน้ารายวิชาเปิดที่ปี 1 → เห็นเฉพาะวิชาปี 1 ไม่มีวิชาปี 2 ปนมา
     expect(find.textContaining('ปี 1 ·'), findsOneWidget);
@@ -393,13 +395,13 @@ void main() {
     expect(find.text('การเขียนโปรแกรมคอมพิวเตอร์'), findsOneWidget);
     expect(find.text('การแก้ปัญหาและขั้นตอนวิธี'), findsNothing); // ปี 1 ภาค 2
 
-    // ดับเบิลคลิกเปิดวิชาได้เหมือนเดิมในมุมมองปีเดียว
-    final prog = find.text('การเขียนโปรแกรมคอมพิวเตอร์');
-    await tester.tap(prog);
-    await tester.pump(const Duration(milliseconds: 60));
-    await tester.tap(prog);
+    // คลิกเปิดวิชาในมุมมองภาคเดียว → กลับแผนผังแล้วยังอยู่ที่ปี 1 ภาค 1
+    await tester.tap(find.text('การเขียนโปรแกรมคอมพิวเตอร์'));
     await tester.pumpAndSettle();
     expect(find.textContaining('ปี 1 ·'), findsOneWidget);
+    await tester.tap(find.text('กลับแผนผัง'));
+    await tester.pumpAndSettle();
+    expect(find.text('แผนการเรียน · ปี 1 · ภาค 1'), findsOneWidget);
   });
 
   testWidgets('แตะวันสอบในหน้าวิชา → ไปวันนั้นในปฏิทิน', (tester) async {
@@ -464,11 +466,14 @@ void main() {
     // ปี 2 ภาค 2 · เลือก "คณิตศาสตร์วิศวกรรม 2" → ปุ่มแก้เส้น → คณิต 1 ถูกติ๊กเป็นวิชาที่ต้องเรียนก่อน
     await tester.tap(find.text('ปีการศึกษาที่ 2'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('คณิตศาสตร์วิศวกรรม 2'));
-    await tester.pump(const Duration(milliseconds: 400));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('แก้เส้นเชื่อม'));
-    await tester.pumpAndSettle();
+    Future<void> openLinks() async {
+      await tester.longPress(find.text('คณิตศาสตร์วิศวกรรม 2'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('แก้เส้นเชื่อม'));
+      await tester.pumpAndSettle();
+    }
+
+    await openLinks();
     expect(find.text('ต้องเรียนก่อนวิชานี้'), findsOneWidget);
     final m1 = find.ancestor(
         of: find.descendant(of: find.byType(AlertDialog), matching: find.text('คณิตศาสตร์วิศวกรรม 1')),
@@ -480,8 +485,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('บันทึก'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('แก้เส้นเชื่อม'));
-    await tester.pumpAndSettle();
+    await openLinks();
     expect(tester.widget<CheckboxListTile>(m1).value, isFalse);
     expect(tester.takeException(), isNull);
   });

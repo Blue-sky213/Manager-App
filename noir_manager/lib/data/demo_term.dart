@@ -18,11 +18,13 @@ class DemoChapter {
   final Set<int> flagged;
 }
 
+/// คาบตัวอย่าง: ตามกฎจำลอง (timetable_sim.dart) คาบละ ≤ 2 ชม. · ทฤษฎี/ปฏิบัติแยกคาบ · วิชาละ ≤ 4 ชม./สัปดาห์
 class DemoClass {
-  const DemoClass(this.weekday, this.start, this.minutes);
+  const DemoClass(this.weekday, this.start, this.minutes, [this.type]);
   final int weekday; // 1 = จันทร์
   final int start; // นาทีนับจากเที่ยงคืน
   final int minutes;
+  final ClassType? type;
 }
 
 class DemoSubject {
@@ -71,7 +73,7 @@ final List<DemoSubject> demoSubjects = [
     credits: '3(2-2-5)',
     importance: 3,
     sessions: 3,
-    classes: const [DemoClass(1, 9 * _h, 4 * _h)],
+    classes: const [DemoClass(1, 9 * _h, 2 * _h, ClassType.theory), DemoClass(4, 13 * _h, 2 * _h, ClassType.lab)],
     midterm: (DateTime(2026, 12, 21), 9 * _h, 3 * _h),
     finalExam: (DateTime(2027, 2, 2), 13 * _h, 3 * _h),
     chapters: const [
@@ -102,7 +104,7 @@ final List<DemoSubject> demoSubjects = [
     credits: '3(2-2-5)',
     importance: 3,
     sessions: 4,
-    classes: const [DemoClass(3, 9 * _h, 4 * _h)],
+    classes: const [DemoClass(2, 9 * _h, 2 * _h, ClassType.theory), DemoClass(3, 9 * _h, 2 * _h, ClassType.lab)],
     midterm: (DateTime(2026, 12, 22), 9 * _h, 3 * _h),
     finalExam: (DateTime(2027, 2, 1), 9 * _h, 3 * _h),
     chapters: const [
@@ -134,7 +136,7 @@ final List<DemoSubject> demoSubjects = [
     credits: '3(3-0-6)',
     importance: 2,
     sessions: 2,
-    classes: const [DemoClass(2, 9 * _h, 3 * _h)],
+    classes: const [DemoClass(2, 13 * _h, 2 * _h, ClassType.theory), DemoClass(5, 9 * _h, 1 * _h, ClassType.theory)],
     midterm: (DateTime(2026, 12, 23), 13 * _h, 3 * _h),
     finalExam: (DateTime(2027, 2, 4), 9 * _h, 3 * _h),
     chapters: const [
@@ -159,7 +161,7 @@ final List<DemoSubject> demoSubjects = [
     credits: '3(3-0-6)',
     importance: 2,
     sessions: 2,
-    classes: const [DemoClass(1, 13 * _h + 30, 3 * _h)],
+    classes: const [DemoClass(1, 13 * _h, 2 * _h, ClassType.theory), DemoClass(3, 13 * _h, 1 * _h, ClassType.theory)],
     midterm: (DateTime(2026, 12, 24), 9 * _h, 3 * _h),
     finalExam: (DateTime(2027, 2, 3), 9 * _h, 3 * _h),
     chapters: const [
@@ -184,7 +186,7 @@ final List<DemoSubject> demoSubjects = [
     credits: '3(3-0-6)',
     importance: 1,
     sessions: 1,
-    classes: const [DemoClass(4, 13 * _h, 3 * _h)],
+    classes: const [DemoClass(4, 9 * _h, 2 * _h, ClassType.theory), DemoClass(5, 13 * _h, 1 * _h, ClassType.theory)],
     midterm: (DateTime(2026, 12, 25), 13 * _h, 2 * _h),
     finalExam: (DateTime(2027, 2, 5), 13 * _h, 2 * _h),
     chapters: const [
@@ -206,7 +208,7 @@ final List<DemoSubject> demoSubjects = [
     credits: '1(0-2-1)',
     importance: 1,
     sessions: 1,
-    classes: const [DemoClass(2, 13 * _h, 2 * _h)],
+    classes: const [DemoClass(5, 15 * _h, 2 * _h, ClassType.lab)],
     // วิชาปฏิบัติ: สอบทักษะในคาบ ไม่มีสอบข้อเขียน
     chapters: const [
       DemoChapter('บท 1 · พื้นฐาน [กลางภาค]', ['กติกา', 'การจับไม้และ Footwork']),
@@ -256,6 +258,10 @@ Future<bool> loadDemoTerm(StudyRepository study, CalendarRepository calendar) as
           endDate: to,
           subjectId: id,
           kind: ActivityKind.classSession,
+          classInfo: ClassInfo(
+            type: c.type,
+            section: switch (c.type) { ClassType.theory => 'S.1', ClassType.lab => 'L.1', null => null },
+          ),
         ));
       }
     }
