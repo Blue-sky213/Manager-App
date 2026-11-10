@@ -215,11 +215,32 @@ Future<void> rescheduleFlow(
   }
 }
 
-/// แตะงาน 1 ครั้ง → แผ่นตัวเลือกด้านล่าง
+/// ตัวเลือกของงาน 1 ครั้ง (ใช้ร่วมกันทั้งแผ่นล่างและเมนูคลิกขวา ให้ตัวเลือกตรงกันเสมอ)
+List<ContextItem<String>> occurrenceItems(Occurrence o) => [
+      if (o.status == OccurrenceStatus.planned) ...[
+        ctxItem('done', Icons.check_circle_outline, 'ทำแล้ว'),
+        if (o.timed) ctxItem('time', Icons.schedule, 'แก้เวลาเฉพาะวันนี้'),
+        ctxItem('move', Icons.redo, 'เลื่อน'),
+        if (o.repeats) ctxItem('shift', Icons.fast_forward, 'เลื่อนไปรอบถัดไป (เนื้อหาไหลไปครั้งหน้า)'),
+        ctxItem('cancel', Icons.block, 'ยกเลิก (ต้องใส่เหตุผล)'),
+      ],
+      if (o.status == OccurrenceStatus.done && o.subjectId != null && o.timed)
+        ctxItem('actual', Icons.timer_outlined, o.actualEnd == null ? 'บันทึกเวลาเลิกจริง' : 'แก้เวลาเลิกจริง'),
+      if (o.status == OccurrenceStatus.done) ctxItem('undo', Icons.undo, 'ยังไม่ได้ทำ'),
+      if (o.status == OccurrenceStatus.cancelled) ctxItem('undo', Icons.undo, 'คืนเป็นตามแผน'),
+      if (o.status == OccurrenceStatus.inbox) ctxItem('schedule', Icons.event, 'เลือกวันแทน'),
+      ctxItem('edit', Icons.edit_outlined, o.repeats ? 'แก้ไขงาน (ทุกครั้งจากนี้ไป)' : 'แก้ไขงาน'),
+      ctxItem('delete', Icons.delete_outline, o.repeats ? 'ลบงานซ้ำนี้ทั้งหมด' : 'ลบงานนี้', danger: true),
+    ];
+
+/// คลิกซ้าย → แผ่นรายละเอียด + ตัวเลือกด้านล่าง · คลิกขวา / กดค้าง ([at] = ตำแหน่งเมาส์) → เมนูตรงนั้น
 Future<void> openOccurrenceActions(
-    BuildContext context, CalendarRepository repo, Occurrence o) async {
+    BuildContext context, CalendarRepository repo, Occurrence o, {Offset? at}) async {
   final time = o.timed ? '${fmtTime(o.startAt!)}–${fmtTime(o.endAt!)} · ' : '';
-  final action = await showModalBottomSheet<String>(
+  final items = occurrenceItems(o);
+  final action = at != null
+      ? await showContextMenuAt<String>(context, at, items)
+      : await showModalBottomSheet<String>(
     context: context,
     showDragHandle: true,
     // เมนูยาวกว่าจอ (หน้าต่างเตี้ย) → ให้เลื่อนได้ แทนที่จะล้นขอบ
@@ -239,24 +260,6 @@ Future<void> openOccurrenceActions(
                 '${o.reason == null ? '' : '\nยกเลิกเพราะ: ${o.reason}'}'),
           ),
           const Divider(height: 1),
-          if (o.status == OccurrenceStatus.planned) ...[
-            _tile(ctx, 'done', Icons.check_circle_outline, 'ทำแล้ว'),
-            if (o.timed)
-              _tile(ctx, 'time', Icons.schedule, 'แก้เวลาเฉพาะวันนี้'),
-            _tile(ctx, 'move', Icons.redo, 'เลื่อน'),
-            if (o.repeats)
-              _tile(ctx, 'shift', Icons.fast_forward, 'เลื่อนไปรอบถัดไป (เนื้อหาไหลไปครั้งหน้า)'),
-            _tile(ctx, 'cancel', Icons.block, 'ยกเลิก (ต้องใส่เหตุผล)'),
-          ],
-          if (o.status == OccurrenceStatus.done && o.subjectId != null && o.timed)
-            _tile(ctx, 'actual', Icons.timer_outlined,
-                o.actualEnd == null ? 'บันทึกเวลาเลิกจริง' : 'แก้เวลาเลิกจริง'),
-          if (o.status == OccurrenceStatus.done)
-            _tile(ctx, 'undo', Icons.undo, 'ยังไม่ได้ทำ'),
-          if (o.status == OccurrenceStatus.cancelled)
-            _tile(ctx, 'undo', Icons.undo, 'คืนเป็นตามแผน'),
-          if (o.status == OccurrenceStatus.inbox)
-            _tile(ctx, 'schedule', Icons.event, 'เลือกวันแทน'),
           if (o.status == OccurrenceStatus.shifted)
             const ListTile(
               leading: Icon(Icons.info_outline),
@@ -267,10 +270,7 @@ Future<void> openOccurrenceActions(
               leading: Icon(Icons.info_outline),
               title: Text('ครั้งนี้ถูกเลื่อนไปแล้ว ดูที่วันใหม่'),
             ),
-          _tile(ctx, 'edit', Icons.edit_outlined,
-              o.repeats ? 'แก้ไขงาน (ทุกครั้งจากนี้ไป)' : 'แก้ไขงาน'),
-          _tile(ctx, 'delete', Icons.delete_outline,
-              o.repeats ? 'ลบงานซ้ำนี้ทั้งหมด' : 'ลบงานนี้'),
+          for (final i in items) _tile(ctx, i.value, i.icon, i.label),
           const SizedBox(height: 8),
         ],
        ),
@@ -357,5 +357,23 @@ Future<void> _askChapterProgress(BuildContext context, int subjectId, int occurr
 
   if (context.mounted) {
     _toast(context, done ? '${ch.name} → ติวจบ · ทำแบบทดสอบแล้วใส่คะแนนได้เลย' : '${ch.name} → กำลังติว');
+  }
+}
+
+/// ห่อกล่องงาน: คลิกขวา / กดค้าง → เมนูตัวเลือกตรงตำแหน่งเมาส์ (คลิกซ้ายยังเป็นของกล่องเดิม)
+class OccurrenceMenuArea extends StatelessWidget {
+  const OccurrenceMenuArea({super.key, required this.o, required this.child});
+
+  final Occurrence o;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    void open(Offset at) => openOccurrenceActions(context, CalendarScope.of(context), o, at: at);
+    return GestureDetector(
+      onSecondaryTapUp: (d) => open(d.globalPosition),
+      onLongPressStart: (d) => open(d.globalPosition),
+      child: child,
+    );
   }
 }

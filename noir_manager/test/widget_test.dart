@@ -489,4 +489,36 @@ void main() {
     expect(tester.widget<CheckboxListTile>(m1).value, isFalse);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('หน้าวันนี้: คลิกซ้าย = แผ่นรายละเอียด · กดค้าง (คลิกขวา) = เมนูตรงตำแหน่ง', (tester) async {
+    setScreen(tester, const Size(1280, 1400));
+    final calendar = MemoryCalendarRepository();
+    await calendar.addActivity(NewActivity(
+      name: 'อ่านหนังสือ',
+      categoryId: 1,
+      importance: 2,
+      timed: true,
+      day: DateTime.now(),
+      startMinute: 20 * 60,
+      durationMin: 60,
+    ));
+    await tester.pumpWidget(buildApp(calendar: calendar));
+    await tester.pumpAndSettle();
+
+    // กดค้าง → เมนู (ไม่มีแผ่นล่างที่มีชื่องานเป็นหัว)
+    await tester.longPress(find.text('อ่านหนังสือ'));
+    await tester.pumpAndSettle();
+    expect(find.text('ทำแล้ว'), findsOneWidget);
+    expect(find.text('ลบงานนี้'), findsOneWidget);
+    expect(find.byType(BottomSheet), findsNothing);
+    await tester.tap(find.text('ทำแล้ว'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('ทำแล้ว 1/1'), findsOneWidget);
+
+    // คลิกซ้าย → แผ่นรายละเอียด
+    await tester.tap(find.text('อ่านหนังสือ'));
+    await tester.pumpAndSettle();
+    expect(find.byType(BottomSheet), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }

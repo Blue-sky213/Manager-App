@@ -5,6 +5,7 @@ library;
 import 'package:flutter/material.dart';
 
 import '../theme/noir_colors.dart';
+import 'calendar_flows.dart';
 import 'calendar_models.dart';
 import 'calendar_ui.dart';
 
@@ -81,7 +82,7 @@ class _Chip extends StatelessWidget {
     final label = o.timed
         ? '${fmtTime(o.startAt!)}–${fmtTime(o.endAt!)} · ${o.title}'
         : '○ ${o.title}';
-    return Opacity(
+    return OccurrenceMenuArea(o: o, child: Opacity(
       opacity: o.active ? 1 : 0.45,
       child: Material(
         color: o.timed ? bg : Colors.transparent,
@@ -110,7 +111,7 @@ class _Chip extends StatelessWidget {
           ),
         ),
       ),
-    );
+    ));
   }
 }
 
@@ -195,7 +196,7 @@ class WeekTimeline extends StatelessWidget {
                                 ? BorderSide(color: fg.withValues(alpha: 0.6), width: 1.5)
                                 : BorderSide.none),
                       ),
-                      child: InkWell(
+                      child: OccurrenceMenuArea(o: o, child: InkWell(
                         onTap: () => onTapOccurrence(o),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -220,7 +221,7 @@ class WeekTimeline extends StatelessWidget {
                             style: TextStyle(fontSize: 12, color: fg, height: 1.25),
                           ),
                         ),
-                      ),
+                      )),
                     ),
                   ),
                 );
@@ -481,7 +482,7 @@ class _Card extends StatelessWidget {
       return _Chip(o: o, category: category, onTap: onTap, dense: true);
     }
     final (bg, fg) = categoryColors(c, category?.colorKey);
-    return Opacity(
+    return OccurrenceMenuArea(o: o, child: Opacity(
       opacity: o.active ? 1 : 0.45,
       child: Material(
         color: bg,
@@ -516,6 +517,6 @@ class _Card extends StatelessWidget {
           ),
         ),
       ),
-    );
+    ));
   }
 }

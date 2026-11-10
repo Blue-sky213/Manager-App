@@ -7,6 +7,7 @@ library;
 
 import '../calendar/calendar_models.dart';
 import '../calendar/calendar_repository.dart';
+import 'study_models.dart';
 import 'study_repository.dart';
 
 class DemoChapter {
@@ -380,7 +381,11 @@ Future<int> loadCurriculumLinks(StudyRepository study) async {
 /// ใส่แผนการเรียนทั้งหลักสูตร: ปี 1 เทอม 1 แบบละเอียด + เทอมอื่นแบบรายชื่อ · คืนจำนวนวิชาที่เพิ่ม
 Future<int> loadDemoCurriculum(StudyRepository study, CalendarRepository calendar) async {
   var added = 0;
-  if (await loadDemoTerm(study, calendar)) added += demoSubjects.length;
+  if (await loadDemoTerm(study, calendar)) {
+    added += demoSubjects.length;
+    // ใส่ใหม่ครั้งแรก → เติมรายละเอียดให้ครบทุกระบบเลย (คะแนน ห้อง คาบที่เรียนแล้ว ติว ฯลฯ)
+    await enrichDemoTerm(study, calendar);
+  }
 
   // วิชาตัวอย่างปี 1 เทอม 1 ที่ใส่ไว้ก่อนมีแผนการเรียน → เติมรหัส/หน่วยกิต/ปี/เทอม
   final byName = {for (final d in demoSubjects) d.name: d};
@@ -402,4 +407,151 @@ Future<int> loadDemoCurriculum(StudyRepository study, CalendarRepository calenda
   }
   await loadCurriculumLinks(study);
   return added;
+}
+
+// ---------- รายละเอียดตัวอย่างให้ครบทุกระบบ (ทดสอบ) ----------
+
+/// วันหยุดตัวอย่างในเทอม (วันรัฐธรรมนูญ)
+final demoHoliday = DateTime(2026, 12, 10);
+
+/// เติมรายละเอียดให้วิชาตัวอย่างปี 1 ภาค 1 ครบทุกระบบที่แอปมี:
+/// ห้องเรียน · คะแนนหัวข้อ (ดี / พอได้ / ยังไม่ได้ / ยังไม่ประเมิน) · ประเภท/สถานะบท ·
+/// คาบที่เรียนไปแล้ว (ทำแล้ว + เวลาเลิกจริง / ยกเลิกพร้อมเหตุผล) · รอบติว ·
+/// งานหมวดอื่น (ออกกำลังกาย / สตรีม / งาน) · Reminder Inbox · วันหยุด
+///
+/// แตะเฉพาะวิชาตัวอย่าง (จับจากรหัส) · หัวข้อที่มีคะแนนแล้ว / คาบที่มีห้องแล้ว ไม่ทับ
+/// ทำซ้ำได้ (ครั้งที่สองไม่เพิ่มของซ้ำ) · [today] = วันนี้ (เทสส่งค่าคงที่ได้) · คืนสรุปสั้น ๆ
+Future<String> enrichDemoTerm(StudyRepository study, CalendarRepository calendar, {DateTime? today}) async {
+  final now = dayOnly(today ?? DateTime.now());
+  final codes = [for (final d in demoSubjects) d.code];
+  final subjects = [
+    for (final s in await study.subjects())
+      if (s.planYear == 1 && s.planTerm == 1 && codes.contains(s.code)) s
+  ]..sort((a, b) => codes.indexOf(a.code!).compareTo(codes.indexOf(b.code!)));
+  if (subjects.isEmpty) return 'ไม่พบวิชาตัวอย่าง · กด "ใส่ตัวอย่าง: แผน 4 ปี" ก่อน';
+
+  var scores = 0, rooms = 0, done = 0, extras = 0;
+  for (final (i, s) in subjects.indexed) {
+    // ---- บท: บทแรกประเมินแล้ว · บทสองกำลังติว · ที่เหลือยังไม่เริ่ม · ประเภทตามหน่วยกิต ----
+    final lab = (parseLabHours(s.credits) ?? 0) > 0;
+    final chapters = await study.chapters(s.id);
+    for (final (ci, ch) in chapters.indexed) {
+      await study.setChapterKind(
+          ch.chapter.id, !lab ? ChapterKind.theory : (ci.isEven ? ChapterKind.mixed : ChapterKind.practice));
+      await study.setChapterStatus(ch.chapter.id,
+          ci == 0 ? ChapterStatus.assessed : (ci == 1 ? ChapterStatus.learning : ChapterStatus.todo));
+      if (ci > 1) continue; // บทที่ยังไม่เรียน = ยังไม่ประเมิน
+      for (final (ti, t) in ch.subtopics.indexed) {
+        if (t.scores.isNotEmpty) continue;
+        // กระจายคะแนนแบบคงที่ (seed จากตำแหน่ง) ให้มีครบทั้ง เขียว / เหลือง / แดง
+        final base = 35 + (i * 37 + ci * 17 + ti * 23) % 65;
+        final rounds = 1 + (i + ti) % 3;
+        for (var r = 0; r < rounds; r++) {
+          final score = (base + r * 8).clamp(0, 100);
+          await study.addAssessment(t.id, score, at: now.subtract(Duration(days: 12 - r * 4 - ti % 3)));
+          scores++;
+        }
+      }
+    }
+
+    // ---- ห้องเรียน: ทฤษฎี 1-B4-0N · ปฏิบัติ LAB-N ----
+    for (final a in await calendar.activitiesForSubject(s.id)) {
+      if (a.kind != ActivityKind.classSession || a.classInfo.room != null) continue;
+      final room = a.classInfo.type == ClassType.lab ? 'LAB-${i + 1}' : '1-B4-0${i + 1}';
+      await calendar.updateActivity(a.id, a.toDraft().withClassInfo(ClassInfo(
+        type: a.classInfo.type,
+        room: room,
+        section: a.classInfo.section,
+      )), from: a.startDate);
+      rooms++;
+    }
+  }
+
+  // ---- คาบที่ผ่านไปแล้วในเทอม: ทำแล้ว + เวลาเลิกจริง (ช้ากว่าตาราง 0–20 นาที) · ยกเลิก 1 คาบ ----
+  var cancelled = false;
+  for (var d = demoTermStart; d.isBefore(now); d = d.add(const Duration(days: 1))) {
+    for (final o in await calendar.occurrencesOn(d)) {
+      if (o.kind != ActivityKind.classSession || o.status != OccurrenceStatus.planned) continue;
+      if (!cancelled && d.weekday == DateTime.tuesday) {
+        await calendar.cancel(o.id, 'อาจารย์ติดประชุม งดสอน (ตัวอย่าง)');
+        cancelled = true;
+        continue;
+      }
+      await calendar.setDone(o.id, true);
+      await calendar.setActualTimes(o.id, end: o.endAt!.add(Duration(minutes: (o.id * 7) % 25)));
+      done++;
+    }
+  }
+
+  // ---- ของที่ไม่ใช่คาบเรียน: เพิ่มครั้งเดียว (เช็กชื่อก่อน) ----
+  final cats = await calendar.categories();
+  int cat(String name) => cats.firstWhere((c) => c.name == name, orElse: () => cats.first).id;
+  final learn = studyCategoryId(cats) ?? cats.first.id;
+  // ของที่เพิ่มด้านล่างอยู่ใน 2 สัปดาห์แรกทั้งหมด → เช็กชื่อในช่วงนั้นพอ
+  final have = <String>{
+    for (var k = 0; k < 14; k++)
+      for (final o in await calendar.occurrencesOn(demoTermStart.add(Duration(days: k)))) o.title,
+    for (final o in await calendar.inbox()) o.title,
+  };
+  Future<int?> add(NewActivity a) async {
+    if (have.contains(a.name)) return null;
+    extras++;
+    return calendar.addActivity(a);
+  }
+
+  final prog = subjects.where((s) => s.code == '060233115').firstOrNull ?? subjects.first;
+  // รอบติว: จันทร์ (ทำไปแล้ว) + พฤหัส (ตามแผน)
+  await add(NewActivity(
+    name: 'ติว · ${prog.name}', categoryId: learn, importance: 3, timed: true,
+    day: demoTermStart, startMinute: 19 * 60, durationMin: 90,
+    subjectId: prog.id, kind: ActivityKind.tutor,
+  ));
+  await add(NewActivity(
+    name: 'ติวทวน · ${prog.name}', categoryId: learn, importance: 3, timed: true,
+    day: demoTermStart.add(const Duration(days: 3)), startMinute: 19 * 60, durationMin: 90,
+    subjectId: prog.id, kind: ActivityKind.tutor,
+  ));
+  // ชีวิตนอกห้องเรียน (ไม่ชนคาบเรียนตัวอย่าง)
+  await add(NewActivity(
+    name: 'วิ่ง 5K', categoryId: cat('ออกกำลังกาย'), importance: 2, timed: true,
+    day: demoTermStart, startMinute: 17 * 60 + 30, durationMin: 45,
+    repeat: RepeatKind.weekly, weekdays: {2, 4}, endDate: demoTermEnd,
+  ));
+  await add(NewActivity(
+    name: 'Live CS2', categoryId: cat('สตรีม'), importance: 1, timed: true,
+    day: demoTermStart, startMinute: 20 * 60, durationMin: 120,
+    repeat: RepeatKind.weekly, weekdays: {6}, endDate: demoTermEnd,
+  ));
+  await add(NewActivity(
+    name: 'ส่งรายงานแล็บ 1 · ${subjects.first.name}', categoryId: cat('งาน'), importance: 3, timed: true,
+    day: demoTermStart.add(const Duration(days: 11)), startMinute: 21 * 60, durationMin: 60,
+    subjectId: subjects.first.id,
+  ));
+  // Reminder Inbox: งานยังไม่มีวัน
+  final inboxId = await add(NewActivity(
+    name: 'อ่านสไลด์บท 2 ก่อนเรียน', categoryId: learn, importance: 2, timed: false, day: demoTermStart,
+  ));
+  if (inboxId != null) {
+    final o = (await calendar.occurrencesOn(demoTermStart)).where((o) => o.activityId == inboxId).firstOrNull;
+    if (o != null) await calendar.sendToInbox(o.id);
+  }
+  // ทำรอบติววันจันทร์ไปแล้ว
+  if (demoTermStart.isBefore(now)) {
+    for (final o in await calendar.occurrencesOn(demoTermStart)) {
+      if (o.kind == ActivityKind.tutor && o.status == OccurrenceStatus.planned) await calendar.setDone(o.id, true);
+    }
+  }
+  if ((await calendar.holidays()).every((h) => h.day != demoHoliday)) {
+    await calendar.setHoliday(demoHoliday, 'วันรัฐธรรมนูญ');
+    extras++;
+  }
+
+  return 'คะแนน $scores ครั้ง · ห้อง $rooms คาบ · เรียนแล้ว $done คาบ'
+      '${cancelled ? ' · ยกเลิก 1' : ''} · ของอื่น $extras รายการ';
+}
+
+/// ชั่วโมงปฏิบัติจากหน่วยกิต "3(2-2-5)" → 2 · อ่านไม่ได้ → null
+int? parseLabHours(String? credits) {
+  final m = RegExp(r'\(\s*\d+\s*-\s*(\d+)\s*-').firstMatch(credits ?? '');
+  return m == null ? null : int.parse(m.group(1)!);
 }
