@@ -66,8 +66,12 @@ Future<void> gradeRepoRules(StudyRepository repo) async {
 
   // บันทึกคาบ (ไม่ผูกคาบในปฏิทิน): บทยังไม่เริ่ม → กำลังติว · ลบบท → บันทึกยังอยู่
   final ch = await repo.addChapter(sid, 'บท 1');
-  await repo.logClass(sid, DateTime(2026, 11, 10, 9, 30), chapterId: ch, finished: true, note: ' ');
+  await repo.logClass(sid, DateTime(2026, 11, 10, 9, 30),
+      chapterId: ch, finished: true, note: ' ', topics: ['for', 'while'], homework: 'การบ้าน 1', dueAt: DateTime(2026, 11, 17, 23, 59));
   final log = (await repo.classLogs(sid)).single;
+  expect(log.topics, ['for', 'while']);
+  expect(log.homework, 'การบ้าน 1');
+  expect(log.dueAt, DateTime(2026, 11, 17, 23, 59));
   expect(log.day, DateTime(2026, 11, 10));
   expect(log.finished, isTrue);
   expect(log.note, isNull);
@@ -86,7 +90,7 @@ void main() {
     await gradeRepoRules(MemoryStudyRepository());
   });
 
-  test('SQLite: migration v13 รันซ้ำได้ · กฎเหมือน RAM', () async {
+  test('SQLite: migration v13–15 รันซ้ำได้ · กฎเหมือน RAM', () async {
     sqfliteFfiInit();
     final db = await databaseFactoryFfi.openDatabase(inMemoryDatabasePath,
         options: OpenDatabaseOptions(onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON')));
@@ -102,7 +106,9 @@ void main() {
     await createSubjectLinkV12(db);
     await createGradeV13(db);
     await createClassLogV14(db);
+    await createClassLogV15(db);
     await createClassLogV14(db); // รันซ้ำก็ไม่พัง
+    await createClassLogV15(db);
     await gradeRepoRules(SqliteStudyRepository(db));
     await db.close();
   });

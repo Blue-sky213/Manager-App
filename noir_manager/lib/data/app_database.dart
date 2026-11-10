@@ -10,7 +10,7 @@ import 'seed_data.dart';
 import 'study_repository.dart';
 
 /// เวอร์ชันโครงตาราง: ถ้าวันหลังเพิ่มตาราง/คอลัมน์ ให้เพิ่มเลขนี้ + เขียน onUpgrade
-const int _schemaVersion = 14; // v2 setting · v3 cleared_at · v4 ปฏิทิน · v5 Preset · v6 วิชาง่าย 2 รอบ · v7 คาบผูกวิชา + เวลาจริง · v8 แผนการเรียน · v9 เรียน/ติว + ประเภท/สถานะบท · v10 เทอม/วันหยุด/บันทึกติว + ย้ายค่าวิชาออกจาก setting · v11 ประเภทคาบ/ห้อง/กลุ่ม · v12 เส้นความสัมพันธ์วิชา · v13 คะแนนเก็บ/เกรด · v14 จำนวนขาดเรียน + บันทึกคาบเรียน
+const int _schemaVersion = 15; // v2 setting · v3 cleared_at · v4 ปฏิทิน · v5 Preset · v6 วิชาง่าย 2 รอบ · v7 คาบผูกวิชา + เวลาจริง · v8 แผนการเรียน · v9 เรียน/ติว + ประเภท/สถานะบท · v10 เทอม/วันหยุด/บันทึกติว + ย้ายค่าวิชาออกจาก setting · v11 ประเภทคาบ/ห้อง/กลุ่ม · v12 เส้นความสัมพันธ์วิชา · v13 คะแนนเก็บ/เกรด · v14 จำนวนขาดเรียน + บันทึกคาบเรียน · v15 หัวข้อ + งานที่สั่งในคาบ
 
 /// เปิด (หรือสร้างครั้งแรก) ไฟล์ฐานข้อมูล noir_manager.db
 Future<Database> openAppDatabase() async {
@@ -45,6 +45,7 @@ Future<Database> openAppDatabase() async {
       await createSubjectLinkV12(db);
       await createGradeV13(db);
       await createClassLogV14(db);
+      await createClassLogV15(db);
       await seedStudyData(db);
     },
     // เครื่องที่มีไฟล์ v1 อยู่แล้ว (เครื่องนัวร์): เพิ่มเฉพาะส่วนที่ขาด ข้อมูลเดิมไม่หาย
@@ -68,6 +69,7 @@ Future<Database> openAppDatabase() async {
       if (oldVersion < 12) await createSubjectLinkV12(db);
       if (oldVersion < 13) await createGradeV13(db);
       if (oldVersion < 14) await createClassLogV14(db);
+      if (oldVersion < 15) await createClassLogV15(db);
     },
   );
 }
@@ -275,6 +277,14 @@ Future<void> createClassLogV14(DatabaseExecutor db) async {
     )''');
   await db.execute(
       'CREATE INDEX IF NOT EXISTS idx_class_log_subject ON class_log(subject_id)');
+}
+
+/// v15: บันทึกคาบเก็บหัวข้อที่เรียน + งาน/การบ้านที่อาจารย์สั่ง (ชื่อ · กำหนดส่ง · งานในปฏิทิน)
+Future<void> createClassLogV15(DatabaseExecutor db) async {
+  await addColumnIfMissing(db, 'class_log', 'topics', 'TEXT'); // ชื่อหัวข้อคั่นด้วย \n
+  await addColumnIfMissing(db, 'class_log', 'homework', 'TEXT');
+  await addColumnIfMissing(db, 'class_log', 'due_at', 'TEXT');
+  await addColumnIfMissing(db, 'class_log', 'task_activity_id', 'INTEGER');
 }
 
 /// ตารางตั้งค่าแบบ key → value เช่น grading_mode → ez / advanced

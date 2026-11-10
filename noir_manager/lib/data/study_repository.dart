@@ -39,7 +39,14 @@ abstract class StudyRepository {
   /// บันทึกว่าคาบนี้เรียนบท [chapterId] จบบทไหม · บทที่ยังไม่เริ่ม → กลายเป็นบทที่ต้องติวต่อ
   /// คาบเดิม ([occurrenceId] ซ้ำ) → แก้บันทึกเดิมแทนเพิ่มใหม่
   Future<int> logClass(int subjectId, DateTime day,
-      {int? occurrenceId, int? chapterId, bool finished = false, String? note});
+      {int? occurrenceId,
+      int? chapterId,
+      bool finished = false,
+      String? note,
+      List<String> topics = const [],
+      String? homework,
+      DateTime? dueAt,
+      int? taskActivityId});
   Future<void> deleteClassLog(int logId);
 
   /// เส้นความสัมพันธ์ทั้งหมด (from ต้องเรียนก่อน to)

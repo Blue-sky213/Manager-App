@@ -221,7 +221,7 @@ class ChapterWithTopics {
 /// เส้นความสัมพันธ์ในแผนผัง: [from] ต้องเรียนก่อน [to] (เช่น คณิต 1 → คณิต 2)
 typedef SubjectLink = ({int from, int to});
 
-/// บันทึกคาบเรียน 1 คาบ: เรียนบทไหน · จบบทไหม · โน้ต
+/// บันทึกคาบเรียน 1 คาบ: เรียนบทไหน · หัวข้อ · จบบทไหม · โน้ต · งานที่อาจารย์สั่ง
 class ClassLog {
   const ClassLog({
     required this.id,
@@ -231,6 +231,10 @@ class ClassLog {
     this.chapterId,
     this.finished = false,
     this.note,
+    this.topics = const [],
+    this.homework,
+    this.dueAt,
+    this.taskActivityId,
   });
 
   final int id;
@@ -240,4 +244,26 @@ class ClassLog {
   final DateTime day;
   final bool finished;
   final String? note;
+
+  /// หัวข้อที่เรียนในคาบนี้ (ชื่อหัวข้อย่อยของบท)
+  final List<String> topics;
+
+  /// งาน/การบ้านที่สั่ง (null = ไม่มี) · กำหนดส่ง · งาน "ส่ง: …" ในปฏิทิน
+  final String? homework;
+  final DateTime? dueAt;
+  final int? taskActivityId;
+
+  ClassLog withChapter(int? chapterId) => ClassLog(
+        id: id,
+        subjectId: subjectId,
+        day: day,
+        occurrenceId: occurrenceId,
+        chapterId: chapterId,
+        finished: finished,
+        note: note,
+        topics: topics,
+        homework: homework,
+        dueAt: dueAt,
+        taskActivityId: taskActivityId,
+      );
 }
