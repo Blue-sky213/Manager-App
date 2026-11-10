@@ -373,14 +373,19 @@ class _StudyPageState extends State<StudyPage> {
               Expanded(
                 child: Wrap(spacing: 8, runSpacing: 8, children: [
                   for (final s in inYear.where((s) => (s.planTerm ?? 0) == t))
-                    ChoiceChip(
-                      label: Text(s.name),
-                      selected: s.id == _subjectId,
-                      onSelected: (_) {
-                        _subjectId = s.id;
-                        _yearView = year;
-                        _reload();
-                      },
+                    // คลิกขวา / กดค้างที่ชิปวิชา = เมนูเดียวกับในแผนผัง
+                    GestureDetector(
+                      onSecondaryTapUp: (d) => _subjectMenu(s, d.globalPosition, inDetail: true),
+                      onLongPressStart: (d) => _subjectMenu(s, d.globalPosition, inDetail: true),
+                      child: ChoiceChip(
+                        label: Text(s.name),
+                        selected: s.id == _subjectId,
+                        onSelected: (_) {
+                          _subjectId = s.id;
+                          _yearView = year;
+                          _reload();
+                        },
+                      ),
                     ),
                 ]),
               ),
@@ -421,11 +426,12 @@ class _StudyPageState extends State<StudyPage> {
   }
 
   /// คลิกขวา / กดค้างที่กล่องวิชา → เมนูตรงตำแหน่งเมาส์
-  Future<void> _subjectMenu(Subject s, Offset at) async {
+  Future<void> _subjectMenu(Subject s, Offset at, {bool inDetail = false}) async {
     final chain = _mapSelectedId == s.id;
     final pick = await showContextMenuAt<String>(context, at, [
       ctxItem('open', Icons.open_in_new, 'เปิดวิชา'),
-      ctxItem('chain', Icons.timeline, chain ? 'เลิกไฮไลต์สายวิชา' : 'ไฮไลต์สายวิชานี้'),
+      if (!inDetail) ctxItem('chain', Icons.timeline, chain ? 'เลิกไฮไลต์สายวิชา' : 'ไฮไลต์สายวิชานี้'),
+      ctxItem('color', Icons.palette_outlined, 'เปลี่ยนสีวิชา'),
       ctxItem('links', Icons.share_outlined, 'แก้เส้นเชื่อม'),
       ctxItem('plan', Icons.edit_calendar_outlined, 'แก้ รหัส / หน่วยกิต / ปี / ภาค'),
       ctxItem('rename', Icons.drive_file_rename_outline, 'เปลี่ยนชื่อ'),
@@ -434,7 +440,14 @@ class _StudyPageState extends State<StudyPage> {
     if (!mounted) return;
     switch (pick) {
       case 'open':
-        _openSubject(s);
+        if (inDetail) {
+          _subjectId = s.id;
+          await _reload();
+        } else {
+          _openSubject(s);
+        }
+      case 'color':
+        await _pickColor(s);
       case 'chain':
         setState(() => _mapSelectedId = chain ? null : s.id);
       case 'links':
@@ -1058,8 +1071,31 @@ class _ChapterCard extends StatelessWidget {
   final VoidCallback onStatus;
   final ValueChanged<Subtopic> onOpenSubtopic;
 
+  Future<void> _menuAt(BuildContext context, Offset at) async {
+    final v = await showContextMenuAt<String>(context, at, [
+      ctxItem('add', Icons.add, 'เพิ่มหัวข้อย่อย'),
+      ctxItem('rename', Icons.drive_file_rename_outline, 'เปลี่ยนชื่อบท'),
+      ctxItem('kind', Icons.category_outlined, 'ประเภทบท: ทฤษฎี / ปฏิบัติ / ผสม'),
+      ctxItem('status', Icons.flag_outlined, 'สถานะบท'),
+      ctxItem('delete', Icons.delete_outline, 'ลบบทนี้', danger: true),
+    ]);
+    switch (v) {
+      case 'add':
+        onAddSubtopic();
+      case 'rename':
+        onRename();
+      case 'kind':
+        onKind();
+      case 'status':
+        onStatus();
+      case 'delete':
+        onDelete();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    var pressAt = Offset.zero;
     final c = context.noir;
     final topics = data.subtopics;
     final assessed = topics.where((t) => t.latestScore != null).length;
@@ -1071,6 +1107,10 @@ class _ChapterCard extends StatelessWidget {
         children: [
           InkWell(
             onTap: onToggle, // แตะหัวบท = ยุบ / ขยาย
+            // คลิกขวา / กดค้าง = เมนูเดียวกับปุ่ม ⋮ แต่เด้งตรงเมาส์
+            onSecondaryTapUp: (d) => _menuAt(context, d.globalPosition),
+            onTapDown: (d) => pressAt = d.globalPosition,
+            onLongPress: () => _menuAt(context, pressAt),
             child: Padding(
             padding: const EdgeInsets.fromLTRB(10, 8, 4, 8),
             child: Row(

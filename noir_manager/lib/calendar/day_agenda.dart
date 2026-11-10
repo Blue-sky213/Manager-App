@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/noir_colors.dart';
+import 'calendar_flows.dart';
 import 'calendar_models.dart';
 import 'calendar_ui.dart';
 import 'class_stats.dart';
@@ -178,7 +179,7 @@ class _OccurrenceRow extends StatelessWidget {
     final minutes = o.endAt!.difference(o.startAt!).inMinutes;
     final height = (52 + minutes / 60 * 14).clamp(64, 200).toDouble();
 
-    return Padding(
+    return OccurrenceMenuArea(o: o, child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       // IntrinsicHeight + minHeight: สูงตามระยะเวลา แต่ถ้าชื่อยาวจนตัดบรรทัด กล่องก็สูงตาม ไม่ล้น
       child: IntrinsicHeight(
@@ -266,7 +267,7 @@ class _OccurrenceRow extends StatelessWidget {
           ),
         ),
       ),
-    );
+    ));
   }
 }
 
@@ -283,7 +284,7 @@ class _ListRow extends StatelessWidget {
     final c = context.noir;
     final status = _statusText(o);
     final faded = !o.active;
-    return ListTile(
+    return OccurrenceMenuArea(o: o, child: ListTile(
       onTap: onTap,
       leading: Icon(
         _statusIcon(o.status) ?? Icons.radio_button_unchecked,
@@ -299,6 +300,6 @@ class _ListRow extends StatelessWidget {
         'ความสำคัญ: ${importanceText(o.importance)}',
         if (status != null) status,
       ].join(' · ')),
-    );
+    ));
   }
 }
