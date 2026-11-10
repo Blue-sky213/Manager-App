@@ -197,7 +197,14 @@ class MemoryStudyRepository implements StudyRepository {
 
   @override
   Future<int> logClass(int subjectId, DateTime day,
-      {int? occurrenceId, int? chapterId, bool finished = false, String? note}) async {
+      {int? occurrenceId,
+      int? chapterId,
+      bool finished = false,
+      String? note,
+      List<String> topics = const [],
+      String? homework,
+      DateTime? dueAt,
+      int? taskActivityId}) async {
     final old = occurrenceId == null ? -1 : _classLogs.indexWhere((l) => l.occurrenceId == occurrenceId);
     final id = old >= 0 ? _classLogs[old].id : _nextId++;
     final log = ClassLog(
@@ -208,6 +215,10 @@ class MemoryStudyRepository implements StudyRepository {
       chapterId: chapterId,
       finished: finished,
       note: (note == null || note.trim().isEmpty) ? null : note.trim(),
+      topics: topics,
+      homework: (homework == null || homework.trim().isEmpty) ? null : homework.trim(),
+      dueAt: dueAt,
+      taskActivityId: taskActivityId,
     );
     if (old >= 0) {
       _classLogs[old] = log;
@@ -317,8 +328,7 @@ class MemoryStudyRepository implements StudyRepository {
     for (var i = 0; i < _classLogs.length; i++) {
       final l = _classLogs[i];
       if (l.chapterId == chapterId) {
-        _classLogs[i] = ClassLog(
-            id: l.id, subjectId: l.subjectId, day: l.day, occurrenceId: l.occurrenceId, finished: l.finished, note: l.note);
+        _classLogs[i] = l.withChapter(null);
       }
     }
   }

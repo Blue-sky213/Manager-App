@@ -463,6 +463,7 @@ class _GradeCardState extends State<GradeCard> {
           Expanded(child: Text('เกรดจริงที่ประกาศ', style: TextStyle(color: c.text))),
           DropdownButton<String>(
             value: official ?? '',
+            focusColor: Colors.transparent,
             underline: const SizedBox.shrink(),
             items: [
               for (final g in const ['', 'A', 'B+', 'B', 'C+', 'C', 'D+', 'D', 'F', 'S', 'U'])

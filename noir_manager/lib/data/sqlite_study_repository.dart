@@ -213,13 +213,27 @@ class SqliteStudyRepository implements StudyRepository {
           day: DateTime.parse(r['day'] as String),
           finished: (r['finished'] as int? ?? 0) == 1,
           note: r['note'] as String?,
+          topics: [
+            for (final t in ((r['topics'] as String?) ?? '').split('\n'))
+              if (t.trim().isNotEmpty) t.trim(),
+          ],
+          homework: r['homework'] as String?,
+          dueAt: r['due_at'] == null ? null : DateTime.parse(r['due_at'] as String),
+          taskActivityId: r['task_activity_id'] as int?,
         ),
     ];
   }
 
   @override
   Future<int> logClass(int subjectId, DateTime day,
-      {int? occurrenceId, int? chapterId, bool finished = false, String? note}) async {
+      {int? occurrenceId,
+      int? chapterId,
+      bool finished = false,
+      String? note,
+      List<String> topics = const [],
+      String? homework,
+      DateTime? dueAt,
+      int? taskActivityId}) async {
     final values = {
       'subject_id': subjectId,
       'occurrence_id': occurrenceId,
@@ -227,6 +241,10 @@ class SqliteStudyRepository implements StudyRepository {
       'day': _dayText(day),
       'finished': finished ? 1 : 0,
       'note': (note == null || note.trim().isEmpty) ? null : note.trim(),
+      'topics': topics.isEmpty ? null : topics.join('\n'),
+      'homework': (homework == null || homework.trim().isEmpty) ? null : homework.trim(),
+      'due_at': dueAt?.toIso8601String(),
+      'task_activity_id': taskActivityId,
     };
     final int id;
     final old = occurrenceId == null

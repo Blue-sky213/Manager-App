@@ -31,3 +31,24 @@ int? countPlanned(Activity a) {
       return n;
   }
 }
+
+/// คาบถัดไปของวิชาหลังวัน [after] (วัน + เวลาเริ่มคาบ) · ใช้ตั้งกำหนดส่ง "คาบหน้า"
+Future<DateTime?> nextClassAfter(CalendarRepository cal, int subjectId, DateTime after) async {
+  DateTime? best;
+  final from = dayOnly(after);
+  for (final a in await cal.activitiesForSubject(subjectId)) {
+    if (a.kind != ActivityKind.classSession) continue;
+    final full = a.repeat == RepeatKind.dates && a.dates.isEmpty ? await cal.activity(a.id) : a;
+    for (var i = 1; i <= 60; i++) {
+      final d = DateTime(from.year, from.month, from.day + i);
+      if (best != null && !d.isBefore(dayOnly(best))) break;
+      if (full.endDate != null && d.isAfter(dayOnly(full.endDate!))) break;
+      if (occursOn(full, d)) {
+        final at = DateTime(d.year, d.month, d.day).add(Duration(minutes: full.startMinute ?? 8 * 60));
+        if (best == null || at.isBefore(best)) best = at;
+        break;
+      }
+    }
+  }
+  return best;
+}
