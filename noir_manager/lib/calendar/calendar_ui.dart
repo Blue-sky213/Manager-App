@@ -4,6 +4,7 @@ import '../study/subject_colors.dart';
 import '../theme/noir_colors.dart';
 import '../utils/thai_date.dart';
 import 'calendar_models.dart';
+import 'lock_flow.dart' show showLockBadge;
 
 // ---------- ตัวช่วยเล็ก ๆ ----------
 
@@ -39,11 +40,22 @@ DayMark? markOf(Occurrence o) {
 }
 
 /// ชื่องานพร้อมสัญลักษณ์นำหน้า (📝 สอบ · ⭐ ส่งงาน) ให้เห็นแต่ไกล
-String markedTitle(Occurrence o) => switch (markOf(o)) {
-      DayMark.exam => '📝 ${o.title}',
-      DayMark.homework => '⭐ ${o.title}',
-      null => o.title,
-    };
+String markedTitle(Occurrence o) {
+  final t = switch (markOf(o)) {
+    DayMark.exam => '📝 ${o.title}',
+    DayMark.homework => '⭐ ${o.title}',
+    null => o.title,
+  };
+  return t;
+}
+
+/// ไอคอนกุญแจเล็กหน้าชื่องาน: มีคำมั่น หรือเริ่มแล้ว (แก้ต้องยืนยัน)
+Widget? lockBadge(Occurrence o, Color color, {double size = 14}) => showLockBadge(o)
+    ? Padding(
+        padding: const EdgeInsets.only(right: 4),
+        child: Icon(Icons.lock, size: size, color: color, semanticLabel: 'ล็อกอยู่'),
+      )
+    : null;
 
 /// สีกล่องงาน: งานที่ผูกวิชา (คาบ / สอบ / ติว) → สีประจำวิชา ชุดเดียวกับตารางเรียนและแผนผัง
 /// งานอื่น → สีหมวด · ตัวหนังสือใช้สีหลักของธีม อ่านออกทั้งมืด/สว่าง

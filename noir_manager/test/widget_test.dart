@@ -699,6 +699,7 @@ void main() {
     ));
     await tester.pumpWidget(buildApp(calendar: calendar));
     await tester.pumpAndSettle();
+    expect(find.byIcon(Icons.lock), findsWidgets); // เริ่มแล้ว → มีกุญแจหน้าชื่อ
 
     // ไม่มีคำมั่น → ถามธรรมดา · กด "ไม่แก้" = ไม่เปิดหน้าแก้
     await tester.longPress(find.text('อ่านหนังสือเช้า'));

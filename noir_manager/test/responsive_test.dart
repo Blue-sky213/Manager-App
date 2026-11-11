@@ -59,6 +59,8 @@ void main() {
     final bg = Theme.of(tester.element(find.text('โหมดแอป'))).scaffoldBackgroundColor;
     expect(bg, const Color(0xFFFDF4F7));
 
+    // พาสเทลมีโทนมืดคู่กัน
+    expect(find.text('ชมพู (มืด)'), findsOneWidget);
     await tester.tap(find.text('ทั้งคู่'));
     await tester.pumpAndSettle();
     expect(await study.getSetting('app_mode'), 'both');
@@ -69,5 +71,22 @@ void main() {
     await tester.pumpWidget(NoirManagerApp(studyRepository: study, calendarRepository: cal));
     await tester.pumpAndSettle();
     expect(Theme.of(tester.element(find.text('วันนี้').first)).scaffoldBackgroundColor, const Color(0xFFFDF4F7));
+  });
+
+  testWidgets('ปุ่มลัดสลับธีมในเมนู: ชมพู ↔ ชมพู (มืด)', (tester) async {
+    tester.view.physicalSize = const Size(1280, 1000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    final study = MemoryStudyRepository.seeded();
+    await study.setSetting('theme', 'pink');
+    await tester.pumpWidget(NoirManagerApp(studyRepository: study, calendarRepository: MemoryCalendarRepository()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('โหมดมืด'));
+    await tester.pumpAndSettle();
+    expect(await study.getSetting('theme'), 'pink-dark');
+    expect(Theme.of(tester.element(find.text('วันนี้').first)).scaffoldBackgroundColor, const Color(0xFF1A1216));
+    await tester.tap(find.text('โหมดสว่าง'));
+    await tester.pumpAndSettle();
+    expect(await study.getSetting('theme'), 'pink');
   });
 }

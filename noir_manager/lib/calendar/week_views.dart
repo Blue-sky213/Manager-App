@@ -8,6 +8,7 @@ import '../theme/noir_colors.dart';
 import 'calendar_flows.dart';
 import 'calendar_models.dart';
 import 'calendar_ui.dart';
+import 'lock_flow.dart' show showLockBadge;
 
 /// นาทีเริ่ม/จบของงานในวันนั้น (ข้ามเที่ยงคืน → ตัดที่ 24:00)
 (int, int) _span(Occurrence o) {
@@ -203,6 +204,14 @@ class WeekTimeline extends StatelessWidget {
                           // Text เดียว: กล่องเตี้ยก็แค่ถูกตัด ไม่เกิด overflow error
                           child: Text.rich(
                             TextSpan(children: [
+                              if (showLockBadge(o))
+                                const WidgetSpan(
+                                  alignment: PlaceholderAlignment.middle,
+                                  child: Padding(
+                                    padding: EdgeInsets.only(right: 3),
+                                    child: Icon(Icons.lock, size: 12, semanticLabel: 'ล็อกอยู่'),
+                                  ),
+                                ),
                               TextSpan(
                                 text: markedTitle(o),
                                 style: TextStyle(

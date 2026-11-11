@@ -230,15 +230,20 @@ class _OccurrenceRow extends StatelessWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                markedTitle(o),
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: o.importance == 3 ? FontWeight.w600 : FontWeight.w400,
-                                  color: fg,
-                                  decoration: faded ? TextDecoration.lineThrough : null,
+                              Row(children: [
+                                ?lockBadge(o, fg),
+                                Flexible(
+                                  child: Text(
+                                    markedTitle(o),
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: o.importance == 3 ? FontWeight.w600 : FontWeight.w400,
+                                      color: fg,
+                                      decoration: faded ? TextDecoration.lineThrough : null,
+                                    ),
+                                  ),
                                 ),
-                              ),
+                              ]),
                               Text(
                                 [
                                   if (clash) '⚠ ทับเวลา',

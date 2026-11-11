@@ -17,6 +17,44 @@ const lockSettingKey = 'lock_started';
 /// คำมั่นของงาน 1 งาน (เก็บในตาราง setting ไม่ต้องเพิ่มตาราง)
 String commitmentKey(int activityId) => 'commit:$activityId';
 
+/// รายชื่องานที่มีคำมั่น (คั่นด้วย ,) → ใช้วาด 🔒 โดยไม่ต้องถาม DB ทีละงาน
+const commitIdsKey = 'commit_ids';
+
+/// สถานะล็อกที่หน้าจอใช้วาดสัญลักษณ์ (โหลดตอนเปิดแอป + ทุกครั้งที่เปลี่ยน)
+class LockState {
+  const LockState({this.enabled = true, this.committed = const {}});
+  final bool enabled;
+  final Set<int> committed;
+}
+
+LockState lockState = const LockState();
+
+Future<void> refreshLockState(CalendarRepository repo) async {
+  final enabled = (await repo.getSetting(lockSettingKey)) != 'off';
+  final ids = ((await repo.getSetting(commitIdsKey)) ?? '').split(',').map(int.tryParse).whereType<int>().toSet();
+  lockState = LockState(enabled: enabled, committed: ids);
+  repo.refresh();
+}
+
+/// วาด 🔒 ไหม: มีคำมั่น (ตลอด) · หรือเริ่มแล้วแต่ยังไม่กรอกผล (ล็อกอยู่)
+bool showLockBadge(Occurrence o, {DateTime? now}) {
+  if (!lockState.enabled) return false;
+  if (lockState.committed.contains(o.activityId)) return true;
+  return o.status == OccurrenceStatus.planned && isStarted(o, now ?? DateTime.now());
+}
+
+Future<void> _setCommitment(CalendarRepository repo, int activityId, String text) async {
+  await repo.setSetting(commitmentKey(activityId), text);
+  final ids = {...lockState.committed};
+  if (text.trim().isEmpty) {
+    ids.remove(activityId);
+  } else {
+    ids.add(activityId);
+  }
+  await repo.setSetting(commitIdsKey, ids.join(','));
+  await refreshLockState(repo);
+}
+
 /// เริ่มไปแล้วหรือยัง: มีเวลา = ถึงเวลาเริ่ม · ทั้งวัน = ถึงวันนั้น
 bool isStarted(Occurrence o, DateTime now) {
   if (o.status == OccurrenceStatus.inbox) return false;
@@ -68,7 +106,7 @@ Future<bool> confirmUnlock(BuildContext context, CalendarRepository repo, Occurr
       ],
     ),
   );
-  if (res == 'drop') await repo.setSetting(commitmentKey(o.activityId), '');
+  if (res == 'drop') await _setCommitment(repo, o.activityId, '');
   return res == 'edit' || res == 'drop';
 }
 
@@ -101,5 +139,5 @@ Future<void> editCommitment(BuildContext context, CalendarRepository repo, Occur
       ],
     ),
   );
-  if (res != null) await repo.setSetting(commitmentKey(o.activityId), res);
+  if (res != null) await _setCommitment(repo, o.activityId, res);
 }
