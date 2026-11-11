@@ -1,0 +1,68 @@
+erDiagram
+  SUBJECT ||--o{ CHAPTER : "มีบท"
+  SUBJECT ||--o{ SUBJECT_LINK : "เรียนก่อน → ต่อยอด"
+  CHAPTER ||--o{ SUBTOPIC : "มีหัวข้อ"
+  SUBTOPIC ||--o{ ASSESSMENT : "คะแนนความเข้าใจ"
+  SUBJECT ||--o{ CLASS_LOG : "คาบเรียนถึงไหน"
+  CHAPTER |o--o{ CLASS_LOG : "บทที่เรียน"
+  SUBJECT ||--o{ GRADE_PART : "ส่วนคะแนน"
+  GRADE_PART ||--o{ GRADE_ITEM : "ชิ้นคะแนน"
+  SUBJECT ||--o| GRADE_SETUP : "ช่วงเกรด"
+  SUBJECT {
+    int id PK
+    text name
+    text code
+    text credits "3(2-2-5)"
+    int plan_year
+    int plan_term
+    text color
+  }
+  SUBJECT_LINK {
+    int from_id PK,FK
+    int to_id PK,FK
+  }
+  CHAPTER {
+    int id PK
+    int subject_id FK
+    text name
+    text status "todo / learning ..."
+  }
+  SUBTOPIC {
+    int id PK
+    int chapter_id FK
+    text name
+  }
+  ASSESSMENT {
+    int id PK
+    int subtopic_id FK
+    int score "0-100"
+  }
+  CLASS_LOG {
+    int id PK
+    int subject_id FK
+    int chapter_id FK
+    int occurrence_id FK
+    int finished
+    text topics
+    text homework
+    text due_at
+  }
+  GRADE_PART {
+    int id PK
+    int subject_id FK
+    text name
+    real weight
+  }
+  GRADE_ITEM {
+    int id PK
+    int part_id FK
+    real full_score
+    real got_score
+  }
+  GRADE_SETUP {
+    int subject_id PK
+    text scale
+    int absent_count
+    int class_total
+    text official
+  }

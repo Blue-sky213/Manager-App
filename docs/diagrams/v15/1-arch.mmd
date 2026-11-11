@@ -1,0 +1,26 @@
+flowchart LR
+  subgraph UI["1 หน้าจอ"]
+    direction TB
+    T["วันนี้"]
+    C["ปฏิทิน"]
+    S["การเรียน"]
+    F["ไฟล์ · สถิติ<br/>ยังไม่ทำ"]
+  end
+  subgraph Logic["2 ตัวคิด"]
+    direction TB
+    FL["calendar_flows<br/>เมนูซ้าย / ขวา"]
+    ST["grading · tutor_plan<br/>mastery · class_log"]
+  end
+  subgraph Repo["3 Repository"]
+    direction TB
+    CR["CalendarRepository"]
+    SR["StudyRepository"]
+  end
+  DB[("4 SQLite v15<br/>19 ตาราง")]
+  T --> FL
+  C --> FL
+  S --> ST
+  FL --> CR
+  ST --> SR
+  CR --> DB
+  SR --> DB
