@@ -10,6 +10,7 @@ import 'shell/app_shell.dart';
 import 'calendar/lock_flow.dart' show refreshLockState;
 import 'data/backup.dart';
 import 'pages/onboarding_page.dart';
+import 'widgets/device_preview.dart';
 import 'theme/app_theme.dart';
 import 'theme/noir_colors.dart';
 import 'shell/app_nav.dart';
@@ -70,6 +71,11 @@ class _NoirManagerAppState extends State<NoirManagerApp> {
     _clock = Timer.periodic(const Duration(minutes: 1), (_) {
       if (_themeId == autoThemeId && mounted) setState(() {});
     });
+    widget.studyRepository.getSetting(devicePreviewKey).then((v) {
+      if (v == null || v.isEmpty) return;
+      final parts = v.split(':');
+      devicePreview.value = (id: parts.first, landscape: parts.length > 1);
+    });
     if (widget.askOnboarding) {
       widget.studyRepository.getSetting(onboardedKey).then((v) {
         if (mounted && v == null) setState(() => _onboarding = true);
@@ -102,11 +108,13 @@ class _NoirManagerAppState extends State<NoirManagerApp> {
           navigatorKey: _nav,
           // ปุ่มเมาส์ 4 = ย้อนกลับ · ปุ่ม 5 = ไปหน้าที่เพิ่งย้อนมา: ปิดหน้าที่เปิดซ้อน / เมนู / กล่อง (หน้าแรกสุดไม่มีที่ให้ย้อน → ไม่ทำอะไร)
           builder: (context, child) =>
-              MouseBack(
-                onBack: _back,
-                onForward: () => appForward.handle(),
-                onPointer: (p) => lastPointerDown = p,
-                child: child!,
+              DevicePreviewFrame(
+                child: MouseBack(
+                  onBack: _back,
+                  onForward: () => appForward.handle(),
+                  onPointer: (p) => lastPointerDown = p,
+                  child: child!,
+                ),
               ),
           debugShowCheckedModeBanner: false,
           // ภาษาไทย: ปฏิทินเลือกวัน, นาฬิกาเลือกเวลา, ปุ่ม OK/Cancel ของระบบ

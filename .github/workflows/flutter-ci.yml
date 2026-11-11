@@ -72,3 +72,40 @@ jobs:
           name: noir-manager-android
           path: noir_manager/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
           retention-days: 14
+
+  # ตัวติดตั้ง Windows (Setup.exe) — ดับเบิลคลิกติดตั้ง มีไอคอนเดสก์ท็อป / Start menu / ถอนการติดตั้งได้
+  windows-installer:
+    if: github.event_name != 'push' || github.ref == 'refs/heads/main'
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: noir_manager
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Get packages
+        run: flutter pub get
+
+      - name: Build Windows
+        run: flutter build windows --release
+
+      # เวอร์ชันจาก pubspec (1.0.0+1 → 1.0.0)
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $v = (Select-String -Path pubspec.yaml -Pattern '^version:\s*([0-9.]+)').Matches[0].Groups[1].Value
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress; }
+          & $iscc "/DAppVersion=$v" windows\installer\noir_manager.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: noir-manager-windows-setup
+          path: noir_manager/build/installer/*.exe
+          retention-days: 14
