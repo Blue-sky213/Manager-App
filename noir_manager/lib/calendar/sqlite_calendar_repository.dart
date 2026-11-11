@@ -551,6 +551,96 @@ class SqliteCalendarRepository extends CalendarRepository {
     };
   }
 
+  // ---------- สติกเกอร์ ----------
+  Sticker _sticker(Map<String, Object?> r) => Sticker(
+        id: r['id'] as int,
+        packId: r['pack_id'] as int,
+        name: r['name'] as String,
+        emoji: r['emoji'] as String?,
+        imagePath: r['image_path'] as String?,
+      );
+
+  static String _d(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  @override
+  Future<List<StickerPack>> stickerPacks() async {
+    final packs = await _db.query('sticker_pack', orderBy: 'builtin DESC, sort, id');
+    final items = await _db.query('sticker', orderBy: 'sort, id');
+    return [
+      for (final p in packs)
+        StickerPack(
+          id: p['id'] as int,
+          name: p['name'] as String,
+          builtin: (p['builtin'] as int) == 1,
+          enabled: (p['enabled'] as int) == 1,
+          stickers: [for (final r in items.where((r) => r['pack_id'] == p['id'])) _sticker(r)],
+        ),
+    ];
+  }
+
+  @override
+  Future<int> addStickerPack(String name) async {
+    final sort = Sqflite.firstIntValue(await _db.rawQuery('SELECT COALESCE(MAX(sort), -1) + 1 FROM sticker_pack')) ?? 0;
+    final id = await _db.insert('sticker_pack', {'name': name, 'sort': sort});
+    notifyListeners();
+    return id;
+  }
+
+  @override
+  Future<void> setStickerPackEnabled(int packId, bool enabled) async {
+    await _db.update('sticker_pack', {'enabled': enabled ? 1 : 0}, where: 'id = ?', whereArgs: [packId]);
+    notifyListeners();
+  }
+
+  @override
+  Future<void> deleteStickerPack(int packId) async {
+    await _db.delete('sticker_pack', where: 'id = ? AND builtin = 0', whereArgs: [packId]);
+    notifyListeners();
+  }
+
+  @override
+  Future<int> addSticker(int packId, String name, {String? emoji, String? imagePath}) async {
+    final sort = Sqflite.firstIntValue(
+            await _db.rawQuery('SELECT COALESCE(MAX(sort), -1) + 1 FROM sticker WHERE pack_id = ?', [packId])) ??
+        0;
+    final id = await _db.insert(
+        'sticker', {'pack_id': packId, 'name': name, 'emoji': emoji, 'image_path': imagePath, 'sort': sort});
+    notifyListeners();
+    return id;
+  }
+
+  @override
+  Future<void> deleteSticker(int stickerId) async {
+    await _db.delete('sticker', where: 'id = ?', whereArgs: [stickerId]);
+    notifyListeners();
+  }
+
+  @override
+  Future<List<DaySticker>> daySticker(DateTime from, DateTime to) async {
+    final rows = await _db.rawQuery(
+        'SELECT ds.id AS ds_id, ds.day, ds.note, s.* FROM day_sticker ds JOIN sticker s ON s.id = ds.sticker_id '
+        'WHERE ds.day BETWEEN ? AND ? ORDER BY ds.day, ds.id',
+        [_d(from), _d(to)]);
+    return [
+      for (final r in rows)
+        DaySticker(id: r['ds_id'] as int, day: DateTime.parse(r['day'] as String), sticker: _sticker(r), note: r['note'] as String?),
+    ];
+  }
+
+  @override
+  Future<int> stickDay(DateTime day, int stickerId, {String? note}) async {
+    final id = await _db.insert('day_sticker', {'day': _d(day), 'sticker_id': stickerId, 'note': note});
+    notifyListeners();
+    return id;
+  }
+
+  @override
+  Future<void> unstickDay(int dayStickerId) async {
+    await _db.delete('day_sticker', where: 'id = ?', whereArgs: [dayStickerId]);
+    notifyListeners();
+  }
+
   @override
   Future<String?> getSetting(String key) async {
     final rows =

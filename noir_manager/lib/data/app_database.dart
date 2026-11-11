@@ -6,15 +6,16 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart'
     show databaseFactoryFfi, sqfliteFfiInit;
 
 import '../calendar/sqlite_calendar_repository.dart';
+import '../calendar/stickers.dart';
 import 'backup.dart';
 import 'seed_data.dart';
 import 'study_repository.dart';
 
 /// เวอร์ชันโครงตาราง: ถ้าวันหลังเพิ่มตาราง/คอลัมน์ ให้เพิ่มเลขนี้ + เขียน onUpgrade
-const int _schemaVersion = 15;
+const int _schemaVersion = 16;
 
 /// เลขเวอร์ชันฐานข้อมูล (โชว์ในหน้าตั้งค่า)
-const int appSchemaVersion = _schemaVersion; // v2 setting · v3 cleared_at · v4 ปฏิทิน · v5 Preset · v6 วิชาง่าย 2 รอบ · v7 คาบผูกวิชา + เวลาจริง · v8 แผนการเรียน · v9 เรียน/ติว + ประเภท/สถานะบท · v10 เทอม/วันหยุด/บันทึกติว + ย้ายค่าวิชาออกจาก setting · v11 ประเภทคาบ/ห้อง/กลุ่ม · v12 เส้นความสัมพันธ์วิชา · v13 คะแนนเก็บ/เกรด · v14 จำนวนขาดเรียน + บันทึกคาบเรียน · v15 หัวข้อ + งานที่สั่งในคาบ
+const int appSchemaVersion = _schemaVersion; // v2 setting · v3 cleared_at · v4 ปฏิทิน · v5 Preset · v6 วิชาง่าย 2 รอบ · v7 คาบผูกวิชา + เวลาจริง · v8 แผนการเรียน · v9 เรียน/ติว + ประเภท/สถานะบท · v10 เทอม/วันหยุด/บันทึกติว + ย้ายค่าวิชาออกจาก setting · v11 ประเภทคาบ/ห้อง/กลุ่ม · v12 เส้นความสัมพันธ์วิชา · v13 คะแนนเก็บ/เกรด · v14 จำนวนขาดเรียน + บันทึกคาบเรียน · v15 หัวข้อ + งานที่สั่งในคาบ · v16 สติกเกอร์อารมณ์
 
 /// เปิด (หรือสร้างครั้งแรก) ไฟล์ฐานข้อมูล noir_manager.db
 /// ที่อยู่ไฟล์ DB ที่เปิดล่าสุด (ใช้กับระบบสำรองข้อมูล)
@@ -56,6 +57,7 @@ Future<Database> openAppDatabase() async {
       await createGradeV13(db);
       await createClassLogV14(db);
       await createClassLogV15(db);
+      await createStickerV16(db);
       await seedStudyData(db);
     },
     // เครื่องที่มีไฟล์ v1 อยู่แล้ว (เครื่องนัวร์): เพิ่มเฉพาะส่วนที่ขาด ข้อมูลเดิมไม่หาย
@@ -80,6 +82,7 @@ Future<Database> openAppDatabase() async {
       if (oldVersion < 13) await createGradeV13(db);
       if (oldVersion < 14) await createClassLogV14(db);
       if (oldVersion < 15) await createClassLogV15(db);
+      if (oldVersion < 16) await createStickerV16(db);
     },
   );
 }
@@ -295,6 +298,43 @@ Future<void> createClassLogV15(DatabaseExecutor db) async {
   await addColumnIfMissing(db, 'class_log', 'homework', 'TEXT');
   await addColumnIfMissing(db, 'class_log', 'due_at', 'TEXT');
   await addColumnIfMissing(db, 'class_log', 'task_activity_id', 'INTEGER');
+}
+
+/// v16: สติกเกอร์อารมณ์รายวัน · ชุด → ชิ้น → แปะในวัน · ใส่ชุดในตัวแอปให้ครั้งเดียว
+Future<void> createStickerV16(DatabaseExecutor db) async {
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS sticker_pack (
+      id      INTEGER PRIMARY KEY AUTOINCREMENT,
+      name    TEXT NOT NULL,
+      builtin INTEGER NOT NULL DEFAULT 0,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      sort    INTEGER NOT NULL DEFAULT 0
+    )''');
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS sticker (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      pack_id    INTEGER NOT NULL REFERENCES sticker_pack(id) ON DELETE CASCADE,
+      name       TEXT NOT NULL,
+      emoji      TEXT,
+      image_path TEXT,
+      sort       INTEGER NOT NULL DEFAULT 0
+    )''');
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS day_sticker (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      day        TEXT NOT NULL,
+      sticker_id INTEGER NOT NULL REFERENCES sticker(id) ON DELETE CASCADE,
+      note       TEXT
+    )''');
+  await db.execute('CREATE INDEX IF NOT EXISTS idx_day_sticker_day ON day_sticker(day)');
+  final has = Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM sticker_pack WHERE builtin = 1')) ?? 0;
+  if (has > 0) return;
+  for (final (pi, (name, items)) in builtinStickerPacks.indexed) {
+    final pack = await db.insert('sticker_pack', {'name': name, 'builtin': 1, 'sort': pi});
+    for (final (i, (n, e)) in items.indexed) {
+      await db.insert('sticker', {'pack_id': pack, 'name': n, 'emoji': e, 'sort': i});
+    }
+  }
 }
 
 /// ตารางตั้งค่าแบบ key → value เช่น grading_mode → ez / advanced
