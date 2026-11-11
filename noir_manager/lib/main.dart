@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'data/backup.dart';
 import 'app.dart';
 import 'calendar/sqlite_calendar_repository.dart';
 import 'data/app_database.dart';
@@ -13,10 +14,14 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   final db = await openAppDatabase();
+  final backup = BackupService(db: db, dbPath: appDatabasePath!);
+  // สำรองอัตโนมัติวันละครั้ง (ไม่รอ · พลาดก็ไม่กระทบการเปิดแอป)
+  backup.dailyIfNeeded().catchError((_) => null);
 
   runApp(NoirManagerApp(
     studyRepository: SqliteStudyRepository(db),
     calendarRepository: SqliteCalendarRepository(db),
     askOnboarding: true,
+    backup: backup,
   ));
 }

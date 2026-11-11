@@ -1,6 +1,11 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as p;
 
 import '../calendar/calendar_repository.dart' show CalendarScope;
+import '../data/app_database.dart' show appSchemaVersion;
+import '../data/backup.dart';
 import '../calendar/lock_flow.dart' show lockSettingKey, refreshLockState;
 import '../study/mastery.dart' show GradingMode;
 import '../data/study_scope.dart';
@@ -17,9 +22,10 @@ const appModes = [
 
 /// หน้า "ตั้งค่า": ธีม · โหมดแอป · การให้คะแนน · สีแผน 4 ปี
 class SettingsPage extends StatefulWidget {
-  const SettingsPage({super.key, required this.themeId, this.onTheme});
+  const SettingsPage({super.key, required this.themeId, this.onTheme, this.backup});
 
   final String themeId;
+  final BackupService? backup;
   final ValueChanged<String>? onTheme;
 
   @override
@@ -208,8 +214,10 @@ class _SettingsPageState extends State<SettingsPage> {
                       ),
                     ]),
                     const SizedBox(height: 14),
+                    section('สำรองข้อมูล', [_BackupSection(backup: widget.backup)]),
+                    const SizedBox(height: 14),
                     section('เกี่ยวกับ', [
-                      Text('Noir Manager v1 · ฐานข้อมูล v15', style: TextStyle(color: c.muted)),
+                      Text('Noir Manager v1 · ฐานข้อมูล v$appSchemaVersion', style: TextStyle(color: c.muted)),
                     ]),
                   ],
                 ),
@@ -288,5 +296,93 @@ class _ThemeSwatch extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// สำรองตอนนี้ · รายการสำรอง 30 วัน · กู้คืน (มีผลเมื่อเปิดแอปใหม่)
+class _BackupSection extends StatefulWidget {
+  const _BackupSection({required this.backup});
+  final BackupService? backup;
+
+  @override
+  State<_BackupSection> createState() => _BackupSectionState();
+}
+
+class _BackupSectionState extends State<_BackupSection> {
+  List<File> _files = const [];
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final files = await widget.backup?.list() ?? const <File>[];
+    if (mounted) setState(() => _files = files);
+  }
+
+  void _toast(String m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+
+  Future<void> _backupNow() async {
+    setState(() => _busy = true);
+    try {
+      await widget.backup!.backupNow();
+      if (mounted) _toast('สำรองแล้ว');
+    } catch (e) {
+      if (mounted) _toast('สำรองไม่สำเร็จ: $e');
+    }
+    if (mounted) setState(() => _busy = false);
+    await _load();
+  }
+
+  Future<void> _restore(File f) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('กู้คืนข้อมูล?'),
+        content: Text('ข้อมูลจะกลับไปเป็นของไฟล์ ${p.basename(f.path)}\n'
+            'แอปจะสำรองข้อมูลตอนนี้ไว้ก่อน (เผื่อเปลี่ยนใจ) แล้วกู้คืนเมื่อเปิดแอปครั้งถัดไป'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('ยกเลิก')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('กู้คืนเมื่อเปิดใหม่')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await widget.backup!.scheduleRestore(f);
+    if (mounted) _toast('ปิดแล้วเปิดแอปใหม่ เพื่อกู้คืน');
+    await _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.noir;
+    if (widget.backup == null) {
+      return Text('สำรองข้อมูลใช้ได้ในแอปจริงเท่านั้น', style: TextStyle(color: c.muted));
+    }
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Text('สำรองอัตโนมัติวันละครั้งตอนเปิดแอป · เก็บ 30 วัน', style: TextStyle(fontSize: 13, color: c.muted)),
+      const SizedBox(height: 8),
+      Align(
+        alignment: Alignment.centerLeft,
+        child: FilledButton.icon(
+          onPressed: _busy ? null : _backupNow,
+          icon: const Icon(Icons.backup_outlined),
+          label: const Text('สำรองตอนนี้'),
+        ),
+      ),
+      const SizedBox(height: 8),
+      for (final f in _files.take(7))
+        ListTile(
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.history),
+          title: Text(p.basename(f.path)),
+          trailing: TextButton(onPressed: () => _restore(f), child: const Text('กู้คืน…')),
+        ),
+      if (_files.length > 7) Text('และอีก ${_files.length - 7} ไฟล์', style: TextStyle(fontSize: 12, color: c.muted)),
+    ]);
   }
 }

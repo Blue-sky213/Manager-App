@@ -6,13 +6,20 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart'
     show databaseFactoryFfi, sqfliteFfiInit;
 
 import '../calendar/sqlite_calendar_repository.dart';
+import 'backup.dart';
 import 'seed_data.dart';
 import 'study_repository.dart';
 
 /// เวอร์ชันโครงตาราง: ถ้าวันหลังเพิ่มตาราง/คอลัมน์ ให้เพิ่มเลขนี้ + เขียน onUpgrade
-const int _schemaVersion = 15; // v2 setting · v3 cleared_at · v4 ปฏิทิน · v5 Preset · v6 วิชาง่าย 2 รอบ · v7 คาบผูกวิชา + เวลาจริง · v8 แผนการเรียน · v9 เรียน/ติว + ประเภท/สถานะบท · v10 เทอม/วันหยุด/บันทึกติว + ย้ายค่าวิชาออกจาก setting · v11 ประเภทคาบ/ห้อง/กลุ่ม · v12 เส้นความสัมพันธ์วิชา · v13 คะแนนเก็บ/เกรด · v14 จำนวนขาดเรียน + บันทึกคาบเรียน · v15 หัวข้อ + งานที่สั่งในคาบ
+const int _schemaVersion = 15;
+
+/// เลขเวอร์ชันฐานข้อมูล (โชว์ในหน้าตั้งค่า)
+const int appSchemaVersion = _schemaVersion; // v2 setting · v3 cleared_at · v4 ปฏิทิน · v5 Preset · v6 วิชาง่าย 2 รอบ · v7 คาบผูกวิชา + เวลาจริง · v8 แผนการเรียน · v9 เรียน/ติว + ประเภท/สถานะบท · v10 เทอม/วันหยุด/บันทึกติว + ย้ายค่าวิชาออกจาก setting · v11 ประเภทคาบ/ห้อง/กลุ่ม · v12 เส้นความสัมพันธ์วิชา · v13 คะแนนเก็บ/เกรด · v14 จำนวนขาดเรียน + บันทึกคาบเรียน · v15 หัวข้อ + งานที่สั่งในคาบ
 
 /// เปิด (หรือสร้างครั้งแรก) ไฟล์ฐานข้อมูล noir_manager.db
+/// ที่อยู่ไฟล์ DB ที่เปิดล่าสุด (ใช้กับระบบสำรองข้อมูล)
+String? appDatabasePath;
+
 Future<Database> openAppDatabase() async {
   // Windows/Linux ไม่มี SQLite ในตัวแบบ Android → สลับไปใช้ตัว FFI
   if (!kIsWeb &&
@@ -25,6 +32,9 @@ Future<Database> openAppDatabase() async {
   // Windows: C:\Users\<ชื่อ>\AppData\Roaming\<บริษัท>\noir_manager\
   final dir = await getApplicationSupportDirectory();
   final path = p.join(dir.path, 'noir_manager.db');
+  // กู้คืนที่จองไว้จากหน้าตั้งค่า → ทับไฟล์ก่อนเปิด
+  await BackupService.applyPendingRestore(path);
+  appDatabasePath = path;
 
   return openDatabase(
     path,

@@ -8,6 +8,7 @@ import 'data/study_repository.dart';
 import 'data/study_scope.dart';
 import 'shell/app_shell.dart';
 import 'calendar/lock_flow.dart' show refreshLockState;
+import 'data/backup.dart';
 import 'pages/onboarding_page.dart';
 import 'theme/app_theme.dart';
 import 'theme/noir_colors.dart';
@@ -21,6 +22,7 @@ class NoirManagerApp extends StatefulWidget {
     super.key,
     required this.studyRepository,
     this.askOnboarding = false,
+    this.backup,
     required this.calendarRepository,
   });
 
@@ -29,6 +31,9 @@ class NoirManagerApp extends StatefulWidget {
 
   /// เปิดครั้งแรก → ถามคำถามแรกเข้า (main.dart เปิด · เทสส่วนใหญ่ปิด)
   final bool askOnboarding;
+
+  /// ระบบสำรองข้อมูล (มีเฉพาะแอปจริงที่ใช้ไฟล์ DB · เทสไม่มี)
+  final BackupService? backup;
 
   /// ที่เก็บข้อมูลปฏิทิน (แบบเดียวกัน)
   final CalendarRepository calendarRepository;
@@ -117,6 +122,7 @@ class _NoirManagerAppState extends State<NoirManagerApp> {
             onToggleTheme: _toggleTheme,
             themeId: _themeId,
             onTheme: _setTheme,
+            backup: widget.backup,
           ),
         ),
       ),
