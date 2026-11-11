@@ -15,8 +15,8 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.noir_manager"
+        // ไอดีแอปบน Android (เปลี่ยนแล้วติดตั้งทับของเดิมไม่ได้ → ตั้งครั้งเดียวก่อนแจกเทส)
+        applicationId = "com.noirmanager.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
