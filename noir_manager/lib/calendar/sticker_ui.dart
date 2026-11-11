@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../theme/noir_colors.dart';
@@ -6,6 +8,32 @@ import '../widgets/dialogs.dart';
 import 'calendar_listener.dart';
 import 'calendar_models.dart';
 import 'calendar_repository.dart';
+import 'sticker_images.dart';
+
+/// วาดสติกเกอร์ 1 ชิ้น: รูป (ถ้ามี) หรืออีโมจิ · ขนาดสี่เหลี่ยม [size]
+class StickerGlyph extends StatelessWidget {
+  const StickerGlyph(this.sticker, {super.key, this.size = 28});
+  final Sticker sticker;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final emoji = Text(sticker.glyph, style: TextStyle(fontSize: size * 0.85, height: 1.1));
+    final path = sticker.imagePath;
+    if (path == null) return emoji;
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Image.file(
+        File(path),
+        fit: BoxFit.contain,
+        cacheWidth: (size * MediaQuery.devicePixelRatioOf(context)).ceil(),
+        // ไฟล์หาย (เช่น ย้ายเครื่อง) → ใช้ตัวอักษรแทน ไม่พัง
+        errorBuilder: (_, _, _) => emoji,
+      ),
+    );
+  }
+}
 
 /// การ์ด "วันนี้รู้สึกยังไง?" — สมุดแปะสติกเกอร์ของวัน
 /// คลิกสติกเกอร์ที่แปะ = เขียนโน้ต · คลิกขวา / กดค้าง = เขียนโน้ต / ลอกออก
@@ -35,7 +63,7 @@ class _DayStickerCardState extends State<DayStickerCard> with CalendarListener<D
   Future<void> _note(DaySticker d) async {
     final repo = calendar!;
     final text = await askText(context,
-        title: '${d.sticker.glyph} ${d.sticker.name} · เพราะอะไร?',
+        title: '${d.sticker.name} · เพราะอะไร?',
         label: 'โน้ตสั้น ๆ (ไม่ใส่ก็ได้)',
         initial: d.note ?? '',
         confirmLabel: 'บันทึก');
@@ -88,7 +116,8 @@ class _DayStickerCardState extends State<DayStickerCard> with CalendarListener<D
                   onSecondaryTapUp: (e) => _menu(d, e.globalPosition),
                   onLongPressStart: (e) => _menu(d, e.globalPosition),
                   child: Tooltip(
-                    message: d.note ?? d.sticker.name,
+                    // มีโน้ตเท่านั้นถึงขึ้น (ชื่ออยู่ใต้สติกเกอร์แล้ว ไม่ซ้ำ)
+                    message: d.note ?? '',
                     // กดค้าง = เมนู (ไม่ให้ tooltip แย่ง) · เมาส์ชี้ยังเห็นโน้ต
                     triggerMode: TooltipTriggerMode.manual,
                     child: InkWell(
@@ -97,7 +126,7 @@ class _DayStickerCardState extends State<DayStickerCard> with CalendarListener<D
                       child: Padding(
                         padding: const EdgeInsets.all(4),
                         child: Column(mainAxisSize: MainAxisSize.min, children: [
-                          Text(d.sticker.glyph, style: const TextStyle(fontSize: 30)),
+                          StickerGlyph(d.sticker, size: 34),
                           Text(d.sticker.name, style: TextStyle(fontSize: 12, color: c.muted)),
                         ]),
                       ),
@@ -145,7 +174,7 @@ Future<void> showStickerPicker(BuildContext context, CalendarRepository repo, Da
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Column(children: [
-                            Text(s.glyph, style: const TextStyle(fontSize: 28)),
+                            StickerGlyph(s, size: 32),
                             Text(s.name,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -191,12 +220,20 @@ class _StickerSettingsState extends State<StickerSettings> with CalendarListener
     await repo.addStickerPack(name.trim());
   }
 
-  /// เพิ่มทีละชิ้น: ไม่ระบุชุด → ลง "สติกเกอร์ของฉัน" (สร้างให้ถ้ายังไม่มี)
+  /// เพิ่มทีละชิ้น: อีโมจิ หรือรูปของตัวเอง · ไม่ระบุชุด → ลง "สติกเกอร์ของฉัน" (สร้างให้ถ้ายังไม่มี)
   Future<void> _addSticker([StickerPack? pack]) async {
     final repo = calendar!;
     final emoji = TextEditingController();
     final name = TextEditingController();
+    String? image; // รูปที่เลือก (ยังไม่ย่อ)
     var showErr = false;
+    String? emojiErr() {
+      if (image != null) return null;
+      final t = emoji.text.trim();
+      if (t.isEmpty) return showErr ? 'ใส่อีโมจิ 1 ตัว หรือเลือกรูป' : null;
+      return t.characters.length == 1 ? null : 'ใส่ได้ 1 ตัว';
+    }
+
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -204,36 +241,61 @@ class _StickerSettingsState extends State<StickerSettings> with CalendarListener
           title: Text(pack == null ? 'เพิ่มสติกเกอร์ 1 ชิ้น' : 'เพิ่มสติกเกอร์ในชุด "${pack.name}"'),
           content: SizedBox(
             width: 380,
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              TextField(
-                controller: emoji,
-                autofocus: true,
-                style: const TextStyle(fontSize: 28),
-                decoration: InputDecoration(
-                  labelText: 'อีโมจิ *',
-                  hintText: '🐱',
-                  helperText: 'Windows กด Win + . เพื่อเปิดแผงอีโมจิ',
-                  errorText: showErr && emoji.text.trim().isEmpty ? 'ใส่อีโมจิ 1 ตัว' : null,
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Expanded(
+                  child: TextField(
+                    controller: emoji,
+                    enabled: image == null,
+                    style: const TextStyle(fontSize: 28),
+                    onChanged: (_) => setLocal(() {}),
+                    decoration: InputDecoration(
+                      labelText: 'อีโมจิ',
+                      hintText: '🐱',
+                      helperText: 'Windows กด Win + .',
+                      errorText: emojiErr(),
+                    ),
+                  ),
                 ),
-              ),
+                const SizedBox(width: 12),
+                Column(children: [
+                  if (image != null)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.file(File(image!), width: 56, height: 56, fit: BoxFit.contain),
+                    ),
+                  TextButton.icon(
+                    onPressed: () async {
+                      final picked = await pickImages();
+                      if (picked.isEmpty) return;
+                      setLocal(() {
+                        image = picked.first;
+                        if (name.text.trim().isEmpty) name.text = stickerNameFromFile(picked.first);
+                      });
+                    },
+                    icon: const Icon(Icons.image_outlined),
+                    label: Text(image == null ? 'เลือกรูป' : 'เปลี่ยนรูป'),
+                  ),
+                ]),
+              ]),
               TextField(
                 controller: name,
+                onChanged: (_) => setLocal(() {}),
                 decoration: InputDecoration(
                   labelText: 'ชื่อ *',
                   hintText: 'เช่น อยากนอน',
                   errorText: showErr && name.text.trim().isEmpty ? 'ใส่ชื่อ' : null,
                 ),
               ),
-              const SizedBox(height: 8),
-              Text('รูปภาพของตัวเอง: เร็ว ๆ นี้', style: TextStyle(fontSize: 12, color: ctx.noir.muted)),
             ]),
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('ยกเลิก')),
             FilledButton(
               onPressed: () {
-                if (emoji.text.trim().isEmpty || name.text.trim().isEmpty) {
-                  setLocal(() => showErr = true);
+                showErr = true;
+                if (emojiErr() != null || (image == null && emoji.text.trim().isEmpty) || name.text.trim().isEmpty) {
+                  setLocal(() {});
                   return;
                 }
                 Navigator.pop(ctx, true);
@@ -250,7 +312,24 @@ class _StickerSettingsState extends State<StickerSettings> with CalendarListener
       final mine = _packs.where((p) => !p.builtin && p.name == myStickerPackName).firstOrNull;
       packId = mine?.id ?? await repo.addStickerPack(myStickerPackName);
     }
-    await repo.addSticker(packId, name.text.trim(), emoji: emoji.text.trim());
+    final saved = image == null ? null : await saveStickerImage(image!, await stickerFolder());
+    await repo.addSticker(packId, name.text.trim(), emoji: saved == null ? emoji.text.trim() : null, imagePath: saved);
+  }
+
+  /// ชุดจากรูป: เลือกหลายรูป → ตั้งชื่อชุด → ทุกรูปเป็นสติกเกอร์ (ชื่อ = ชื่อไฟล์)
+  Future<void> _packFromImages() async {
+    final repo = calendar!;
+    final picked = await pickImages(many: true);
+    if (picked.isEmpty || !mounted) return;
+    final name = await askText(context,
+        title: 'ชุดใหม่จาก ${picked.length} รูป', label: 'ชื่อชุด', confirmLabel: 'สร้างชุด');
+    if (name == null || name.trim().isEmpty) return;
+    final dir = await stickerFolder();
+    final packId = await repo.addStickerPack(name.trim());
+    for (final f in picked) {
+      final saved = await saveStickerImage(f, dir);
+      await repo.addSticker(packId, stickerNameFromFile(f), imagePath: saved);
+    }
   }
 
   Future<void> _packMenu(StickerPack p, Offset at) async {
@@ -274,6 +353,8 @@ class _StickerSettingsState extends State<StickerSettings> with CalendarListener
       Wrap(spacing: 8, runSpacing: 8, children: [
         OutlinedButton.icon(onPressed: _addSticker, icon: const Icon(Icons.add_reaction_outlined), label: const Text('เพิ่มทีละชิ้น')),
         OutlinedButton.icon(onPressed: _addPack, icon: const Icon(Icons.create_new_folder_outlined), label: const Text('ชุดใหม่')),
+        OutlinedButton.icon(
+            onPressed: _packFromImages, icon: const Icon(Icons.photo_library_outlined), label: const Text('ชุดจากรูป')),
       ]),
       const SizedBox(height: 8),
       for (final p in _packs)
@@ -296,9 +377,10 @@ class _StickerSettingsState extends State<StickerSettings> with CalendarListener
               Wrap(spacing: 4, runSpacing: 4, children: [
                 for (final s in p.stickers)
                   p.builtin
-                      ? Tooltip(message: s.name, child: Text(s.glyph, style: const TextStyle(fontSize: 22)))
+                      ? Tooltip(message: s.name, child: StickerGlyph(s, size: 26))
                       : InputChip(
-                          label: Text('${s.glyph} ${s.name}'),
+                          avatar: StickerGlyph(s, size: 20),
+                          label: Text(s.name),
                           onDeleted: () => calendar!.deleteSticker(s.id),
                           deleteButtonTooltipMessage: 'ลบสติกเกอร์นี้',
                         ),

@@ -20,6 +20,7 @@ dependencies:
   sqflite_common_ffi: ^2.4.0 # Windows (ใช้ SQLite ผ่าน FFI)
   path_provider: ^2.1.0 # หาโฟลเดอร์เก็บข้อมูลของแอปในแต่ละระบบ
   path: ^1.9.0 # ต่อชื่อโฟลเดอร์ + ไฟล์ให้ถูกแบบของแต่ละระบบ
+  file_picker: ^10.3.0 # เลือกรูป / ไฟล์ (สติกเกอร์รูปภาพ · หน้าไฟล์ · ถ่ายรูปตาราง) — นัวร์อนุญาต 11 พ.ย.
 
 dev_dependencies:
   flutter_test:
