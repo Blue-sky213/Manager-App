@@ -188,7 +188,11 @@ class _Sidebar extends StatelessWidget {
         border: Border(right: BorderSide(color: c.line)),
       ),
       padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
-      child: Column(
+      // จอเตี้ย (เช่น มือถือแนวนอน) → เมนูเลื่อนได้แทนล้นจอ · จอปกติ ปุ่มล่างยังติดขอบล่าง
+      child: CustomScrollView(slivers: [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
@@ -233,7 +237,9 @@ class _Sidebar extends StatelessWidget {
             ),
           ),
         ],
-      ),
+          ),
+        ),
+      ]),
     );
   }
 }
