@@ -26,6 +26,8 @@ void main() {
     await tester.tap(find.text('ชมพู · อบอุ่น อ่อนโยนกับตัวเอง'));
     await tester.pumpAndSettle();
     expect(await study.getSetting('theme'), 'pink');
+    await tester.ensureVisible(find.text('ถัดไป')); // คำตอบยาว → ปุ่มอยู่ใต้จอ
+    await tester.pumpAndSettle();
     await tester.tap(find.text('ถัดไป'));
     await tester.pumpAndSettle();
     expect(find.text('ปกติตื่นกี่โมง นอนกี่โมง?'), findsOneWidget);
