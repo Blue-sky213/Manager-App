@@ -6,6 +6,7 @@ import 'data/study_repository.dart';
 import 'data/study_scope.dart';
 import 'shell/app_shell.dart';
 import 'theme/app_theme.dart';
+import 'theme/noir_colors.dart';
 import 'shell/app_nav.dart';
 import 'study/subject_colors.dart';
 import 'widgets/dialogs.dart';
@@ -37,22 +38,27 @@ class _NoirManagerAppState extends State<NoirManagerApp> {
     if (!popped) appBack.handle();
   }
 
-  // ค่าเริ่มต้น = โหมดมืด (ตาม Mockup)
-  ThemeMode _themeMode = ThemeMode.dark;
+  // ค่าเริ่มต้น = โหมดมืด · ธีมที่เลือกจำในตาราง setting (key = theme)
+  String _themeId = 'dark';
+  static const _themeKey = 'theme';
 
   @override
   void initState() {
     super.initState();
     // สีประจำวิชาให้ปฏิทิน / วันนี้ ตั้งแต่เปิดแอป (หน้าวิชาโหลดซ้ำเมื่อเปลี่ยน)
     refreshSubjectColors(widget.studyRepository);
-  }
-
-  void _toggleTheme() {
-    setState(() {
-      _themeMode =
-          _themeMode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
+    widget.studyRepository.getSetting(_themeKey).then((id) {
+      if (mounted && id != null) setState(() => _themeId = themeChoiceOf(id).id);
     });
   }
+
+  void _setTheme(String id) {
+    setState(() => _themeId = id);
+    widget.studyRepository.setSetting(_themeKey, id);
+  }
+
+  /// ปุ่มลัดในเมนู: มืด ↔ สว่าง (ธีมพาสเทล → มืด)
+  void _toggleTheme() => _setTheme(_themeId == 'dark' ? 'light' : 'dark');
 
   @override
   Widget build(BuildContext context) {
@@ -76,12 +82,13 @@ class _NoirManagerAppState extends State<NoirManagerApp> {
           locale: const Locale('th', 'TH'),
           supportedLocales: const [Locale('th', 'TH'), Locale('en', 'US')],
           localizationsDelegates: GlobalMaterialLocalizations.delegates,
-          theme: AppTheme.light(),
-          darkTheme: AppTheme.dark(),
-          themeMode: _themeMode,
+          // ธีมเดียวที่เลือก (มี brightness ของตัวเอง) → ไม่ใช้ darkTheme / themeMode ของระบบ
+          theme: AppTheme.of(themeChoiceOf(_themeId)),
           home: AppShell(
-            isDark: _themeMode == ThemeMode.dark,
+            isDark: themeChoiceOf(_themeId).dark,
             onToggleTheme: _toggleTheme,
+            themeId: _themeId,
+            onTheme: _setTheme,
           ),
         ),
       ),

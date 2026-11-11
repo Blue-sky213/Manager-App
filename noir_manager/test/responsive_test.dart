@@ -1,0 +1,73 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+import 'package:noir_manager/app.dart';
+import 'package:noir_manager/calendar/memory_calendar_repository.dart';
+import 'package:noir_manager/data/memory_study_repository.dart';
+
+/// ยืด / ย่อหน้าต่างทุกแบบที่ Windows ยอม (ขั้นต่ำ 420×640 ตาม win32_window.cpp)
+/// ทุกหน้าต้องไม่ล้นจอ ไม่พัง
+const sizes = {
+  'ขั้นต่ำ 420×640': Size(420, 640),
+  'มือถือแนวนอน 900×420': Size(900, 420),
+  'กว้างเตี้ย 1600×640': Size(1600, 640),
+  'สูงแคบ 700×1400': Size(700, 1400),
+  'Full HD 1920×1080': Size(1920, 1080),
+  'จอยาวมาก 3440×1440': Size(3440, 1440),
+};
+
+const pages = ['วันนี้', 'ปฏิทิน', 'การเรียน', 'ไฟล์', 'สถิติ'];
+
+void main() {
+  for (final MapEntry(key: name, value: size) in sizes.entries) {
+    testWidgets('ทุกหน้าไม่ล้นจอที่ $name', (tester) async {
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(NoirManagerApp(
+        studyRepository: MemoryStudyRepository.seeded(),
+        calendarRepository: MemoryCalendarRepository(),
+      ));
+      await tester.pumpAndSettle();
+      for (final p in pages) {
+        await tester.tap(find.text(p).last);
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull, reason: 'หน้า $p ที่ $name');
+      }
+      // หน้าตั้งค่า (ปุ่มในเมนูซ้าย หรือไอคอนบนแถบหัวตอนจอแคบ)
+      final settings = find.text('ตั้งค่า');
+      await tester.tap(settings.evaluate().isNotEmpty ? settings.first : find.byTooltip('ตั้งค่า'));
+      await tester.pumpAndSettle();
+      expect(find.text('โหมดแอป'), findsOneWidget);
+      expect(tester.takeException(), isNull, reason: 'หน้าตั้งค่าที่ $name');
+    });
+  }
+
+  testWidgets('ตั้งค่า: เลือกธีมพาสเทล → จำไว้ · เปิดแอปใหม่ยังเป็นธีมเดิม', (tester) async {
+    tester.view.physicalSize = const Size(1280, 1000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    final study = MemoryStudyRepository.seeded();
+    final cal = MemoryCalendarRepository();
+    await tester.pumpWidget(NoirManagerApp(studyRepository: study, calendarRepository: cal));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('ตั้งค่า').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('ชมพูพาสเทล'));
+    await tester.pumpAndSettle();
+    expect(await study.getSetting('theme'), 'pink');
+    final bg = Theme.of(tester.element(find.text('โหมดแอป'))).scaffoldBackgroundColor;
+    expect(bg, const Color(0xFFFDF4F7));
+
+    await tester.tap(find.text('ทั้งคู่'));
+    await tester.pumpAndSettle();
+    expect(await study.getSetting('app_mode'), 'both');
+    expect(find.textContaining('โหมดทำงานเต็มรูปแบบ'), findsOneWidget);
+
+    // เปิดแอปใหม่ (repo เดิม) → ธีมชมพูยังอยู่
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpWidget(NoirManagerApp(studyRepository: study, calendarRepository: cal));
+    await tester.pumpAndSettle();
+    expect(Theme.of(tester.element(find.text('วันนี้').first)).scaffoldBackgroundColor, const Color(0xFFFDF4F7));
+  });
+}

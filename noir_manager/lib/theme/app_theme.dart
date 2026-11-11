@@ -9,6 +9,9 @@ class AppTheme {
   static ThemeData dark() => _build(NoirColors.dark, Brightness.dark);
   static ThemeData light() => _build(NoirColors.light, Brightness.light);
 
+  /// ธีมตามที่เลือกในหน้าตั้งค่า (มืด / สว่าง / พาสเทล)
+  static ThemeData of(ThemeChoice t) => _build(t.colors, t.dark ? Brightness.dark : Brightness.light);
+
   static ThemeData _build(NoirColors c, Brightness brightness) {
     final scheme = ColorScheme.fromSeed(
       seedColor: c.accent,

@@ -108,6 +108,18 @@ class NoirColors extends ThemeExtension<NoirColors> {
     purpleText: Color(0xFF5B3A8F),
   );
 
+  /// ธีมพาสเทล = ธีมสว่างที่ย้อมพื้น เมนู และสีเน้นเป็นโทนเดียวกัน (อ่านง่ายเท่าธีมสว่าง)
+  static NoirColors pastel({required Color bg, required Color side, required Color nav, required Color accent, required Color navText}) =>
+      light.copyWith(
+        bg: bg,
+        side: side,
+        surface2: Color.lerp(light.surface2, nav, 0.35),
+        line: Color.lerp(light.line, nav, 0.5),
+        accent: accent,
+        navBg: nav,
+        navText: navText,
+      );
+
   @override
   NoirColors copyWith({
     Color? bg,
@@ -197,3 +209,34 @@ class NoirColors extends ThemeExtension<NoirColors> {
 extension NoirColorsX on BuildContext {
   NoirColors get noir => Theme.of(this).extension<NoirColors>()!;
 }
+
+/// ธีมที่เลือกได้ในหน้าตั้งค่า (id เก็บในตาราง setting key = 'theme')
+class ThemeChoice {
+  const ThemeChoice(this.id, this.name, this.dark, this.colors);
+  final String id;
+  final String name;
+  final bool dark;
+  final NoirColors colors;
+}
+
+final List<ThemeChoice> themeChoices = [
+  const ThemeChoice('dark', 'มืด', true, NoirColors.dark),
+  const ThemeChoice('light', 'สว่าง', false, NoirColors.light),
+  ThemeChoice('pink', 'ชมพูพาสเทล', false, NoirColors.pastel(
+      bg: const Color(0xFFFDF4F7), side: const Color(0xFFFFFAFC), nav: const Color(0xFFF9DCE7),
+      accent: const Color(0xFFD9467D), navText: const Color(0xFF8A2350))),
+  ThemeChoice('mint', 'เขียวมิ้นต์', false, NoirColors.pastel(
+      bg: const Color(0xFFF2FAF6), side: const Color(0xFFF9FDFB), nav: const Color(0xFFD5F0E2),
+      accent: const Color(0xFF1F8F5F), navText: const Color(0xFF145C3D))),
+  ThemeChoice('sea', 'น้ำทะเล', false, NoirColors.pastel(
+      bg: const Color(0xFFF1F8FB), side: const Color(0xFFF8FCFE), nav: const Color(0xFFD3ECF5),
+      accent: const Color(0xFF117FA6), navText: const Color(0xFF0B5370))),
+  ThemeChoice('lavender', 'ลาเวนเดอร์', false, NoirColors.pastel(
+      bg: const Color(0xFFF6F4FC), side: const Color(0xFFFBFAFE), nav: const Color(0xFFE5DEF8),
+      accent: const Color(0xFF6B4FC8), navText: const Color(0xFF452F8F))),
+  ThemeChoice('peach', 'พีช', false, NoirColors.pastel(
+      bg: const Color(0xFFFDF6F1), side: const Color(0xFFFFFBF8), nav: const Color(0xFFFBE2D2),
+      accent: const Color(0xFFC8622A), navText: const Color(0xFF80391A))),
+];
+
+ThemeChoice themeChoiceOf(String? id) => themeChoices.firstWhere((t) => t.id == id, orElse: () => themeChoices.first);
