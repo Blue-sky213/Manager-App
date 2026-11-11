@@ -562,6 +562,7 @@ class SqliteCalendarRepository extends CalendarRepository {
   Future<void> setSetting(String key, String value) async {
     await _db.insert('setting', {'key': key, 'value': value},
         conflictAlgorithm: ConflictAlgorithm.replace);
+    notifyListeners(); // เช่น คำมั่น / ล็อก → หน้าปฏิทินวาด 🔒 ใหม่
   }
 
   @override

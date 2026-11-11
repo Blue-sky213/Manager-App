@@ -4,6 +4,7 @@ import '../theme/noir_colors.dart';
 import 'calendar_flows.dart';
 import 'calendar_models.dart';
 import 'calendar_ui.dart';
+import 'lock_flow.dart';
 import 'class_stats.dart';
 
 /// ตารางของ 1 วัน: ตื่นนอน → งานล็อกเวลา (เรียงตามเวลา) → นอน · แล้วตามด้วยงานแบบลิสต์
@@ -255,6 +256,15 @@ class _OccurrenceRow extends StatelessWidget {
                             ],
                           ),
                         ),
+                        // เริ่มไปแล้ว = ล็อก (แก้ต้องยืนยัน) · กรอกผลได้ตามปกติ
+                        if (isLockedNow(o, DateTime.now()))
+                          Padding(
+                            padding: const EdgeInsets.only(left: 6),
+                            child: Tooltip(
+                              message: 'ล็อกแล้ว · เริ่มไปแล้ว แก้ต้องยืนยัน',
+                              child: Icon(Icons.lock_outline, size: 18, color: fg.withValues(alpha: 0.7)),
+                            ),
+                          ),
                         if (icon != null) Icon(icon, size: 20, color: o.status == OccurrenceStatus.done ? c.good : fg),
                       ],
                     ),

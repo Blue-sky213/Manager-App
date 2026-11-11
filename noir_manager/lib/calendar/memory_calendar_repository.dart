@@ -307,6 +307,7 @@ class MemoryCalendarRepository extends CalendarRepository {
   @override
   Future<void> setSetting(String key, String value) async {
     _settings[key] = value;
+    notifyListeners(); // เช่น คำมั่น / ล็อก → หน้าปฏิทินวาด 🔒 ใหม่
   }
 
   @override

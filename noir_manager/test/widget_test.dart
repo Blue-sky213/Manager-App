@@ -699,6 +699,7 @@ void main() {
     ));
     await tester.pumpWidget(buildApp(calendar: calendar));
     await tester.pumpAndSettle();
+    expect(find.byIcon(Icons.lock_outline), findsOneWidget); // เริ่มแล้ว = ไอคอนล็อก
 
     // ไม่มีคำมั่น → ถามธรรมดา · กด "ไม่แก้" = ไม่เปิดหน้าแก้
     await tester.longPress(find.text('อ่านหนังสือเช้า'));
@@ -718,9 +719,10 @@ void main() {
     await tester.enterText(find.byType(TextField), 'ผมต้องการทำต่อเนื่องโดยไม่เว้น');
     await tester.tap(find.text('บันทึก'));
     await tester.pumpAndSettle();
+    expect(find.text('🔒 อ่านหนังสือเช้า'), findsOneWidget); // มีคำมั่น = 🔒 หน้าชื่อ
 
     // แก้อีกครั้ง → เห็นคำของตัวเอง · "แก้ครั้งนี้" = ไปหน้าแก้ได้
-    await tester.longPress(find.text('อ่านหนังสือเช้า'));
+    await tester.longPress(find.text('🔒 อ่านหนังสือเช้า'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('แก้ไขงาน'));
     await tester.pumpAndSettle();
@@ -733,11 +735,12 @@ void main() {
     // กรอกผลไม่ถูกล็อก
     Navigator.of(tester.element(find.text('เวลาจบ'))).pop();
     await tester.pumpAndSettle();
-    await tester.tap(find.text('อ่านหนังสือเช้า'));
+    await tester.tap(find.text('🔒 อ่านหนังสือเช้า'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('ทำแล้ว'));
     await tester.pumpAndSettle();
     expect(find.text('🔒 งานนี้เริ่มไปแล้ว'), findsNothing);
+    expect(find.byIcon(Icons.lock_outline), findsNothing); // กรอกผลแล้ว ไม่ต้องล็อก
     expect(tester.takeException(), isNull);
   });
 }

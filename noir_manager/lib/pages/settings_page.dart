@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../calendar/calendar_repository.dart' show CalendarScope;
-import '../calendar/lock_flow.dart' show lockSettingKey;
+import '../calendar/lock_flow.dart' show lockSettingKey, refreshLockInfo;
 import '../study/mastery.dart' show GradingMode;
 import '../data/study_scope.dart';
 import '../theme/noir_colors.dart';
@@ -178,7 +178,8 @@ class _SettingsPageState extends State<SettingsPage> {
                         value: _lock,
                         onChanged: (v) {
                           setState(() => _lock = v);
-                          CalendarScope.of(context).setSetting(lockSettingKey, v ? 'on' : 'off');
+                          final cal = CalendarScope.of(context);
+                          cal.setSetting(lockSettingKey, v ? 'on' : 'off').then((_) => refreshLockInfo(cal));
                         },
                         title: const Text('🔒 ล็อกงานที่เริ่มไปแล้ว'),
                         subtitle: const Text('กรอกผลได้ตามปกติ · เลื่อน / ยกเลิก / แก้ / ลบ ต้องยืนยันก่อน · ตั้งคำมั่นได้ที่คลิกขวา → คำมั่น'),

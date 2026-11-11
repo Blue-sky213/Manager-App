@@ -17,6 +17,47 @@ const lockSettingKey = 'lock_started';
 /// คำมั่นของงาน 1 งาน (เก็บในตาราง setting ไม่ต้องเพิ่มตาราง)
 String commitmentKey(int activityId) => 'commit:$activityId';
 
+/// รายการงานที่มีคำมั่น (คั่นด้วย ,) ไว้ให้หน้าปฏิทินรู้ว่าต้องติด 🔒 โดยไม่ต้องถามทีละงาน
+const commitIdsKey = 'commit_ids';
+
+/// สถานะล็อกที่หน้าจอใช้วาดสัญลักษณ์ (โหลดตอนเปิดแอป · อัปเดตทันทีเมื่อแก้)
+class LockInfo {
+  const LockInfo({this.enabled = true, this.committed = const {}});
+  final bool enabled;
+  final Set<int> committed;
+}
+
+final lockInfo = ValueNotifier<LockInfo>(const LockInfo());
+
+Future<void> refreshLockInfo(CalendarRepository repo) async {
+  final enabled = (await repo.getSetting(lockSettingKey)) != 'off';
+  final ids = ((await repo.getSetting(commitIdsKey)) ?? '')
+      .split(',')
+      .map((e) => int.tryParse(e.trim()))
+      .whereType<int>()
+      .toSet();
+  lockInfo.value = LockInfo(enabled: enabled, committed: ids);
+}
+
+/// บันทึกคำมั่น + อัปเดตรายการงานที่มีคำมั่น (ว่าง = ลบ)
+Future<void> saveCommitment(CalendarRepository repo, int activityId, String note) async {
+  final ids = {...lockInfo.value.committed};
+  if (note.trim().isEmpty) {
+    ids.remove(activityId);
+  } else {
+    ids.add(activityId);
+  }
+  lockInfo.value = LockInfo(enabled: lockInfo.value.enabled, committed: ids);
+  await repo.setSetting(commitIdsKey, ids.join(','));
+  await repo.setSetting(commitmentKey(activityId), note.trim());
+}
+
+/// ล็อกอยู่ไหม (ใช้วาดไอคอน 🔒): ล็อกเปิด + งานยังไม่กรอกผล + ถึงเวลาเริ่มแล้ว
+bool isLockedNow(Occurrence o, DateTime now) =>
+    lockInfo.value.enabled && o.status == OccurrenceStatus.planned && isStarted(o, now);
+
+bool hasCommitment(Occurrence o) => lockInfo.value.committed.contains(o.activityId);
+
 /// เริ่มไปแล้วหรือยัง: มีเวลา = ถึงเวลาเริ่ม · ทั้งวัน = ถึงวันนั้น
 bool isStarted(Occurrence o, DateTime now) {
   if (o.status == OccurrenceStatus.inbox) return false;
@@ -68,7 +109,7 @@ Future<bool> confirmUnlock(BuildContext context, CalendarRepository repo, Occurr
       ],
     ),
   );
-  if (res == 'drop') await repo.setSetting(commitmentKey(o.activityId), '');
+  if (res == 'drop') await saveCommitment(repo, o.activityId, '');
   return res == 'edit' || res == 'drop';
 }
 
@@ -90,7 +131,7 @@ Future<void> editCommitment(BuildContext context, CalendarRepository repo, Occur
           decoration: const InputDecoration(
             labelText: 'ตั้งใจไว้ว่า…',
             hintText: 'เช่น ผมต้องการทำต่อเนื่องโดยไม่เว้น',
-            helperText: 'จะถูกยกขึ้นมาถามเมื่อจะแก้งานที่เริ่มไปแล้ว',
+            helperText: 'ใช้กับงานนี้ทุกครั้ง · ติด 🔒 หน้าชื่องาน · ถูกยกขึ้นมาถามเมื่อจะแก้',
           ),
         ),
       ),
@@ -101,5 +142,5 @@ Future<void> editCommitment(BuildContext context, CalendarRepository repo, Occur
       ],
     ),
   );
-  if (res != null) await repo.setSetting(commitmentKey(o.activityId), res);
+  if (res != null) await saveCommitment(repo, o.activityId, res);
 }
