@@ -711,13 +711,82 @@ class _StudyPageState extends State<StudyPage> {
             ),
           ),
         );
-    return Container(
+    final codeLine = Text(
+      [
+        subject.code ?? 'ไม่มีรหัส',
+        subject.credits ?? 'ยังไม่มีหน่วยกิต',
+        if (h != null) 'ทฤษฎี ${h.theory} + ปฏิบัติ ${h.lab} ชม./สัปดาห์',
+      ].join(' · '),
+      style: TextStyle(fontSize: 13, color: c.muted),
+    );
+    final pills = Wrap(spacing: 8, runSpacing: 6, children: [
+      if (_nextClass != null) pill('คาบถัดไป · $_nextClass', onTap: () => setState(() => _tab = 2)),
+      if (_nextExam != null) pill(_nextExam!, onTap: () => setState(() => _tab = 2)),
+      pill('ความสำคัญ: ${subject.importanceLabel} · ${subject.sessionsPerWeek} รอบ/สัปดาห์ ✎',
+          onTap: () => _changeSessions(subject)),
+    ]);
+    // วงกลม % ความเข้าใจเฉลี่ย (สีตามระดับ ดี / พอได้ / ยังไม่ได้)
+    Widget ring(double d) => SizedBox(
+          width: d,
+          height: d,
+          child: Stack(alignment: Alignment.center, children: [
+            SizedBox(
+              width: d,
+              height: d,
+              child: CircularProgressIndicator(
+                value: (avg ?? 0) / 100,
+                strokeWidth: d / 10.5,
+                color: ringColor,
+                backgroundColor: c.surface2,
+              ),
+            ),
+            Column(mainAxisSize: MainAxisSize.min, children: [
+              Text(avg == null ? '—' : '${avg.round()}%',
+                  style: TextStyle(fontSize: d / 4.7, fontWeight: FontWeight.w700, color: c.text)),
+              Text(levelText, style: TextStyle(fontSize: 10, color: c.muted)),
+            ]),
+          ]),
+        );
+    final box = BoxDecoration(
+      color: Color.alphaBlend(color.withValues(alpha: 0.10), c.surface),
+      border: Border.all(color: color.withValues(alpha: 0.6)),
+      borderRadius: BorderRadius.circular(16),
+    );
+    return LayoutBuilder(builder: (context, size) {
+      // จอแคบ (มือถือแนวตั้ง): ชื่อวิชาได้เต็มความกว้าง · วงกลมย้ายขึ้นแถวบนคู่กับรหัส → ไม่บีบชื่อเป็นหลายบรรทัด
+      if (size.maxWidth < 560) {
+        return Container(
+          padding: const EdgeInsets.fromLTRB(14, 14, 4, 14),
+          decoration: box,
+          child: IntrinsicHeight(
+            child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Container(width: 5, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(5))),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+                    Expanded(child: codeLine),
+                    const SizedBox(width: 8),
+                    ring(60),
+                    ...actions,
+                  ]),
+                  const SizedBox(height: 6),
+                  Padding(
+                    padding: const EdgeInsets.only(right: 10),
+                    child: Text(subject.name,
+                        style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: c.text, height: 1.3)),
+                  ),
+                  const SizedBox(height: 10),
+                  Padding(padding: const EdgeInsets.only(right: 10), child: pills),
+                ]),
+              ),
+            ]),
+          ),
+        );
+      }
+      return Container(
       padding: const EdgeInsets.fromLTRB(16, 16, 8, 16),
-      decoration: BoxDecoration(
-        color: Color.alphaBlend(color.withValues(alpha: 0.10), c.surface),
-        border: Border.all(color: color.withValues(alpha: 0.6)),
-        borderRadius: BorderRadius.circular(16),
-      ),
+      decoration: box,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
@@ -725,52 +794,20 @@ class _StudyPageState extends State<StudyPage> {
           const SizedBox(width: 16),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(
-                [
-                  subject.code ?? 'ไม่มีรหัส',
-                  subject.credits ?? 'ยังไม่มีหน่วยกิต',
-                  if (h != null) 'ทฤษฎี ${h.theory} + ปฏิบัติ ${h.lab} ชม./สัปดาห์',
-                ].join(' · '),
-                style: TextStyle(fontSize: 13, color: c.muted),
-              ),
+              codeLine,
               const SizedBox(height: 4),
               Text(subject.name, style: TextStyle(fontSize: 26, fontWeight: FontWeight.w600, color: c.text)),
               const SizedBox(height: 8),
-              Wrap(spacing: 8, runSpacing: 6, children: [
-                if (_nextClass != null) pill('คาบถัดไป · $_nextClass', onTap: () => setState(() => _tab = 2)),
-                if (_nextExam != null) pill(_nextExam!, onTap: () => setState(() => _tab = 2)),
-                pill('ความสำคัญ: ${subject.importanceLabel} · ${subject.sessionsPerWeek} รอบ/สัปดาห์ ✎',
-                    onTap: () => _changeSessions(subject)),
-              ]),
+              pills,
             ]),
           ),
           const SizedBox(width: 12),
-          // วงกลม % ความเข้าใจเฉลี่ย (สีตามระดับ ดี / พอได้ / ยังไม่ได้)
-          SizedBox(
-            width: 84,
-            height: 84,
-            child: Stack(alignment: Alignment.center, children: [
-              SizedBox(
-                width: 84,
-                height: 84,
-                child: CircularProgressIndicator(
-                  value: (avg ?? 0) / 100,
-                  strokeWidth: 8,
-                  color: ringColor,
-                  backgroundColor: c.surface2,
-                ),
-              ),
-              Column(mainAxisSize: MainAxisSize.min, children: [
-                Text(avg == null ? '—' : '${avg.round()}%',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: c.text)),
-                Text(levelText, style: TextStyle(fontSize: 10, color: c.muted)),
-              ]),
-            ]),
-          ),
+          ring(84),
           ...actions,
         ],
       ),
     );
+    });
   }
 
   /// แท็บ ภาพรวม / บทเรียน / ตารางเรียน / ติว (เส้นใต้สีวิชา)
@@ -780,24 +817,33 @@ class _StudyPageState extends State<StudyPage> {
     const labels = ['ภาพรวม', 'บทเรียน', 'เวลาเรียน', 'ติว', 'เกรด'];
     return Container(
       decoration: BoxDecoration(border: Border(bottom: BorderSide(color: c.line))),
-      child: Wrap(children: [
-        for (final (i, label) in labels.indexed)
-          InkWell(
+      child: LayoutBuilder(builder: (context, size) {
+        final narrow = size.maxWidth < 560;
+        Widget tab(int i, String label) => InkWell(
             onTap: () => setState(() => _tab = i),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              alignment: narrow ? Alignment.center : null,
+              padding: EdgeInsets.symmetric(horizontal: narrow ? 2 : 16, vertical: 10),
               decoration: BoxDecoration(
                 border: Border(bottom: BorderSide(color: _tab == i ? color : Colors.transparent, width: 2)),
               ),
-              child: Text(label,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: _tab == i ? FontWeight.w600 : FontWeight.w400,
-                    color: _tab == i ? c.text : c.muted,
-                  )),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(label,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: _tab == i ? FontWeight.w600 : FontWeight.w400,
+                      color: _tab == i ? c.text : c.muted,
+                    )),
+              ),
             ),
-          ),
-      ]),
+          );
+        // จอแคบ: 5 แท็บกว้างเท่ากันในแถวเดียว (ไม่ตกบรรทัด · สมมาตร)
+        if (narrow) {
+          return Row(children: [for (final (i, l) in labels.indexed) Expanded(child: tab(i, l))]);
+        }
+        return Wrap(children: [for (final (i, l) in labels.indexed) tab(i, l)]);
+      }),
     );
   }
 
@@ -836,7 +882,8 @@ class _StudyPageState extends State<StudyPage> {
     ];
     return LayoutBuilder(builder: (context, size) {
       if (size.maxWidth < 640) {
-        return Column(children: [
+        // จอแคบ: การ์ดเต็มความกว้างเท่ากันทุกใบ (ไม่ใช่กว้างตามข้อความ)
+        return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           for (final t in tiles) Padding(padding: const EdgeInsets.only(bottom: 10), child: t),
         ]);
       }
