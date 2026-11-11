@@ -38,7 +38,7 @@ void main() {
       final settings = find.text('ตั้งค่า');
       await tester.tap(settings.evaluate().isNotEmpty ? settings.first : find.byTooltip('ตั้งค่า'));
       await tester.pumpAndSettle();
-      expect(find.text('โหมดแอป'), findsOneWidget);
+      expect(find.text('หน้าตา'), findsOneWidget); // หัวข้อแรก (ข้อถัดไปอาจอยู่ใต้จอเตี้ย)
       expect(tester.takeException(), isNull, reason: 'หน้าตั้งค่าที่ $name');
     });
   }
