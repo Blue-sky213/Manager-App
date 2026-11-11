@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../data/study_models.dart';
 import '../data/study_scope.dart';
 import '../shell/app_nav.dart';
+import 'lock_flow.dart';
 import '../study/class_log.dart';
 import '../study/tutor_plan.dart';
 import '../theme/noir_colors.dart';
@@ -240,6 +241,7 @@ List<ContextItem<String>> modifyItems(Occurrence o) => [
       ctxItem('details', Icons.info_outline, 'ดูรายละเอียด'),
       if (o.subjectId != null) ctxItem('subject', Icons.school_outlined, 'เกี่ยวกับวิชา (เปิดหน้าวิชา)'),
       if (o.status == OccurrenceStatus.planned && o.timed) ctxItem('time', Icons.schedule, 'แก้เวลาเฉพาะวันนี้'),
+      ctxItem('commit', Icons.lock_outline, 'คำมั่น (ล็อก)…'),
       ctxItem('edit', Icons.edit_outlined, o.repeats ? 'แก้ไขงาน (ทุกครั้งจากนี้ไป)' : 'แก้ไขงาน'),
       ctxItem('delete', Icons.delete_outline, o.repeats ? 'ลบงานซ้ำนี้ทั้งหมด' : 'ลบงานนี้', danger: true),
     ];
@@ -306,7 +308,12 @@ Future<void> openOccurrenceActions(
 
 /// ทำตามตัวเลือกที่เลือกจากเมนูซ้าย / ขวา
 Future<void> runOccurrenceAction(BuildContext context, CalendarRepository repo, Occurrence o, String action) async {
+  // 🔒 งานที่เริ่มแล้ว: แก้ย้อนหลังต้องยืนยัน (กรอกผลไม่ต้อง)
+  if (lockGuarded.contains(action) && !await confirmUnlock(context, repo, o)) return;
+  if (!context.mounted) return;
   switch (action) {
+    case 'commit':
+      await editCommitment(context, repo, o);
     case 'details':
       await showOccurrenceDetails(context, o);
     case 'subject':
