@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../pages/calendar_page.dart';
 import '../pages/study_page.dart';
 import '../theme/noir_colors.dart';
+import '../pages/settings_page.dart';
 import 'app_nav.dart';
 import 'destinations.dart';
 
@@ -15,10 +16,14 @@ class AppShell extends StatefulWidget {
     super.key,
     required this.isDark,
     required this.onToggleTheme,
+    this.themeId = 'dark',
+    this.onTheme,
   });
 
   final bool isDark;
   final VoidCallback onToggleTheme;
+  final String themeId;
+  final ValueChanged<String>? onTheme;
 
   /// ความกว้างที่ใช้แบ่ง "จอกว้าง" กับ "จอแคบ" (หน่วย logical pixel)
   static const double wideBreakpoint = 720;
@@ -88,6 +93,12 @@ class _AppShellState extends State<AppShell> {
     super.dispose();
   }
 
+  void _openSettings() {
+    Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => SettingsPage(themeId: widget.themeId, onTheme: widget.onTheme),
+    ));
+  }
+
   @override
   Widget build(BuildContext context) {
     // IndexedStack = เก็บทุกหน้าไว้ แต่โชว์ทีละหน้า → สลับเมนูแล้วหน้าเดิมไม่ถูกรีเซ็ต
@@ -109,6 +120,7 @@ class _AppShellState extends State<AppShell> {
                   onSelect: _userSelect,
                   isDark: widget.isDark,
                   onToggleTheme: widget.onToggleTheme,
+                  onSettings: _openSettings,
                 ),
                 Expanded(child: body),
               ],
@@ -120,6 +132,7 @@ class _AppShellState extends State<AppShell> {
           appBar: AppBar(
             title: const Text('Noir Manager'),
             actions: [
+              IconButton(tooltip: 'ตั้งค่า', icon: const Icon(Icons.settings_outlined), onPressed: _openSettings),
               IconButton(
                 tooltip: widget.isDark ? 'โหมดสว่าง' : 'โหมดมืด',
                 icon: Icon(
@@ -155,8 +168,10 @@ class _Sidebar extends StatelessWidget {
     required this.onSelect,
     required this.isDark,
     required this.onToggleTheme,
+    required this.onSettings,
   });
 
+  final VoidCallback onSettings;
   final int selectedIndex;
   final ValueChanged<int> onSelect;
   final bool isDark;
@@ -173,7 +188,11 @@ class _Sidebar extends StatelessWidget {
         border: Border(right: BorderSide(color: c.line)),
       ),
       padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
-      child: Column(
+      // จอเตี้ย (เช่น มือถือแนวนอน) → เมนูเลื่อนได้แทนล้นจอ · จอปกติ ปุ่มล่างยังติดขอบล่าง
+      child: CustomScrollView(slivers: [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
@@ -193,7 +212,19 @@ class _Sidebar extends StatelessWidget {
               selected: i == selectedIndex,
               onTap: () => onSelect(i),
             ),
-          const Spacer(), // ดันปุ่มสลับธีมลงไปล่างสุด
+          const Spacer(), // ดันปุ่มตั้งค่า + สลับธีมลงไปล่างสุด
+          OutlinedButton.icon(
+            onPressed: onSettings,
+            icon: const Icon(Icons.settings_outlined),
+            label: const Text('ตั้งค่า'),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(44),
+              foregroundColor: c.text,
+              side: BorderSide(color: c.line2),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+          ),
+          const SizedBox(height: 8),
           OutlinedButton.icon(
             onPressed: onToggleTheme,
             icon: Icon(isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
@@ -206,7 +237,9 @@ class _Sidebar extends StatelessWidget {
             ),
           ),
         ],
-      ),
+          ),
+        ),
+      ]),
     );
   }
 }
