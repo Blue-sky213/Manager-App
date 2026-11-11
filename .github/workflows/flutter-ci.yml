@@ -39,6 +39,31 @@ jobs:
       - name: Test
         run: flutter test --reporter expanded
 
+  shots:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: After
+        working-directory: noir_manager
+        run: flutter pub get && SHOT_TAG=after flutter test --update-goldens test/shots/shots_test.dart
+      - name: Before (main)
+        run: |
+          git worktree add ../before origin/main
+          mkdir -p ../before/noir_manager/test/shots
+          cp noir_manager/test/shots/shots_test.dart ../before/noir_manager/test/shots/
+          cd ../before/noir_manager && flutter pub get && SHOT_TAG=before flutter test --update-goldens test/shots/shots_test.dart
+          cp test/shots/out/*.png $GITHUB_WORKSPACE/noir_manager/test/shots/out/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shots
+          path: noir_manager/test/shots/out/*.png
+
   # สร้างไฟล์ติดตั้ง Android (.apk) ให้นัวร์โหลดไปลงมือถือได้เลย ไม่ต้องตั้ง Android SDK ในเครื่อง
   # รันเฉพาะ PR / main / กดเอง (ใช้เวลานานกว่าเทส)
   android-apk:
