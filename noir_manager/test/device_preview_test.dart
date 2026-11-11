@@ -54,12 +54,11 @@ void main() {
     expect(await study.getSetting(devicePreviewKey), 'iphone15');
     expect(find.textContaining('iPhone 15 · 393×852'), findsOneWidget);
 
-    // ตอนนี้แอปอยู่ในกรอบมือถือ → หน้าตั้งค่าแคบลง ต้องเลื่อนลงหาปุ่ม
-    final list = find.descendant(of: find.byType(ListView), matching: find.byType(Scrollable)).first;
-    await tester.scrollUntilVisible(find.text('แนวนอน'), 200, scrollable: list);
-    await tester.drag(list, const Offset(0, -250)); // พ้นมุมโค้งของจอ
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('แนวนอน'));
+    // ตอนนี้แอปอยู่ในกรอบมือถือ (ย่อ + มุมโค้ง) → เรียกปุ่มแนวนอนตรง ๆ แทนการแตะตำแหน่ง
+    await tester.scrollUntilVisible(find.text('แนวนอน'), 200,
+        scrollable: find.descendant(of: find.byType(ListView), matching: find.byType(Scrollable)).first);
+    final orient = find.byType(SegmentedButton<bool>, skipOffstage: false);
+    tester.widget<SegmentedButton<bool>>(orient).onSelectionChanged!({true});
     await tester.pumpAndSettle();
     expect(await study.getSetting(devicePreviewKey), 'iphone15:land');
 
