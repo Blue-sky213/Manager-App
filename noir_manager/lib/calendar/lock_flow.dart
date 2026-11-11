@@ -101,6 +101,5 @@ Future<void> editCommitment(BuildContext context, CalendarRepository repo, Occur
       ],
     ),
   );
-  ctl.dispose();
   if (res != null) await repo.setSetting(commitmentKey(o.activityId), res);
 }
