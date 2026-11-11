@@ -76,4 +76,28 @@ void main() {
     expect(tester.takeException(), isNull);
     debugDefaultTargetPlatformOverride = null;
   });
+
+  testWidgets('มือถือแนวตั้ง: แท็บวิชาแถวเดียวกว้างเท่ากัน · การ์ดภาพรวมกว้างเท่ากัน', (tester) async {
+    tester.view.physicalSize = const Size(393, 2000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(NoirManagerApp(
+      studyRepository: MemoryStudyRepository.seeded(),
+      calendarRepository: MemoryCalendarRepository(),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('การเรียน').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('รายวิชา'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+
+    final tabs = ['ภาพรวม', 'บทเรียน', 'เวลาเรียน', 'ติว', 'เกรด'];
+    final ys = {for (final t in tabs) tester.getCenter(find.text(t).first).dy.round()};
+    expect(ys.length, 1, reason: 'แท็บต้องอยู่แถวเดียว');
+
+    Finder card(String label) => find.ancestor(of: find.text(label), matching: find.byType(Material)).first;
+    final widths = {for (final l in ['บทเรียน', 'หน่วยกิต', 'รอบติว']) tester.getSize(card(l)).width};
+    expect(widths.length, 1, reason: 'การ์ดภาพรวมต้องกว้างเท่ากัน');
+  });
 }
