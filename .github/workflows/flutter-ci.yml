@@ -41,6 +41,8 @@ jobs:
 
   shots:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -59,10 +61,11 @@ jobs:
           cp noir_manager/test/shots/shots_test.dart ../before/noir_manager/test/shots/
           cd ../before/noir_manager && flutter pub get && SHOT_TAG=before flutter test --update-goldens test/shots/shots_test.dart
           cp test/shots/out/*.png $GITHUB_WORKSPACE/noir_manager/test/shots/out/
-      - uses: actions/upload-artifact@v4
-        with:
-          name: shots
-          path: noir_manager/test/shots/out/*.png
+      - name: Push shots
+        run: |
+          git config user.name ci && git config user.email ci@users.noreply.github.com
+          git add -f noir_manager/test/shots/out/*.png
+          git commit -m "shots [skip ci]" && git push origin HEAD:hq/preview-shots
 
   # สร้างไฟล์ติดตั้ง Android (.apk) ให้นัวร์โหลดไปลงมือถือได้เลย ไม่ต้องตั้ง Android SDK ในเครื่อง
   # รันเฉพาะ PR / main / กดเอง (ใช้เวลานานกว่าเทส)
