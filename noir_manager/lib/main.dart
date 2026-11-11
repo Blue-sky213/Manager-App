@@ -17,5 +17,6 @@ Future<void> main() async {
   runApp(NoirManagerApp(
     studyRepository: SqliteStudyRepository(db),
     calendarRepository: SqliteCalendarRepository(db),
+    askOnboarding: true,
   ));
 }

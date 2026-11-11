@@ -5,6 +5,7 @@ import 'calendar/calendar_repository.dart';
 import 'data/study_repository.dart';
 import 'data/study_scope.dart';
 import 'shell/app_shell.dart';
+import 'pages/onboarding_page.dart';
 import 'theme/app_theme.dart';
 import 'theme/noir_colors.dart';
 import 'shell/app_nav.dart';
@@ -16,11 +17,15 @@ class NoirManagerApp extends StatefulWidget {
   const NoirManagerApp({
     super.key,
     required this.studyRepository,
+    this.askOnboarding = false,
     required this.calendarRepository,
   });
 
   /// ที่เก็บข้อมูลวิชา: แอปจริง = SQLite · ตอนเทส = เก็บใน RAM
   final StudyRepository studyRepository;
+
+  /// เปิดครั้งแรก → ถามคำถามแรกเข้า (main.dart เปิด · เทสส่วนใหญ่ปิด)
+  final bool askOnboarding;
 
   /// ที่เก็บข้อมูลปฏิทิน (แบบเดียวกัน)
   final CalendarRepository calendarRepository;
@@ -40,6 +45,7 @@ class _NoirManagerAppState extends State<NoirManagerApp> {
 
   // ค่าเริ่มต้น = โหมดมืด · ธีมที่เลือกจำในตาราง setting (key = theme)
   String _themeId = 'dark';
+  bool _onboarding = false;
   static const _themeKey = 'theme';
 
   @override
@@ -50,6 +56,11 @@ class _NoirManagerAppState extends State<NoirManagerApp> {
     widget.studyRepository.getSetting(_themeKey).then((id) {
       if (mounted && id != null) setState(() => _themeId = themeChoiceOf(id).id);
     });
+    if (widget.askOnboarding) {
+      widget.studyRepository.getSetting(onboardedKey).then((v) {
+        if (mounted && v == null) setState(() => _onboarding = true);
+      });
+    }
   }
 
   void _setTheme(String id) {
@@ -84,7 +95,9 @@ class _NoirManagerAppState extends State<NoirManagerApp> {
           localizationsDelegates: GlobalMaterialLocalizations.delegates,
           // ธีมเดียวที่เลือก (มี brightness ของตัวเอง) → ไม่ใช้ darkTheme / themeMode ของระบบ
           theme: AppTheme.of(themeChoiceOf(_themeId)),
-          home: AppShell(
+          home: _onboarding
+              ? OnboardingPage(onDone: () => setState(() => _onboarding = false))
+              : AppShell(
             isDark: themeChoiceOf(_themeId).dark,
             onToggleTheme: _toggleTheme,
             themeId: _themeId,
