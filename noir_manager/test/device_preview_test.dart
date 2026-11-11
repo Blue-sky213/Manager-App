@@ -96,7 +96,7 @@ void main() {
     final ys = {for (final t in tabs) tester.getCenter(find.text(t).first).dy.round()};
     expect(ys.length, 1, reason: 'แท็บต้องอยู่แถวเดียว');
 
-    Finder card(String label) => find.ancestor(of: find.text(label), matching: find.byType(Material)).first;
+    Finder card(String label) => find.ancestor(of: find.text(label).last, matching: find.byType(Material)).first;
     final widths = {for (final l in ['บทเรียน', 'หน่วยกิต', 'รอบติว']) tester.getSize(card(l)).width};
     expect(widths.length, 1, reason: 'การ์ดภาพรวมต้องกว้างเท่ากัน');
   });
