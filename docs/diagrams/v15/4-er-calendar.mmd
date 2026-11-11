@@ -1,0 +1,50 @@
+erDiagram
+  CATEGORY |o--o{ ACTIVITY : "หมวด"
+  PRESET |o--o{ ACTIVITY : "สร้างจาก"
+  SUBJECT |o--o{ ACTIVITY : "คาบ / ติว / สอบ"
+  ACTIVITY ||--o{ ACTIVITY_DATE : "วันที่เลือกเอง"
+  ACTIVITY ||--o{ OCCURRENCE : "เกิดเป็นครั้ง"
+  OCCURRENCE ||--o{ TUTOR_LOG : "บันทึกติว"
+  CATEGORY {
+    int id PK
+    text name
+    text color
+  }
+  PRESET {
+    int id PK
+    int category_id FK
+    text name
+  }
+  SUBJECT {
+    int id PK
+    text name
+  }
+  ACTIVITY {
+    int id PK
+    int subject_id FK
+    int category_id FK
+    text name
+    text kind "class / tutor / exam / todo"
+    text repeat "none / weekly / dates"
+    int start_minute
+    int duration_min
+    text room
+  }
+  ACTIVITY_DATE {
+    int activity_id PK
+    text day PK
+  }
+  OCCURRENCE {
+    int id PK
+    int activity_id FK
+    text day
+    text status "planned / done ..."
+    text actual_end
+    int moved_from FK
+  }
+  TUTOR_LOG {
+    int id PK
+    int occurrence_id FK
+    int chapter_id FK
+    text status
+  }
