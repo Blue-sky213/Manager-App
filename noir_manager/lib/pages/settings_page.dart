@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../data/study_models.dart';
+import '../study/mastery.dart' show GradingMode;
 import '../data/study_scope.dart';
 import '../theme/noir_colors.dart';
 import '../widgets/mini_dropdown.dart';
