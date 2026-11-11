@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../pages/calendar_page.dart';
 import '../pages/study_page.dart';
 import '../theme/noir_colors.dart';
+import '../data/backup.dart';
 import '../pages/settings_page.dart';
 import 'app_nav.dart';
 import 'destinations.dart';
@@ -18,12 +19,14 @@ class AppShell extends StatefulWidget {
     required this.onToggleTheme,
     this.themeId = 'dark',
     this.onTheme,
+    this.backup,
   });
 
   final bool isDark;
   final VoidCallback onToggleTheme;
   final String themeId;
   final ValueChanged<String>? onTheme;
+  final BackupService? backup;
 
   /// ความกว้างที่ใช้แบ่ง "จอกว้าง" กับ "จอแคบ" (หน่วย logical pixel)
   static const double wideBreakpoint = 720;
@@ -95,7 +98,7 @@ class _AppShellState extends State<AppShell> {
 
   void _openSettings() {
     Navigator.of(context).push(MaterialPageRoute<void>(
-      builder: (_) => SettingsPage(themeId: widget.themeId, onTheme: widget.onTheme),
+      builder: (_) => SettingsPage(themeId: widget.themeId, onTheme: widget.onTheme, backup: widget.backup),
     ));
   }
 
