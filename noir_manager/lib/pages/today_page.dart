@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../calendar/sticker_ui.dart';
 import '../calendar/calendar_flows.dart';
 import '../calendar/calendar_listener.dart';
 import '../calendar/calendar_models.dart';
@@ -63,6 +64,8 @@ class _TodayPageState extends State<TodayPage> with CalendarListener<TodayPage> 
     final side = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        DayStickerCard(day: _today),
+        const SizedBox(height: 16),
         _SleepCard(
           tonight: todayLb,
           tomorrow: _lifeBase[_today.weekday % 7],

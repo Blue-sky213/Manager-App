@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 import '../calendar/calendar_repository.dart' show CalendarScope;
 import '../data/app_database.dart' show appSchemaVersion;
 import '../data/backup.dart';
+import '../calendar/sticker_ui.dart' show StickerSettings;
 import '../calendar/lock_flow.dart' show lockSettingKey, refreshLockState;
 import '../study/mastery.dart' show GradingMode;
 import '../data/study_scope.dart';
@@ -213,6 +214,8 @@ class _SettingsPageState extends State<SettingsPage> {
                         subtitle: const Text('กรอกผลได้ตามปกติ · เลื่อน / ยกเลิก / แก้ / ลบ ต้องยืนยันก่อน · ตั้งคำมั่นได้ที่คลิกขวา → คำมั่น'),
                       ),
                     ]),
+                    const SizedBox(height: 14),
+                    section('สติกเกอร์อารมณ์', [const StickerSettings()]),
                     const SizedBox(height: 14),
                     section('สำรองข้อมูล', [_BackupSection(backup: widget.backup)]),
                     const SizedBox(height: 14),

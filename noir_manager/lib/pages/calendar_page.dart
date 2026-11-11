@@ -60,6 +60,7 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
 
   /// งานของแต่ละวันที่เห็นบนจอ (ใช้วาดสัปดาห์ / จุดสีในเดือน)
   Map<DateTime, List<Occurrence>> _byDay = {};
+  Map<DateTime, String> _stickers = {}; // วัน → สติกเกอร์แรกที่แปะ (ตารางเดือน)
   List<LifeBaseDay> _lifeBase = defaultLifeBase();
 
   /// dayKey → ชื่อวันหยุด
@@ -115,10 +116,13 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
     final cats = await repo.categories();
     final holidays = await repo.holidays();
     final style = await _settings?.getSetting('week_style');
+    final days = _visibleDays.toList();
+    final stuck = days.isEmpty ? const <DaySticker>[] : await repo.daySticker(days.first, days.last);
     if (!mounted || day != _selected || view != _view) return; // ผู้ใช้กดเปลี่ยนระหว่างโหลด
     setState(() {
       _items = items;
       _byDay = byDay;
+      _stickers = {for (final d in stuck.reversed) d.day: d.sticker.glyph};
       _lifeBase = lifeBase;
       _categories = {for (final c in cats) c.id: c};
       _holidays = {for (final h in holidays) dayKey(h.day): h.name};
@@ -474,6 +478,7 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
                     dimmed: d.month != _selected.month,
                     dots: _dots(d),
                     marks: {for (final o in _byDay[d] ?? const <Occurrence>[]) ?markOf(o)},
+                    sticker: _stickers[d],
                     onTap: () => _go(day: d),
                   ),
                 ),
@@ -578,6 +583,7 @@ class _MiniDay extends StatelessWidget {
     required this.dimmed,
     required this.dots,
     this.marks = const {},
+    this.sticker,
     required this.onTap,
   });
 
@@ -589,6 +595,9 @@ class _MiniDay extends StatelessWidget {
 
   /// วันสอบ / วันส่งงาน → สัญลักษณ์แทนจุด เห็นได้ทันทีในตารางเดือน
   final Set<DayMark> marks;
+
+  /// สติกเกอร์อารมณ์ของวันนั้น (ตัวแรกที่แปะ)
+  final String? sticker;
   final VoidCallback onTap;
 
   @override
@@ -621,10 +630,11 @@ class _MiniDay extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 2),
-            if (marks.isNotEmpty)
+            if (marks.isNotEmpty || sticker != null)
               SizedBox(
                 height: 12,
                 child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  if (sticker != null) Text(sticker!, style: const TextStyle(fontSize: 10, height: 1.1)),
                   if (marks.contains(DayMark.exam))
                     Icon(Icons.edit_note, size: 12, color: c.bad, semanticLabel: 'วันสอบ'),
                   if (marks.contains(DayMark.homework))

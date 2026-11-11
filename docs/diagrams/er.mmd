@@ -14,6 +14,8 @@ erDiagram
   ACTIVITY ||--o{ ACTIVITY_DATE : "วันที่เลือกเอง"
   ACTIVITY ||--o{ OCCURRENCE : "เกิดเป็นครั้ง"
   OCCURRENCE ||--o{ TUTOR_LOG : "บันทึกติว"
+  STICKER_PACK ||--o{ STICKER : "มีสติกเกอร์"
+  STICKER ||--o{ DAY_STICKER : "แปะในวัน"
   CHAPTER |o--o{ TUTOR_LOG : "ติวบทนี้"
   SUBJECT {
     int id PK
@@ -129,4 +131,23 @@ erDiagram
     int occurrence_id FK
     int chapter_id FK
     text status
+  }
+  STICKER_PACK {
+    int id PK
+    text name
+    int builtin "v16"
+    int enabled
+  }
+  STICKER {
+    int id PK
+    int pack_id FK
+    text name
+    text emoji
+    text image_path "รอระบบเลือกไฟล์"
+  }
+  DAY_STICKER {
+    int id PK
+    text day
+    int sticker_id FK
+    text note
   }

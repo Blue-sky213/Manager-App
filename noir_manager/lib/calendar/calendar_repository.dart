@@ -1,6 +1,8 @@
 import 'package:flutter/widgets.dart';
 
 import 'calendar_models.dart';
+import 'stickers.dart';
+export 'stickers.dart';
 
 /// "สัญญา" ของที่เก็บข้อมูลปฏิทิน (แบบเดียวกับ StudyRepository)
 ///
@@ -96,6 +98,22 @@ abstract class CalendarRepository extends ChangeNotifier {
   Future<Set<DateTime>> shiftedDays(int activityId);
 
   /// ค่าตั้งเล็ก ๆ (ตาราง setting เดียวกับฝั่งวิชา) เช่น ตัวเลือกวันหยุดที่ "จำไว้"
+  // ---------- สติกเกอร์อารมณ์ ----------
+  /// ทุกชุด (รวมที่ซ่อน) พร้อมสติกเกอร์ในชุด เรียงตามลำดับ
+  Future<List<StickerPack>> stickerPacks();
+  Future<int> addStickerPack(String name);
+  Future<void> setStickerPackEnabled(int packId, bool enabled);
+
+  /// ลบได้เฉพาะชุดที่ผู้ใช้สร้าง · สติกเกอร์และที่แปะไว้หายตาม
+  Future<void> deleteStickerPack(int packId);
+  Future<int> addSticker(int packId, String name, {String? emoji, String? imagePath});
+  Future<void> deleteSticker(int stickerId);
+
+  /// สติกเกอร์ที่แปะในช่วงวัน (รวมทั้งสองวัน) · เรียงวัน → ลำดับที่แปะ
+  Future<List<DaySticker>> daySticker(DateTime from, DateTime to);
+  Future<int> stickDay(DateTime day, int stickerId, {String? note});
+  Future<void> unstickDay(int dayStickerId);
+
   Future<String?> getSetting(String key);
   Future<void> setSetting(String key, String value);
 

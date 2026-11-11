@@ -301,6 +301,98 @@ class MemoryCalendarRepository extends CalendarRepository {
 
   final Map<String, String> _settings = {};
 
+  // ---------- สติกเกอร์ (ชุดในตัวแอปใส่ไว้ตั้งแต่สร้าง เหมือน migration v16) ----------
+  late final List<({int id, String name, bool builtin, bool enabled})> _packs = _seedPacks();
+  final List<Sticker> _stickers = [];
+  final List<DaySticker> _daySticker = [];
+
+  List<({int id, String name, bool builtin, bool enabled})> _seedPacks() {
+    final out = <({int id, String name, bool builtin, bool enabled})>[];
+    for (final (name, items) in builtinStickerPacks) {
+      final id = _nextId++;
+      out.add((id: id, name: name, builtin: true, enabled: true));
+      for (final (n, e) in items) {
+        _stickers.add(Sticker(id: _nextId++, packId: id, name: n, emoji: e));
+      }
+    }
+    return out;
+  }
+
+  @override
+  Future<List<StickerPack>> stickerPacks() async => [
+        for (final p in _packs)
+          StickerPack(
+              id: p.id,
+              name: p.name,
+              builtin: p.builtin,
+              enabled: p.enabled,
+              stickers: _stickers.where((s) => s.packId == p.id).toList()),
+      ];
+
+  @override
+  Future<int> addStickerPack(String name) async {
+    final id = _nextId++;
+    _packs.add((id: id, name: name, builtin: false, enabled: true));
+    notifyListeners();
+    return id;
+  }
+
+  @override
+  Future<void> setStickerPackEnabled(int packId, bool enabled) async {
+    final i = _packs.indexWhere((p) => p.id == packId);
+    if (i < 0) return;
+    final p = _packs[i];
+    _packs[i] = (id: p.id, name: p.name, builtin: p.builtin, enabled: enabled);
+    notifyListeners();
+  }
+
+  @override
+  Future<void> deleteStickerPack(int packId) async {
+    if (_packs.any((p) => p.id == packId && p.builtin)) return;
+    _packs.removeWhere((p) => p.id == packId);
+    final gone = _stickers.where((s) => s.packId == packId).map((s) => s.id).toSet();
+    _stickers.removeWhere((s) => gone.contains(s.id));
+    _daySticker.removeWhere((d) => gone.contains(d.sticker.id));
+    notifyListeners();
+  }
+
+  @override
+  Future<int> addSticker(int packId, String name, {String? emoji, String? imagePath}) async {
+    final id = _nextId++;
+    _stickers.add(Sticker(id: id, packId: packId, name: name, emoji: emoji, imagePath: imagePath));
+    notifyListeners();
+    return id;
+  }
+
+  @override
+  Future<void> deleteSticker(int stickerId) async {
+    _stickers.removeWhere((s) => s.id == stickerId);
+    _daySticker.removeWhere((d) => d.sticker.id == stickerId);
+    notifyListeners();
+  }
+
+  @override
+  Future<List<DaySticker>> daySticker(DateTime from, DateTime to) async {
+    final a = dayOnly(from), b = dayOnly(to);
+    return _daySticker.where((d) => !d.day.isBefore(a) && !d.day.isAfter(b)).toList()
+      ..sort((x, y) => x.day != y.day ? x.day.compareTo(y.day) : x.id - y.id);
+  }
+
+  @override
+  Future<int> stickDay(DateTime day, int stickerId, {String? note}) async {
+    final s = _stickers.firstWhere((s) => s.id == stickerId);
+    final id = _nextId++;
+    _daySticker.add(DaySticker(id: id, day: dayOnly(day), sticker: s, note: note));
+    notifyListeners();
+    return id;
+  }
+
+  @override
+  Future<void> unstickDay(int dayStickerId) async {
+    _daySticker.removeWhere((d) => d.id == dayStickerId);
+    notifyListeners();
+  }
+
   @override
   Future<String?> getSetting(String key) async => _settings[key];
 
