@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
@@ -47,6 +49,7 @@ class _NoirManagerAppState extends State<NoirManagerApp> {
   // ค่าเริ่มต้น = โหมดมืด · ธีมที่เลือกจำในตาราง setting (key = theme)
   String _themeId = 'dark';
   bool _onboarding = false;
+  Timer? _clock;
   static const _themeKey = 'theme';
 
   @override
@@ -56,7 +59,11 @@ class _NoirManagerAppState extends State<NoirManagerApp> {
     refreshSubjectColors(widget.studyRepository);
     refreshLockState(widget.calendarRepository);
     widget.studyRepository.getSetting(_themeKey).then((id) {
-      if (mounted && id != null) setState(() => _themeId = themeChoiceOf(id).id);
+      if (mounted && id != null) setState(() => _themeId = id == autoThemeId ? id : themeChoiceOf(id).id);
+    });
+    // ธีม "ตามเวลา": เช็กทุกนาที พอข้าม 06:00 / 18:00 ก็เปลี่ยนเอง
+    _clock = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (_themeId == autoThemeId && mounted) setState(() {});
     });
     if (widget.askOnboarding) {
       widget.studyRepository.getSetting(onboardedKey).then((v) {
@@ -65,13 +72,19 @@ class _NoirManagerAppState extends State<NoirManagerApp> {
     }
   }
 
+  @override
+  void dispose() {
+    _clock?.cancel();
+    super.dispose();
+  }
+
   void _setTheme(String id) {
     setState(() => _themeId = id);
     widget.studyRepository.setSetting(_themeKey, id);
   }
 
   /// ปุ่มลัดในเมนู: สลับสว่าง ↔ มืด ในโทนสีเดิม (ชมพู ↔ ชมพูมืด)
-  void _toggleTheme() => _setTheme(pairedTheme(_themeId));
+  void _toggleTheme() => _setTheme(pairedTheme(resolveTheme(_themeId)));
 
   @override
   Widget build(BuildContext context) {
@@ -96,11 +109,11 @@ class _NoirManagerAppState extends State<NoirManagerApp> {
           supportedLocales: const [Locale('th', 'TH'), Locale('en', 'US')],
           localizationsDelegates: GlobalMaterialLocalizations.delegates,
           // ธีมเดียวที่เลือก (มี brightness ของตัวเอง) → ไม่ใช้ darkTheme / themeMode ของระบบ
-          theme: AppTheme.of(themeChoiceOf(_themeId)),
+          theme: AppTheme.of(themeChoiceOf(resolveTheme(_themeId))),
           home: _onboarding
-              ? OnboardingPage(onDone: () => setState(() => _onboarding = false))
+              ? OnboardingPage(onDone: () => setState(() => _onboarding = false), onTheme: _setTheme)
               : AppShell(
-            isDark: themeChoiceOf(_themeId).dark,
+            isDark: themeChoiceOf(resolveTheme(_themeId)).dark,
             onToggleTheme: _toggleTheme,
             themeId: _themeId,
             onTheme: _setTheme,

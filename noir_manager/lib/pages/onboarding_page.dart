@@ -14,9 +14,12 @@ const gpaTargetKey = 'gpa_target';
 
 /// คำถามแรกเข้า 4 ข้อ → เติมค่าตั้งต้นให้เอง ลดการตั้งค่าเยอะ ๆ ตอนเริ่ม · ข้ามได้ทุกข้อ
 class OnboardingPage extends StatefulWidget {
-  const OnboardingPage({super.key, required this.onDone});
+  const OnboardingPage({super.key, required this.onDone, this.onTheme});
 
   final VoidCallback onDone;
+
+  /// ลองธีมสดระหว่างตอบ (แอปจำเลย)
+  final ValueChanged<String>? onTheme;
 
   @override
   State<OnboardingPage> createState() => _OnboardingPageState();
@@ -30,7 +33,11 @@ class _OnboardingPageState extends State<OnboardingPage> {
   final _goal = TextEditingController();
   double _gpa = 3.0;
 
-  static const _steps = 4;
+  static const _steps = 5;
+  String _bright = 'dark';
+  String _color = '';
+
+  void _applyTheme() => widget.onTheme?.call(themeIdFor(_color, _bright));
 
   @override
   void didChangeDependencies() {
@@ -115,6 +122,45 @@ class _OnboardingPageState extends State<OnboardingPage> {
             ),
         ]),
       1 => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Text('เวลาตั้งใจทำอะไรสักอย่าง คุณชอบบรรยากาศแบบไหน?', style: title),
+          const SizedBox(height: 6),
+          Text('แอปจะเปลี่ยนหน้าตาให้ดูทันที ลองเลือกจนรู้สึกสบายใจ', style: sub),
+          const SizedBox(height: 18),
+          for (final (id, name, hint) in const [
+            ('light', 'ห้องสว่าง โปร่ง', 'เหมือนนั่งริมหน้าต่างตอนเช้า'),
+            ('dark', 'ห้องมืด เงียบ', 'มีแค่ไฟโต๊ะ ไม่มีอะไรรบกวน'),
+            (autoThemeId, 'ตามเวลาจริง', 'กลางวันสว่าง กลางคืนมืด'),
+          ])
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _Choice(
+                selected: _bright == id,
+                title: name,
+                hint: hint,
+                onTap: () {
+                  setState(() => _bright = id);
+                  _applyTheme();
+                },
+              ),
+            ),
+          if (_bright != autoThemeId) ...[
+            const SizedBox(height: 8),
+            Text('สีไหนทำให้คุณรู้สึกอยากเริ่มทำ?', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: c.text)),
+            const SizedBox(height: 10),
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              for (final (id, name, mood) in themeColorMoods)
+                ChoiceChip(
+                  label: Text('$name · $mood'),
+                  selected: _color == id,
+                  onSelected: (_) {
+                    setState(() => _color = id);
+                    _applyTheme();
+                  },
+                ),
+            ]),
+          ],
+        ]),
+      2 => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Text('ปกติตื่นกี่โมง นอนกี่โมง?', style: title),
           const SizedBox(height: 6),
           Text('ใช้คิดชั่วโมงนอน และไม่วางงานทับเวลานอน · ตั้งแยกรายวันได้ทีหลัง', style: sub),
@@ -126,7 +172,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                 onPressed: () => _pick(false), icon: const Icon(Icons.bedtime_outlined), label: Text('นอน ${_hm(_bed)}')),
           ]),
         ]),
-      2 => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      3 => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Text('อยากเปลี่ยนอะไรในตัวเองบ้าง?', style: title),
           const SizedBox(height: 6),
           Text('เขียนด้วยคำของตัวเอง ไม่มีถูกผิด · ปลายปีแอปจะเอาคำนี้มาเทียบกับสิ่งที่ทำได้จริง', style: sub),

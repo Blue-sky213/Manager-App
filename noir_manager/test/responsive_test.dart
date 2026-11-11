@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:noir_manager/app.dart';
 import 'package:noir_manager/calendar/memory_calendar_repository.dart';
 import 'package:noir_manager/data/memory_study_repository.dart';
+import 'package:noir_manager/theme/noir_colors.dart';
 
 /// ยืด / ย่อหน้าต่างทุกแบบที่ Windows ยอม (ขั้นต่ำ 420×640 ตาม win32_window.cpp)
 /// ทุกหน้าต้องไม่ล้นจอ ไม่พัง
@@ -53,14 +54,15 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('ตั้งค่า').first);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('ชมพูพาสเทล'));
+    await tester.tap(find.text('ชมพู').first); // แถวสีพาสเทล · สว่าง
     await tester.pumpAndSettle();
     expect(await study.getSetting('theme'), 'pink');
     final bg = Theme.of(tester.element(find.text('โหมดแอป'))).scaffoldBackgroundColor;
     expect(bg, const Color(0xFFFDF4F7));
 
-    // พาสเทลมีโทนมืดคู่กัน
-    expect(find.text('ชมพู (มืด)'), findsOneWidget);
+    // 3 กลุ่ม: โหมด (มืด · สว่าง · ตามเวลา) · พาสเทลสว่าง · พาสเทลมืด
+    expect(find.text('ตามเวลา'), findsOneWidget);
+    expect(find.text('ชมพู'), findsNWidgets(2));
     await tester.tap(find.text('ทั้งคู่'));
     await tester.pumpAndSettle();
     expect(await study.getSetting('app_mode'), 'both');
@@ -88,5 +90,15 @@ void main() {
     await tester.tap(find.text('โหมดสว่าง'));
     await tester.pumpAndSettle();
     expect(await study.getSetting('theme'), 'pink');
+  });
+
+  test('ธีมตามเวลา: 06:00–17:59 สว่าง · นอกนั้นมืด · รวมสี + ความสว่าง', () {
+    expect(resolveTheme('auto', now: DateTime(2026, 11, 11, 6)), 'light');
+    expect(resolveTheme('auto', now: DateTime(2026, 11, 11, 17, 59)), 'light');
+    expect(resolveTheme('auto', now: DateTime(2026, 11, 11, 18)), 'dark');
+    expect(resolveTheme('pink'), 'pink');
+    expect(themeIdFor('pink', 'dark'), 'pink-dark');
+    expect(themeIdFor('', 'light'), 'light');
+    expect(themeIdFor('', 'auto'), 'auto');
   });
 }

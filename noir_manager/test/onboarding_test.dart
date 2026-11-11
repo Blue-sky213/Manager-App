@@ -19,6 +19,17 @@ void main() {
     await tester.tap(find.text('ทั้งคู่'));
     await tester.tap(find.text('ถัดไป'));
     await tester.pumpAndSettle();
+    // บรรยากาศ → ลองธีมสดทันที
+    expect(find.text('เวลาตั้งใจทำอะไรสักอย่าง คุณชอบบรรยากาศแบบไหน?'), findsOneWidget);
+    await tester.tap(find.text('ห้องสว่าง โปร่ง'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('ชมพู · อบอุ่น อ่อนโยนกับตัวเอง'));
+    await tester.pumpAndSettle();
+    expect(await study.getSetting('theme'), 'pink');
+    await tester.ensureVisible(find.text('ถัดไป')); // คำตอบยาว → ปุ่มอยู่ใต้จอ
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('ถัดไป'));
+    await tester.pumpAndSettle();
     expect(find.text('ปกติตื่นกี่โมง นอนกี่โมง?'), findsOneWidget);
     await tester.tap(find.text('ถัดไป'));
     await tester.pumpAndSettle();

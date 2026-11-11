@@ -57,6 +57,11 @@ class _SettingsPageState extends State<SettingsPage> {
     });
   }
 
+  void _pickTheme(String id) {
+    setState(() => _theme = id);
+    widget.onTheme?.call(id);
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = context.noir;
@@ -103,32 +108,35 @@ class _SettingsPageState extends State<SettingsPage> {
                   padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
                   children: [
                     section('หน้าตา', [
-                      Text('ธีม', style: TextStyle(color: c.muted, fontSize: 13)),
+                      Text('โหมด', style: TextStyle(color: c.muted, fontSize: 13)),
                       const SizedBox(height: 8),
                       Wrap(spacing: 10, runSpacing: 10, children: [
-                        for (final t in themeChoices.where((t) => !t.dark || t.id == 'dark'))
+                        for (final id in const ['dark', 'light', autoThemeId])
                           _ThemeSwatch(
-                            choice: t,
-                            selected: t.id == _theme,
-                            onTap: () {
-                              setState(() => _theme = t.id);
-                              widget.onTheme?.call(t.id);
-                            },
+                            choice: id == autoThemeId ? null : themeChoiceOf(id),
+                            name: id == autoThemeId ? 'ตามเวลา' : null,
+                            selected: id == _theme,
+                            onTap: () => _pickTheme(id),
                           ),
                       ]),
-                      const SizedBox(height: 12),
-                      Text('โทนมืด', style: TextStyle(color: c.muted, fontSize: 13)),
+                      if (_theme == autoThemeId)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Text('06:00–17:59 สว่าง · 18:00–05:59 มืด', style: TextStyle(fontSize: 12, color: c.muted)),
+                        ),
+                      const SizedBox(height: 14),
+                      Text('สีพาสเทล · สว่าง', style: TextStyle(color: c.muted, fontSize: 13)),
+                      const SizedBox(height: 8),
+                      Wrap(spacing: 10, runSpacing: 10, children: [
+                        for (final t in themeChoices.where((t) => !t.dark && t.id != 'light'))
+                          _ThemeSwatch(choice: t, selected: t.id == _theme, onTap: () => _pickTheme(t.id)),
+                      ]),
+                      const SizedBox(height: 14),
+                      Text('สีพาสเทล · มืด', style: TextStyle(color: c.muted, fontSize: 13)),
                       const SizedBox(height: 8),
                       Wrap(spacing: 10, runSpacing: 10, children: [
                         for (final t in themeChoices.where((t) => t.dark && t.id != 'dark'))
-                          _ThemeSwatch(
-                            choice: t,
-                            selected: t.id == _theme,
-                            onTap: () {
-                              setState(() => _theme = t.id);
-                              widget.onTheme?.call(t.id);
-                            },
-                          ),
+                          _ThemeSwatch(choice: t, selected: t.id == _theme, onTap: () => _pickTheme(t.id)),
                       ]),
                       const SizedBox(height: 12),
                       row(
@@ -213,20 +221,24 @@ class _SettingsPageState extends State<SettingsPage> {
 
 /// ปุ่มเลือกธีม: วงสีตัวอย่าง (พื้น + สีเน้น) + ชื่อ
 class _ThemeSwatch extends StatelessWidget {
-  const _ThemeSwatch({required this.choice, required this.selected, required this.onTap});
+  const _ThemeSwatch({required this.choice, this.name, required this.selected, required this.onTap});
 
-  final ThemeChoice choice;
+  /// null = "ตามเวลา" (วาดครึ่งสว่างครึ่งมืด)
+  final ThemeChoice? choice;
+  final String? name;
   final bool selected;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final c = context.noir;
-    final t = choice.colors;
+    final auto = choice == null;
+    final t = choice?.colors ?? NoirColors.light;
+    final label = name ?? choice!.name;
     return Semantics(
       button: true,
       selected: selected,
-      label: 'ธีม${choice.name}',
+      label: 'ธีม$label',
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
@@ -238,6 +250,22 @@ class _ThemeSwatch extends StatelessWidget {
             border: Border.all(color: selected ? c.accent : c.line2, width: selected ? 2 : 1),
           ),
           child: Column(children: [
+            if (auto)
+              Container(
+                height: 44,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: c.line2),
+                  gradient: LinearGradient(colors: [
+                    NoirColors.light.bg,
+                    NoirColors.light.bg,
+                    NoirColors.dark.bg,
+                    NoirColors.dark.bg,
+                  ], stops: const [0, 0.5, 0.5, 1]),
+                ),
+                child: const Center(child: Icon(Icons.schedule, size: 20, color: Color(0xFF8A93A3))),
+              )
+            else
             Container(
               height: 44,
               decoration: BoxDecoration(
@@ -252,7 +280,7 @@ class _ThemeSwatch extends StatelessWidget {
               ]),
             ),
             const SizedBox(height: 6),
-            Text(choice.name,
+            Text(label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(fontSize: 13, color: c.text, fontWeight: selected ? FontWeight.w600 : FontWeight.w400)),
