@@ -39,7 +39,7 @@ void main() {
 
   testWidgets('ตั้งค่า (บนคอม): เลือก iPhone 15 → แนวนอน → จำไว้ → ปิด', (tester) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.windows;
-    tester.view.physicalSize = const Size(1280, 4000);
+    tester.view.physicalSize = const Size(1280, 2400);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
     final study = MemoryStudyRepository.seeded();
@@ -55,8 +55,9 @@ void main() {
     expect(find.textContaining('iPhone 15 · 393×852'), findsOneWidget);
 
     // ตอนนี้แอปอยู่ในกรอบมือถือ → หน้าตั้งค่าแคบลง ต้องเลื่อนลงหาปุ่ม
-    await tester.scrollUntilVisible(find.text('แนวนอน'), 200,
-        scrollable: find.descendant(of: find.byType(ListView), matching: find.byType(Scrollable)).first);
+    final list = find.descendant(of: find.byType(ListView), matching: find.byType(Scrollable)).first;
+    await tester.scrollUntilVisible(find.text('แนวนอน'), 200, scrollable: list);
+    await tester.drag(list, const Offset(0, -250)); // พ้นมุมโค้งของจอ
     await tester.pumpAndSettle();
     await tester.tap(find.text('แนวนอน'));
     await tester.pumpAndSettle();
