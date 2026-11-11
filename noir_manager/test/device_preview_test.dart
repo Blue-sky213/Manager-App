@@ -54,6 +54,10 @@ void main() {
     expect(await study.getSetting(devicePreviewKey), 'iphone15');
     expect(find.textContaining('iPhone 15 · 393×852'), findsOneWidget);
 
+    // ตอนนี้แอปอยู่ในกรอบมือถือ → หน้าตั้งค่าแคบลง ต้องเลื่อนลงหาปุ่ม
+    await tester.scrollUntilVisible(find.text('แนวนอน'), 200,
+        scrollable: find.descendant(of: find.byType(ListView), matching: find.byType(Scrollable)).first);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('แนวนอน'));
     await tester.pumpAndSettle();
     expect(await study.getSetting(devicePreviewKey), 'iphone15:land');
