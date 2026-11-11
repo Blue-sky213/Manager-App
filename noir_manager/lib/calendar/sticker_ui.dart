@@ -89,6 +89,8 @@ class _DayStickerCardState extends State<DayStickerCard> with CalendarListener<D
                   onLongPressStart: (e) => _menu(d, e.globalPosition),
                   child: Tooltip(
                     message: d.note ?? d.sticker.name,
+                    // กดค้าง = เมนู (ไม่ให้ tooltip แย่ง) · เมาส์ชี้ยังเห็นโน้ต
+                    triggerMode: TooltipTriggerMode.manual,
                     child: InkWell(
                       onTap: () => _note(d),
                       borderRadius: BorderRadius.circular(12),
