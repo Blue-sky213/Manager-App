@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 
@@ -11,6 +12,7 @@ import '../calendar/lock_flow.dart' show lockSettingKey, refreshLockState;
 import '../study/mastery.dart' show GradingMode;
 import '../data/study_scope.dart';
 import '../theme/noir_colors.dart';
+import '../widgets/device_preview.dart';
 import '../widgets/mini_dropdown.dart';
 
 /// โหมดแอป: เรียน / ทำงาน / ทั้งคู่ (เก็บใน setting key = app_mode)
@@ -217,6 +219,12 @@ class _SettingsPageState extends State<SettingsPage> {
                     const SizedBox(height: 14),
                     section('สติกเกอร์อารมณ์', [const StickerSettings()]),
                     const SizedBox(height: 14),
+                    // บนคอมเท่านั้น: ดูหน้าตาแอปบน iPhone / iPad / Android โดยไม่ต้องมีเครื่อง
+                    if (const {TargetPlatform.windows, TargetPlatform.linux, TargetPlatform.macOS}
+                        .contains(defaultTargetPlatform)) ...[
+                      section('ทดลองหน้าจออุปกรณ์', [const _DevicePreviewSettings()]),
+                      const SizedBox(height: 14),
+                    ],
                     section('สำรองข้อมูล', [_BackupSection(backup: widget.backup)]),
                     const SizedBox(height: 14),
                     section('เกี่ยวกับ', [
@@ -387,5 +395,51 @@ class _BackupSectionState extends State<_BackupSection> {
         ),
       if (_files.length > 7) Text('และอีก ${_files.length - 7} ไฟล์', style: TextStyle(fontSize: 12, color: c.muted)),
     ]);
+  }
+}
+
+/// เลือกอุปกรณ์ + แนวตั้ง / แนวนอน · จำไว้ (เปิดแอปใหม่ยังจำลองต่อ)
+class _DevicePreviewSettings extends StatelessWidget {
+  const _DevicePreviewSettings();
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.noir;
+    final repo = StudyScope.of(context);
+    return ValueListenableBuilder(
+      valueListenable: devicePreview,
+      builder: (context, v, _) {
+        void set(String? id, bool land) {
+          devicePreview.value = (id: id, landscape: land);
+          repo.setSetting(devicePreviewKey, id == null ? '' : (land ? '$id:land' : id));
+        }
+
+        return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Text('วาดแอปในขนาดจอจริงของมือถือ / แท็บเล็ต ให้เช็กหน้าตาได้บนคอม · ไม่ใช่ระบบ iOS / Android จริง',
+              style: TextStyle(fontSize: 13, color: c.muted)),
+          const SizedBox(height: 10),
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            ChoiceChip(label: const Text('ปิด'), selected: v.id == null, onSelected: (_) => set(null, false)),
+            for (final d in previewDevices)
+              ChoiceChip(label: Text(d.name), selected: v.id == d.id, onSelected: (_) => set(d.id, v.landscape)),
+          ]),
+          if (v.id != null) ...[
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: SegmentedButton<bool>(
+                showSelectedIcon: false,
+                segments: const [
+                  ButtonSegment(value: false, icon: Icon(Icons.stay_current_portrait), label: Text('แนวตั้ง')),
+                  ButtonSegment(value: true, icon: Icon(Icons.stay_current_landscape), label: Text('แนวนอน')),
+                ],
+                selected: {v.landscape},
+                onSelectionChanged: (s) => set(v.id, s.first),
+              ),
+            ),
+          ],
+        ]);
+      },
+    );
   }
 }
