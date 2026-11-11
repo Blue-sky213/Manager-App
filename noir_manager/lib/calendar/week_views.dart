@@ -9,6 +9,8 @@ import 'calendar_flows.dart';
 import 'calendar_models.dart';
 import 'calendar_ui.dart';
 import 'lock_flow.dart' show showLockBadge;
+import 'sticker_ui.dart' show StickerGlyph;
+import 'stickers.dart' show stickersByDay;
 
 /// นาทีเริ่ม/จบของงานในวันนั้น (ข้ามเที่ยงคืน → ตัดที่ 24:00)
 (int, int) _span(Occurrence o) {
@@ -46,20 +48,32 @@ class _DayHeader extends StatelessWidget {
           children: [
             Text(thaiWeekdayShort[day.weekday - 1],
                 style: TextStyle(fontSize: 12, color: isToday ? c.accent : c.muted)),
-            Container(
-              width: 30,
-              height: 30,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: isToday ? c.accent : null,
+            // สติกเกอร์ของวัน = ป้ายเล็กมุมขวาบนของเลขวัน (ไม่ดันความสูงหัววัน)
+            Stack(clipBehavior: Clip.none, children: [
+              Container(
+                width: 30,
+                height: 30,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isToday ? c.accent : null,
+                ),
+                child: Text('${day.day}',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: isToday ? c.onAccent : c.text,
+                    )),
               ),
-              child: Text('${day.day}',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: isToday ? c.onAccent : c.text,
-                  )),
-            ),
+              if (stickersByDay[day] case final st? when st.isNotEmpty)
+                Positioned(
+                  right: -14,
+                  top: -6,
+                  child: Tooltip(
+                    message: st.map((x) => x.name).join(' · '),
+                    child: StickerGlyph(st.first, size: 16),
+                  ),
+                ),
+            ]),
           ],
         ),
       ),
@@ -377,6 +391,11 @@ class WeekList extends StatelessWidget {
                             Text('${d.day}',
                                 style: TextStyle(
                                     fontSize: 18, fontWeight: FontWeight.w600, color: c.text)),
+                            if (stickersByDay[d] case final st? when st.isNotEmpty)
+                              Tooltip(
+                                message: st.map((x) => x.name).join(' · '),
+                                child: StickerGlyph(st.first, size: 16),
+                              ),
                           ],
                         ),
                       ),

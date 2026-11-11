@@ -4,7 +4,8 @@ import '../calendar/calendar_flows.dart';
 import '../calendar/terms_page.dart';
 import '../calendar/calendar_listener.dart';
 import '../calendar/calendar_models.dart';
-import '../calendar/stickers.dart' show DaySticker;
+import '../calendar/sticker_ui.dart' show StickerGlyph;
+import '../calendar/stickers.dart' show DaySticker, Sticker, stickersByDay;
 import '../calendar/calendar_ui.dart';
 import '../calendar/clash_page.dart';
 import '../calendar/day_agenda.dart';
@@ -61,7 +62,6 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
 
   /// งานของแต่ละวันที่เห็นบนจอ (ใช้วาดสัปดาห์ / จุดสีในเดือน)
   Map<DateTime, List<Occurrence>> _byDay = {};
-  Map<DateTime, String> _stickers = {}; // วัน → สติกเกอร์แรกที่แปะ (ตารางเดือน)
   List<LifeBaseDay> _lifeBase = defaultLifeBase();
 
   /// dayKey → ชื่อวันหยุด
@@ -123,7 +123,10 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
     setState(() {
       _items = items;
       _byDay = byDay;
-      _stickers = {for (final d in stuck.reversed) d.day: d.sticker.glyph};
+      stickersByDay = {};
+      for (final d in stuck) {
+        (stickersByDay[d.day] ??= []).add(d.sticker);
+      }
       _lifeBase = lifeBase;
       _categories = {for (final c in cats) c.id: c};
       _holidays = {for (final h in holidays) dayKey(h.day): h.name};
@@ -479,7 +482,7 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
                     dimmed: d.month != _selected.month,
                     dots: _dots(d),
                     marks: {for (final o in _byDay[d] ?? const <Occurrence>[]) ?markOf(o)},
-                    sticker: _stickers[d],
+                    sticker: stickersByDay[d]?.first,
                     onTap: () => _go(day: d),
                   ),
                 ),
@@ -598,7 +601,7 @@ class _MiniDay extends StatelessWidget {
   final Set<DayMark> marks;
 
   /// สติกเกอร์อารมณ์ของวันนั้น (ตัวแรกที่แปะ)
-  final String? sticker;
+  final Sticker? sticker;
   final VoidCallback onTap;
 
   @override
@@ -635,7 +638,7 @@ class _MiniDay extends StatelessWidget {
               SizedBox(
                 height: 12,
                 child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  if (sticker != null) Text(sticker!, style: const TextStyle(fontSize: 10, height: 1.1)),
+                  if (sticker != null) StickerGlyph(sticker!, size: 12),
                   if (marks.contains(DayMark.exam))
                     Icon(Icons.edit_note, size: 12, color: c.bad, semanticLabel: 'วันสอบ'),
                   if (marks.contains(DayMark.homework))

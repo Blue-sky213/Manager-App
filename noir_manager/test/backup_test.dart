@@ -55,7 +55,12 @@ void main() {
 
   test('กู้คืน: สำรองของตอนนี้ก่อน · ทับ DB ตอนเปิดแอปครั้งถัดไป', () async {
     final b = BackupService(db: db, dbPath: path);
+    // รูปสติกเกอร์ถูกสำรองไปด้วย และกลับมาตอนกู้คืนถ้าหาย
+    final stickers = Directory(p.join(dir.path, 'stickers'))..createSync();
+    File(p.join(stickers.path, 'st_1.png')).writeAsStringSync('png');
     final old = await b.backupNow(now: DateTime(2026, 11, 10));
+    expect(File(p.join(dir.path, 'backups', 'stickers', 'st_1.png')).existsSync(), isTrue);
+    File(p.join(stickers.path, 'st_1.png')).deleteSync();
     await db.insert('t', {'v': 'พิมพ์ผิด'});
     await b.scheduleRestore(old, now: DateTime(2026, 11, 11));
     expect(File(BackupService.pendingMarker(path)).existsSync(), isTrue);
@@ -65,6 +70,7 @@ void main() {
     expect(await BackupService.applyPendingRestore(path), isTrue);
     expect(File(BackupService.pendingMarker(path)).existsSync(), isFalse);
     expect(await rows(path), ['ข้อมูลเดิม']);
+    expect(File(p.join(stickers.path, 'st_1.png')).existsSync(), isTrue);
     expect(await BackupService.applyPendingRestore(path), isFalse); // ไม่มีจองแล้ว
     db = await databaseFactoryFfi.openDatabase(path); // ให้ tearDown ปิดได้
   });

@@ -1,3 +1,6 @@
+import 'dart:io';
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -5,6 +8,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:noir_manager/app.dart';
 import 'package:noir_manager/calendar/calendar_repository.dart';
 import 'package:noir_manager/calendar/memory_calendar_repository.dart';
+import 'package:noir_manager/calendar/sticker_images.dart';
 import 'package:noir_manager/calendar/sqlite_calendar_repository.dart';
 import 'package:noir_manager/data/app_database.dart';
 import 'package:noir_manager/data/memory_study_repository.dart';
@@ -82,5 +86,29 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('🥳'), findsNothing);
     expect(tester.takeException(), isNull);
+  });
+
+  test('ชื่อสติกเกอร์จากชื่อไฟล์', () {
+    expect(stickerNameFromFile(r'C:\รูป\แมว_อยาก-นอน.png'.replaceAll('\\', '/')), 'แมว อยาก นอน');
+    expect(stickerNameFromFile('/a/very_long_file_name_for_a_sticker_image.png').length, 20);
+  });
+
+  testWidgets('รูปสติกเกอร์: ย่อด้านยาวเหลือ 256px · เก็บเป็น PNG ในโฟลเดอร์ของแอป', (tester) async {
+    await tester.runAsync(() async {
+      final dir = await Directory.systemTemp.createTemp('noir_st_');
+      // สร้างรูป 600×300 จริง ๆ แล้วเซฟเป็นไฟล์ต้นฉบับ
+      final rec = ui.PictureRecorder();
+      Canvas(rec).drawRect(const Rect.fromLTWH(0, 0, 600, 300), Paint()..color = const Color(0xFFE91E63));
+      final img = await rec.endRecording().toImage(600, 300);
+      final src = File('${dir.path}/รูปใหญ่.png')
+        ..writeAsBytesSync((await img.toByteData(format: ui.ImageByteFormat.png))!.buffer.asUint8List());
+      final saved = await saveStickerImage(src.path, dir);
+      final codec = await ui.instantiateImageCodec(await File(saved).readAsBytes());
+      final f = await codec.getNextFrame();
+      expect(f.image.width, 256);
+      expect(f.image.height, 128);
+      expect(saved.endsWith('.png'), isTrue);
+      await dir.delete(recursive: true);
+    });
   });
 }

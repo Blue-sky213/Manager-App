@@ -46,6 +46,7 @@ class BackupService {
       await File(dbPath).copy(out.path);
     }
     await _prune(now ?? DateTime.now());
+    await _syncStickers(stickerDir, Directory(p.join(folder.path, 'stickers')));
     return out;
   }
 
@@ -54,6 +55,19 @@ class BackupService {
     final today = 'noir_${_day(now ?? DateTime.now())}.db';
     if ((await list()).any((f) => p.basename(f.path) == today)) return null;
     return backupNow(now: now);
+  }
+
+  /// รูปสติกเกอร์ (ไฟล์ชื่อไม่ซ้ำ ไม่ถูกแก้) → คัดลอกเฉพาะที่ยังไม่มี
+  Directory get stickerDir => Directory(p.join(p.dirname(dbPath), 'stickers'));
+
+  static Future<void> _syncStickers(Directory from, Directory to) async {
+    if (!await from.exists()) return;
+    await to.create(recursive: true);
+    await for (final e in from.list()) {
+      if (e is! File) continue;
+      final dest = File(p.join(to.path, p.basename(e.path)));
+      if (!await dest.exists()) await e.copy(dest.path);
+    }
   }
 
   Future<void> _prune(DateTime now) async {
@@ -80,6 +94,9 @@ class BackupService {
     await marker.delete();
     if (!await src.exists()) return false;
     await src.copy(dbPath);
+    // รูปสติกเกอร์ที่ DB เก่าอ้างถึงแต่หายไป → เอากลับจากที่สำรองไว้
+    final base = p.dirname(dbPath);
+    await _syncStickers(Directory(p.join(base, 'backups', 'stickers')), Directory(p.join(base, 'stickers')));
     return true;
   }
 }
