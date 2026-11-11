@@ -5,6 +5,7 @@ import 'calendar/calendar_repository.dart';
 import 'data/study_repository.dart';
 import 'data/study_scope.dart';
 import 'shell/app_shell.dart';
+import 'calendar/lock_flow.dart' show refreshLockState;
 import 'pages/onboarding_page.dart';
 import 'theme/app_theme.dart';
 import 'theme/noir_colors.dart';
@@ -53,6 +54,7 @@ class _NoirManagerAppState extends State<NoirManagerApp> {
     super.initState();
     // สีประจำวิชาให้ปฏิทิน / วันนี้ ตั้งแต่เปิดแอป (หน้าวิชาโหลดซ้ำเมื่อเปลี่ยน)
     refreshSubjectColors(widget.studyRepository);
+    refreshLockState(widget.calendarRepository);
     widget.studyRepository.getSetting(_themeKey).then((id) {
       if (mounted && id != null) setState(() => _themeId = themeChoiceOf(id).id);
     });
@@ -68,8 +70,8 @@ class _NoirManagerAppState extends State<NoirManagerApp> {
     widget.studyRepository.setSetting(_themeKey, id);
   }
 
-  /// ปุ่มลัดในเมนู: มืด ↔ สว่าง (ธีมพาสเทล → มืด)
-  void _toggleTheme() => _setTheme(_themeId == 'dark' ? 'light' : 'dark');
+  /// ปุ่มลัดในเมนู: สลับสว่าง ↔ มืด ในโทนสีเดิม (ชมพู ↔ ชมพูมืด)
+  void _toggleTheme() => _setTheme(pairedTheme(_themeId));
 
   @override
   Widget build(BuildContext context) {

@@ -120,6 +120,30 @@ class NoirColors extends ThemeExtension<NoirColors> {
         navText: navText,
       );
 
+  /// พาสเทลโหมดมืด = ธีมมืดที่ย้อมพื้นเป็นโทนเข้มของสีนั้น · สีเน้นเป็นพาสเทลสว่างให้อ่านออก
+  static NoirColors pastelDark({
+    required Color bg,
+    required Color side,
+    required Color surface,
+    required Color surface2,
+    required Color line,
+    required Color nav,
+    required Color accent,
+    required Color navText,
+  }) =>
+      dark.copyWith(
+        bg: bg,
+        side: side,
+        surface: surface,
+        surface2: surface2,
+        line: line,
+        line2: Color.lerp(line, accent, 0.25),
+        accent: accent,
+        onAccent: const Color(0xFF14101A),
+        navBg: nav,
+        navText: navText,
+      );
+
   @override
   NoirColors copyWith({
     Color? bg,
@@ -237,6 +261,34 @@ final List<ThemeChoice> themeChoices = [
   ThemeChoice('peach', 'พีช', false, NoirColors.pastel(
       bg: const Color(0xFFFDF6F1), side: const Color(0xFFFFFBF8), nav: const Color(0xFFFBE2D2),
       accent: const Color(0xFFC8622A), navText: const Color(0xFF80391A))),
+  // ---- พาสเทลโหมดมืด ----
+  ThemeChoice('pink-dark', 'ชมพู (มืด)', true, NoirColors.pastelDark(
+      bg: const Color(0xFF1A1216), side: const Color(0xFF1F151A), surface: const Color(0xFF241920),
+      surface2: const Color(0xFF2E1F28), line: const Color(0xFF3A2833), nav: const Color(0xFF4A2338),
+      accent: const Color(0xFFF28DB2), navText: const Color(0xFFFFD9E7))),
+  ThemeChoice('mint-dark', 'มิ้นต์ (มืด)', true, NoirColors.pastelDark(
+      bg: const Color(0xFF0F1714), side: const Color(0xFF131D19), surface: const Color(0xFF17231E),
+      surface2: const Color(0xFF1E2D27), line: const Color(0xFF29392F), nav: const Color(0xFF1F4434),
+      accent: const Color(0xFF6FD3A3), navText: const Color(0xFFCFF5E2))),
+  ThemeChoice('sea-dark', 'น้ำทะเล (มืด)', true, NoirColors.pastelDark(
+      bg: const Color(0xFF0E1519), side: const Color(0xFF121B20), surface: const Color(0xFF162229),
+      surface2: const Color(0xFF1C2C34), line: const Color(0xFF26363F), nav: const Color(0xFF1B4152),
+      accent: const Color(0xFF6CC6E8), navText: const Color(0xFFD0F0FB))),
+  ThemeChoice('lavender-dark', 'ลาเวนเดอร์ (มืด)', true, NoirColors.pastelDark(
+      bg: const Color(0xFF141220), side: const Color(0xFF191626), surface: const Color(0xFF1E1A2D),
+      surface2: const Color(0xFF262139), line: const Color(0xFF322C46), nav: const Color(0xFF352A5E),
+      accent: const Color(0xFFA894F2), navText: const Color(0xFFE6DEFF))),
+  ThemeChoice('peach-dark', 'พีช (มืด)', true, NoirColors.pastelDark(
+      bg: const Color(0xFF19130F), side: const Color(0xFF1F1813), surface: const Color(0xFF251C16),
+      surface2: const Color(0xFF2F241C), line: const Color(0xFF3B2E24), nav: const Color(0xFF4D2F1E),
+      accent: const Color(0xFFF2A477), navText: const Color(0xFFFFE2D0))),
 ];
+
+/// คู่สว่าง ↔ มืด ของธีมเดียวกัน (ปุ่มลัดในเมนูสลับภายในโทนสีเดิม)
+String pairedTheme(String id) {
+  if (id == 'dark') return 'light';
+  if (id == 'light') return 'dark';
+  return id.endsWith('-dark') ? id.substring(0, id.length - 5) : '$id-dark';
+}
 
 ThemeChoice themeChoiceOf(String? id) => themeChoices.firstWhere((t) => t.id == id, orElse: () => themeChoices.first);

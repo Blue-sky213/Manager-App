@@ -7,6 +7,9 @@ import 'calendar_models.dart';
 /// เป็น [ChangeNotifier]: ทุกครั้งที่เขียนข้อมูล จะแจ้งทุกหน้าที่ฟังอยู่ให้โหลดใหม่
 /// → หน้า "วันนี้" กับ "ปฏิทิน" ตรงกันเสมอ แม้แก้จากอีกหน้า
 abstract class CalendarRepository extends ChangeNotifier {
+  /// ให้ทุกหน้าที่ฟังปฏิทินวาดใหม่ (เช่น หลังตั้งคำมั่น / เปิดปิดล็อก ซึ่งเก็บใน setting)
+  void refresh() => notifyListeners();
+
   Future<List<ActivityCategory>> categories();
 
   Future<int> addActivity(NewActivity a);
