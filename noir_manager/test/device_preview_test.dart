@@ -57,7 +57,7 @@ void main() {
     // ตอนนี้แอปอยู่ในกรอบมือถือ (ย่อ + มุมโค้ง) → เรียกปุ่มแนวนอนตรง ๆ แทนการแตะตำแหน่ง
     await tester.scrollUntilVisible(find.text('แนวนอน'), 200,
         scrollable: find.descendant(of: find.byType(ListView), matching: find.byType(Scrollable)).first);
-    final orient = find.byType(SegmentedButton<bool>, skipOffstage: false);
+    final orient = find.ancestor(of: find.text('แนวนอน'), matching: find.byType(SegmentedButton<bool>));
     tester.widget<SegmentedButton<bool>>(orient).onSelectionChanged!({true});
     await tester.pumpAndSettle();
     expect(await study.getSetting(devicePreviewKey), 'iphone15:land');
