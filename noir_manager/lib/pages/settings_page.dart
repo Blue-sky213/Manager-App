@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../calendar/calendar_repository.dart' show CalendarScope;
+import '../calendar/lock_flow.dart' show lockSettingKey;
 import '../study/mastery.dart' show GradingMode;
 import '../data/study_scope.dart';
 import '../theme/noir_colors.dart';
@@ -29,6 +31,7 @@ class _SettingsPageState extends State<SettingsPage> {
   String _mode = 'study';
   GradingMode _grading = GradingMode.ez;
   String _mapColor = 'default';
+  bool _lock = true;
   bool _loaded = false;
 
   @override
@@ -39,14 +42,17 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<void> _load() async {
     final repo = StudyScope.of(context);
+    final cal = CalendarScope.of(context);
     final mode = await repo.getSetting(appModeKey);
     final grading = await repo.gradingMode();
     final map = await repo.getSetting('map_color');
+    final lock = await cal.getSetting(lockSettingKey);
     if (!mounted) return;
     setState(() {
       _mode = mode ?? 'study';
       _grading = grading;
       _mapColor = map ?? 'default';
+      _lock = lock != 'off';
       _loaded = true;
     });
   }
@@ -163,6 +169,19 @@ class _SettingsPageState extends State<SettingsPage> {
                           },
                         ),
                         hint: _grading == GradingMode.ez ? 'สีตามคะแนนล่าสุด' : 'เฉลี่ยทุกครั้ง + กฎเช็กซ้ำ',
+                      ),
+                    ]),
+                    const SizedBox(height: 14),
+                    section('ล็อก', [
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        value: _lock,
+                        onChanged: (v) {
+                          setState(() => _lock = v);
+                          CalendarScope.of(context).setSetting(lockSettingKey, v ? 'on' : 'off');
+                        },
+                        title: const Text('🔒 ล็อกงานที่เริ่มไปแล้ว'),
+                        subtitle: const Text('กรอกผลได้ตามปกติ · เลื่อน / ยกเลิก / แก้ / ลบ ต้องยืนยันก่อน · ตั้งคำมั่นได้ที่คลิกขวา → คำมั่น'),
                       ),
                     ]),
                     const SizedBox(height: 14),

@@ -136,6 +136,7 @@ void main() {
       startMinute: 17 * 60,
       durationMin: 45,
     ));
+    await calendar.setSetting('lock_started', 'off'); // เทสนี้ไม่ขึ้นกับเวลาที่รัน (ล็อกมีเทสแยก)
 
     await tester.pumpWidget(buildApp(calendar: calendar));
     await tester.pumpAndSettle();
@@ -181,6 +182,7 @@ void main() {
       startMinute: 20 * 60,
       durationMin: 240,
     ));
+    await calendar.setSetting('lock_started', 'off');
     await tester.pumpWidget(buildApp(calendar: calendar));
     await tester.pumpAndSettle();
 
@@ -680,6 +682,62 @@ void main() {
     expect(find.text('ปี 1 · ภาค 1'), findsWidgets);
     expect(find.text('2.50'), findsOneWidget);
     expect(find.text('7.5'), findsOneWidget); // แต้ม × หน่วยกิต
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('🔒 งานที่เริ่มแล้ว: แก้ต้องยืนยัน · มีคำมั่น → ยกคำของเราขึ้นมาถาม', (tester) async {
+    setScreen(tester, const Size(1280, 1400));
+    final calendar = MemoryCalendarRepository();
+    await calendar.addActivity(NewActivity(
+      name: 'อ่านหนังสือเช้า',
+      categoryId: 1,
+      importance: 2,
+      timed: true,
+      day: DateTime.now(),
+      startMinute: 0, // 00:00 วันนี้ = เริ่มไปแล้วเสมอ
+      durationMin: 30,
+    ));
+    await tester.pumpWidget(buildApp(calendar: calendar));
+    await tester.pumpAndSettle();
+
+    // ไม่มีคำมั่น → ถามธรรมดา · กด "ไม่แก้" = ไม่เปิดหน้าแก้
+    await tester.longPress(find.text('อ่านหนังสือเช้า'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('แก้ไขงาน'));
+    await tester.pumpAndSettle();
+    expect(find.text('🔒 งานนี้เริ่มไปแล้ว'), findsOneWidget);
+    await tester.tap(find.text('ไม่แก้'));
+    await tester.pumpAndSettle();
+    expect(find.text('เวลาจบ'), findsNothing);
+
+    // ตั้งคำมั่น
+    await tester.longPress(find.text('อ่านหนังสือเช้า'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('คำมั่น (ล็อก)…'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'ผมต้องการทำต่อเนื่องโดยไม่เว้น');
+    await tester.tap(find.text('บันทึก'));
+    await tester.pumpAndSettle();
+
+    // แก้อีกครั้ง → เห็นคำของตัวเอง · "แก้ครั้งนี้" = ไปหน้าแก้ได้
+    await tester.longPress(find.text('อ่านหนังสือเช้า'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('แก้ไขงาน'));
+    await tester.pumpAndSettle();
+    expect(find.text('"ผมต้องการทำต่อเนื่องโดยไม่เว้น"'), findsOneWidget);
+    expect(find.textContaining('อย่างงั้นหรอ?'), findsOneWidget);
+    await tester.tap(find.text('แก้ครั้งนี้'));
+    await tester.pumpAndSettle();
+    expect(find.text('เวลาจบ'), findsOneWidget);
+
+    // กรอกผลไม่ถูกล็อก
+    Navigator.of(tester.element(find.text('เวลาจบ'))).pop();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('อ่านหนังสือเช้า'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('ทำแล้ว'));
+    await tester.pumpAndSettle();
+    expect(find.text('🔒 งานนี้เริ่มไปแล้ว'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 }
