@@ -46,10 +46,18 @@ flutter devices          # ต้องเห็นชื่อมือถื�
 flutter run -d <ชื่อหรือไอดีมือถือ>
 ```
 
+## C. ไม่มีมือถือ → ทดลองบนคอม
+| วิธี | ได้อะไร | ต้องมี |
+|---|---|---|
+| **ในแอป: ตั้งค่า → ทดลองหน้าจออุปกรณ์** | ดูหน้าตาบนจอ iPhone / iPad / Android / แท็บเล็ต ทันที (ขนาดจอ + ขอบจอ + ลักษณะ iOS) | ไม่ต้องลงอะไรเพิ่ม |
+| **Android Emulator** (Android Studio → Device Manager → Create device → Pixel 8 / Pixel Tablet) | Android จริงทั้งระบบ: แป้นพิมพ์ · กดค้าง · ปุ่มย้อนกลับ · ลง APK ได้ | Android Studio + เปิด Virtualization ใน BIOS + Windows feature "Windows Hypervisor Platform" · RAM 16 GB แนะนำ |
+
+รันบน Emulator: เปิด emulator → `flutter devices` → `flutter run -d emulator-5554` (หรือลาก APK ไปวางบนจอ emulator)
+
 ## ที่ต่างจาก Windows
 - ข้อมูลอยู่ในเครื่องมือถือแยกจากคอม (sync ข้ามเครื่อง = หลัง v1)
 - ปุ่มย้อนกลับของ Android = เมาส์ปุ่ม 4 · คลิกขวา = **กดค้าง**
 - จอแคบ → เมนูอยู่ด้านล่าง · ตั้งค่า = ไอคอน ⚙ มุมขวาบน
 
 ## iPhone / iPad
-ต้องใช้เครื่อง Mac ในการ build → ยังทำไม่ได้ตอนนี้
+ต้องใช้เครื่อง Mac ในการ build → ยังทำไม่ได้ตอนนี้ · Simulator ของ iPhone/iPad ก็มีเฉพาะบน Mac → ใช้ **ทดลองหน้าจออุปกรณ์** ในแอปแทน
