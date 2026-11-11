@@ -246,10 +246,10 @@ class ThemeChoice {
 final List<ThemeChoice> themeChoices = [
   const ThemeChoice('dark', 'มืด', true, NoirColors.dark),
   const ThemeChoice('light', 'สว่าง', false, NoirColors.light),
-  ThemeChoice('pink', 'ชมพูพาสเทล', false, NoirColors.pastel(
+  ThemeChoice('pink', 'ชมพู', false, NoirColors.pastel(
       bg: const Color(0xFFFDF4F7), side: const Color(0xFFFFFAFC), nav: const Color(0xFFF9DCE7),
       accent: const Color(0xFFD9467D), navText: const Color(0xFF8A2350))),
-  ThemeChoice('mint', 'เขียวมิ้นต์', false, NoirColors.pastel(
+  ThemeChoice('mint', 'มิ้นต์', false, NoirColors.pastel(
       bg: const Color(0xFFF2FAF6), side: const Color(0xFFF9FDFB), nav: const Color(0xFFD5F0E2),
       accent: const Color(0xFF1F8F5F), navText: const Color(0xFF145C3D))),
   ThemeChoice('sea', 'น้ำทะเล', false, NoirColors.pastel(
@@ -262,23 +262,23 @@ final List<ThemeChoice> themeChoices = [
       bg: const Color(0xFFFDF6F1), side: const Color(0xFFFFFBF8), nav: const Color(0xFFFBE2D2),
       accent: const Color(0xFFC8622A), navText: const Color(0xFF80391A))),
   // ---- พาสเทลโหมดมืด ----
-  ThemeChoice('pink-dark', 'ชมพู (มืด)', true, NoirColors.pastelDark(
+  ThemeChoice('pink-dark', 'ชมพู', true, NoirColors.pastelDark(
       bg: const Color(0xFF1A1216), side: const Color(0xFF1F151A), surface: const Color(0xFF241920),
       surface2: const Color(0xFF2E1F28), line: const Color(0xFF3A2833), nav: const Color(0xFF4A2338),
       accent: const Color(0xFFF28DB2), navText: const Color(0xFFFFD9E7))),
-  ThemeChoice('mint-dark', 'มิ้นต์ (มืด)', true, NoirColors.pastelDark(
+  ThemeChoice('mint-dark', 'มิ้นต์', true, NoirColors.pastelDark(
       bg: const Color(0xFF0F1714), side: const Color(0xFF131D19), surface: const Color(0xFF17231E),
       surface2: const Color(0xFF1E2D27), line: const Color(0xFF29392F), nav: const Color(0xFF1F4434),
       accent: const Color(0xFF6FD3A3), navText: const Color(0xFFCFF5E2))),
-  ThemeChoice('sea-dark', 'น้ำทะเล (มืด)', true, NoirColors.pastelDark(
+  ThemeChoice('sea-dark', 'น้ำทะเล', true, NoirColors.pastelDark(
       bg: const Color(0xFF0E1519), side: const Color(0xFF121B20), surface: const Color(0xFF162229),
       surface2: const Color(0xFF1C2C34), line: const Color(0xFF26363F), nav: const Color(0xFF1B4152),
       accent: const Color(0xFF6CC6E8), navText: const Color(0xFFD0F0FB))),
-  ThemeChoice('lavender-dark', 'ลาเวนเดอร์ (มืด)', true, NoirColors.pastelDark(
+  ThemeChoice('lavender-dark', 'ลาเวนเดอร์', true, NoirColors.pastelDark(
       bg: const Color(0xFF141220), side: const Color(0xFF191626), surface: const Color(0xFF1E1A2D),
       surface2: const Color(0xFF262139), line: const Color(0xFF322C46), nav: const Color(0xFF352A5E),
       accent: const Color(0xFFA894F2), navText: const Color(0xFFE6DEFF))),
-  ThemeChoice('peach-dark', 'พีช (มืด)', true, NoirColors.pastelDark(
+  ThemeChoice('peach-dark', 'พีช', true, NoirColors.pastelDark(
       bg: const Color(0xFF19130F), side: const Color(0xFF1F1813), surface: const Color(0xFF251C16),
       surface2: const Color(0xFF2F241C), line: const Color(0xFF3B2E24), nav: const Color(0xFF4D2F1E),
       accent: const Color(0xFFF2A477), navText: const Color(0xFFFFE2D0))),
@@ -289,6 +289,31 @@ String pairedTheme(String id) {
   if (id == 'dark') return 'light';
   if (id == 'light') return 'dark';
   return id.endsWith('-dark') ? id.substring(0, id.length - 5) : '$id-dark';
+}
+
+/// "ตามเวลา": กลางวัน (06:00–17:59) = สว่าง · กลางคืน = มืด
+const autoThemeId = 'auto';
+String resolveTheme(String id, {DateTime? now}) {
+  if (id != autoThemeId) return id;
+  final h = (now ?? DateTime.now()).hour;
+  return h >= 6 && h < 18 ? 'light' : 'dark';
+}
+
+/// สีพาสเทล 5 สี + ความรู้สึกที่สีนั้นมักให้ (ใช้ในคำถามแรกเข้า)
+const themeColorMoods = [
+  ('', 'ฟ้า', 'สงบ โฟกัสง่าย'),
+  ('pink', 'ชมพู', 'อบอุ่น อ่อนโยนกับตัวเอง'),
+  ('mint', 'มิ้นต์', 'สดชื่น ผ่อนคลาย'),
+  ('sea', 'น้ำทะเล', 'เย็น สบายตา'),
+  ('lavender', 'ลาเวนเดอร์', 'ผ่อนคลาย มีไอเดีย'),
+  ('peach', 'พีช', 'มีพลัง กระตือรือร้น'),
+];
+
+/// รวมสี + ความสว่าง → id ธีม เช่น (pink, มืด) → pink-dark · ฟ้า = ธีมหลัก
+String themeIdFor(String color, String brightness) {
+  if (brightness == autoThemeId) return color.isEmpty ? autoThemeId : color;
+  if (color.isEmpty) return brightness; // dark / light
+  return brightness == 'dark' ? '$color-dark' : color;
 }
 
 ThemeChoice themeChoiceOf(String? id) => themeChoices.firstWhere((t) => t.id == id, orElse: () => themeChoices.first);
