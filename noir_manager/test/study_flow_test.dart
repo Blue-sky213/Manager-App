@@ -92,6 +92,7 @@ void main() {
     await tester.pumpWidget(NoirManagerApp(studyRepository: study, calendarRepository: cal));
     await tester.pumpAndSettle();
 
+    expect(tester.takeException(), isNull, reason: 'หน้าวันนี้');
     await tester.ensureVisible(find.text('เรียน · ทดสอบ'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('เรียน · ทดสอบ'));
@@ -101,14 +102,17 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(BottomSheet), findsOneWidget);
     expect(find.textContaining('✓ เรียนเสร็จ'), findsOneWidget);
+    expect(tester.takeException(), isNull, reason: 'แผ่นทำแล้ว');
     await tester.tap(find.text('แค่ทำแล้ว ไม่บันทึก'));
     await tester.pumpAndSettle();
     expect(await study.classLogs(sid), isEmpty);
     expect(find.textContaining('ครบทุกงาน'), findsOneWidget); // ความสำเร็จ: งานเดียวของวันเสร็จ
+    expect(tester.takeException(), isNull, reason: 'หลังทำแล้ว');
 
     // ปฏิทิน → สัปดาห์ → แถบ 7 วัน + จุดเขียววันนี้
     await tester.tap(find.text('ปฏิทิน').last);
     await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull, reason: 'ปฏิทินสัปดาห์');
     // ค่าเริ่มต้น = สัปดาห์
     expect(find.byKey(ValueKey('strip-${now.day}')), findsOneWidget);
     expect(find.byKey(ValueKey('complete-${now.day}')), findsOneWidget);
