@@ -30,7 +30,8 @@ class DemoYear {
   DemoYear(this.study, this.calendar, this.sessions, this.today);
   final StudyRepository study;
   final CalendarRepository calendar;
-  final List<SimSession> sessions;
+  /// คาบที่จำลอง แยกตามเทอม (ตรวจกฎทีละเทอม)
+  final List<List<SimSession>> sessions;
   final DateTime today;
 }
 
@@ -66,11 +67,11 @@ Future<DemoYear> buildDemoYear({DateTime? today, int seed = 2569}) async {
 
   // เทอมย้อนหลัง: ใช้รายชื่อวิชาปี 1 เทอม 2 เป็นตัวแทน
   final subjects = [for (final s in await study.subjects()) if (s.planYear == 1 && s.planTerm == 2) s];
-  final sessions = <SimSession>[];
+  final sessions = <List<SimSession>>[];
   for (final (i, (from, to)) in demoPastTerms(now).indexed) {
     await cal.saveTerm(0, i + 1, from, to);
     final plan = planSimTimetable(subjects, seed: seed + i);
-    sessions.addAll(plan.sessions);
+    sessions.add(plan.sessions);
     final mid = from.add(Duration(days: (to.difference(from).inDays ~/ 2) ~/ 7 * 7));
     for (final s in plan.sessions) {
       await cal.addActivity(simToActivity(s, categoryId: learn, from: from, to: to));
@@ -159,8 +160,8 @@ Future<DemoYear> buildDemoYear({DateTime? today, int seed = 2569}) async {
 }
 
 /// ตัวตรวจกฎ · ว่าง = ผ่าน (ใช้กับข้อมูลตัวอย่าง และเช็กข้อมูลที่ใส่เองได้)
-Future<List<String>> checkDemoYear(CalendarRepository cal, DateTime today, List<SimSession> sessions) async {
-  final errors = [...checkSimRules(sessions)];
+Future<List<String>> checkDemoYear(CalendarRepository cal, DateTime today, List<List<SimSession>> sessions) async {
+  final errors = [for (final term in sessions) ...checkSimRules(term)];
   final all = <Occurrence>[];
   for (var i = 1; i <= 365; i++) {
     final d = today.subtract(Duration(days: i));

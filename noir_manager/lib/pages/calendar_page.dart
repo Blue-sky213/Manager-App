@@ -6,7 +6,6 @@ import '../calendar/terms_page.dart';
 import '../calendar/calendar_listener.dart';
 import '../calendar/calendar_models.dart';
 import '../calendar/stickers.dart' show DaySticker, stickersByDay;
-import '../calendar/calendar_ui.dart';
 import '../calendar/clash_page.dart';
 import '../calendar/day_agenda.dart';
 import '../calendar/notebook_view.dart';
