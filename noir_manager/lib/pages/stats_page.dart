@@ -174,10 +174,8 @@ class _StatsPageState extends State<StatsPage> with CalendarListener<StatsPage> 
         const SizedBox(height: 12),
         // ---- กราฟรวมรายวัน ----
         card(Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Row(children: [
-            Expanded(child: Text('ทำตามแผนรายวัน', style: TextStyle(fontWeight: FontWeight.w600, color: c.text))),
-            label('28 วัน · แท่งเขียว = ครบทั้งวัน · เส้น = เฉลี่ย 7 วัน'),
-          ]),
+          Text('ทำตามแผนรายวัน', style: TextStyle(fontWeight: FontWeight.w600, color: c.text)),
+          label('28 วัน · แท่งเขียว = ครบทั้งวัน · เส้น = เฉลี่ย 7 วัน'),
           const SizedBox(height: 10),
           SizedBox(height: 120, child: CustomPaint(painter: _TrendPainter(series, c))),
           const SizedBox(height: 4),
@@ -246,10 +244,8 @@ class _Bars extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.noir;
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Row(children: [
-        Expanded(child: Text(title, style: TextStyle(fontWeight: FontWeight.w600, color: c.text))),
-        if (hint != null) Text(hint!, style: TextStyle(fontSize: 12, color: c.muted)),
-      ]),
+      Text(title, style: TextStyle(fontWeight: FontWeight.w600, color: c.text)),
+      if (hint != null) Text(hint!, style: TextStyle(fontSize: 12, color: c.muted)),
       const SizedBox(height: 10),
       if (rows.isEmpty) Text('ยังไม่มีงานในช่วงนี้', style: TextStyle(fontSize: 13, color: c.muted)),
       for (final (name, v, avg) in rows)
@@ -257,7 +253,7 @@ class _Bars extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 5),
           child: Row(children: [
             SizedBox(
-              width: 120,
+              width: 96,
               child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, color: c.text)),
             ),
             Expanded(
