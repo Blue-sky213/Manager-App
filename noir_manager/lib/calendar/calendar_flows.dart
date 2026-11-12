@@ -13,6 +13,7 @@ import '../study/tutor_plan.dart';
 import '../theme/noir_colors.dart';
 import '../utils/thai_date.dart';
 import '../widgets/dialogs.dart';
+import 'achievements.dart';
 import 'calendar_models.dart';
 import 'calendar_repository.dart';
 import 'calendar_ui.dart';
@@ -219,12 +220,13 @@ Future<void> rescheduleFlow(
   }
 }
 
-/// คลิกซ้าย = "กรอกผล" ของงานครั้งนี้: ทำแล้ว · บันทึกเรียนถึงไหน · เลื่อน · ยกเลิก (วันหยุด/ติดธุระ)
+/// คลิกซ้าย = "กรอกผล" ของงานครั้งนี้: ทำแล้ว (คาบเรียน = บันทึกเรียนในตัว) · เลื่อน · ยกเลิก (วันหยุด/ติดธุระ)
 List<ContextItem<String>> resultItems(Occurrence o) => [
       if (o.status == OccurrenceStatus.planned) ctxItem('done', Icons.check_circle_outline, 'ทำแล้ว'),
-      if (o.kind == ActivityKind.classSession && o.subjectId != null && o.status != OccurrenceStatus.cancelled)
-        ctxItem('classlog', Icons.menu_book_outlined, 'บันทึกเรียนถึงไหน'),
-      if (o.status == OccurrenceStatus.done && o.subjectId != null && o.timed)
+      // คาบเรียน: "ทำแล้ว" เปิดแผ่นบันทึกเรียนในตัว → ทำแล้วจึงมี "แก้บันทึก" (รวมเวลาเลิกจริง)
+      if (o.kind == ActivityKind.classSession && o.subjectId != null && o.status == OccurrenceStatus.done)
+        ctxItem('classlog', Icons.menu_book_outlined, 'แก้บันทึกเรียน · เวลาเลิก'),
+      if (o.status == OccurrenceStatus.done && o.subjectId != null && o.timed && o.kind != ActivityKind.classSession)
         ctxItem('actual', Icons.timer_outlined, o.actualEnd == null ? 'บันทึกเวลาเลิกจริง' : 'แก้เวลาเลิกจริง'),
       if (o.status == OccurrenceStatus.planned) ...[
         ctxItem('move', Icons.redo, 'เลื่อน'),
@@ -289,7 +291,7 @@ Future<void> showOccurrenceDetails(BuildContext context, Occurrence o) {
             if (o.actualEnd != null) Text('เลิกจริง ${fmtTime(o.actualEnd!)}'),
             if (o.reason != null) Text('ยกเลิกเพราะ: ${o.reason}'),
             const SizedBox(height: 12),
-            Text('คลิก = กรอกผล (ทำแล้ว · บันทึกเรียน · เลื่อน · ยกเลิก) · คลิกขวา = แก้ไข · เกี่ยวกับวิชา · ลบ',
+            Text('คลิก = กรอกผล (ทำแล้ว + บันทึกเรียน · เลื่อน · ยกเลิก) · คลิกขวา = แก้ไข · เกี่ยวกับวิชา · ลบ',
                 style: TextStyle(fontSize: 13, color: c.muted)),
           ],
         ),
@@ -324,22 +326,28 @@ Future<void> runOccurrenceAction(BuildContext context, CalendarRepository repo, 
       if (o.kind == ActivityKind.tutor && o.subjectId != null && context.mounted) {
         await _askChapterProgress(context, o.subjectId!, o.id);
       }
-      // คาบเรียน → ถามเวลาเลิกจริงต่อเลย (ทำสถิติ)
+      // คาบเรียน → แผ่นเดียว: เรียนถึงไหน + เวลาเลิกจริง ("แค่ทำแล้ว" ข้ามได้ · ปิดถามได้ในตั้งค่า)
+      else if (o.kind == ActivityKind.classSession && o.subjectId != null && context.mounted) {
+        final ask = await StudyScope.of(context).getSetting(askClassLogKey);
+        if (ask != 'off' && context.mounted) {
+          await showClassLogDialog(context,
+              subjectId: o.subjectId!, day: o.day, occurrence: o.copyWithStatus(OccurrenceStatus.done), justDone: true);
+        }
+      }
+      // งานผูกวิชาอื่น ๆ → ถามเวลาเลิกจริง (ทำสถิติ)
       else if (o.subjectId != null && o.timed && context.mounted) {
         final end = await askActualEnd(context, o);
         if (end != null) await repo.setActualTimes(o.id, end: end);
-        // คาบเรียน → ถามต่อว่าเรียนถึงบทไหน (กด "ข้าม" ได้)
-        if (o.kind == ActivityKind.classSession && context.mounted) {
-          await showClassLogDialog(context, subjectId: o.subjectId!, day: o.day, occurrenceId: o.id);
-        }
       }
+      // ความสำเร็จ: งานสุดท้ายของวันเสร็จ → แถบแจ้งสั้นด้านล่าง
+      if (context.mounted) await celebrateIfDayComplete(context, repo, o.day);
     case 'classlog':
       final logs = await StudyScope.of(context).classLogs(o.subjectId!);
       if (!context.mounted) return;
       await showClassLogDialog(context,
           subjectId: o.subjectId!,
           day: o.day,
-          occurrenceId: o.id,
+          occurrence: o,
           existing: logs.where((l) => l.occurrenceId == o.id).firstOrNull);
     case 'actual':
       final end = await askActualEnd(context, o);
@@ -419,4 +427,16 @@ class OccurrenceMenuArea extends StatelessWidget {
       child: child,
     );
   }
+}
+
+/// ทำครบทุกงานของวัน → แถบแจ้ง "ครบทุกงานวันนี้ · สตรีค n วัน"
+Future<void> celebrateIfDayComplete(BuildContext context, CalendarRepository repo, DateTime day) async {
+  if (!dayComplete(await repo.occurrencesOn(day))) return;
+  final today = dayOnly(DateTime.now());
+  final streak = dayOnly(day) == today ? (await loadStreak(repo, today)).current : 0;
+  if (!context.mounted) return;
+  final when = dayOnly(day) == today ? 'วันนี้' : thaiShortDate(day);
+  ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
+    content: Text('ครบทุกงาน$when${streak > 1 ? ' · สตรีค $streak วัน' : ''}'),
+  ));
 }

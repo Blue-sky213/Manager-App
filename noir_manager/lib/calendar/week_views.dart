@@ -5,6 +5,7 @@ library;
 import 'package:flutter/material.dart';
 
 import '../theme/noir_colors.dart';
+import 'achievements.dart';
 import 'calendar_flows.dart';
 import 'calendar_models.dart';
 import 'calendar_ui.dart';
@@ -191,7 +192,8 @@ class WeekTimeline extends StatelessWidget {
                 final (s, e) = _span(o);
                 final top = ((s - fromHour * 60) / 60 * _hourPx).clamp(0, height).toDouble();
                 final h = ((e - s) / 60 * _hourPx).clamp(14, height - top).toDouble();
-                final (bg, fg) = occurrenceColors(c, o, categories[o.categoryId]?.colorKey);
+                final (rawBg, fg) = occurrenceColors(c, o, categories[o.categoryId]?.colorKey);
+                final (bg, shape) = occurrenceLook(c, o, rawBg, fg, clash: clashes.contains(o.id), radius: 6);
                 return Positioned(
                   top: top,
                   height: h,
@@ -201,16 +203,9 @@ class WeekTimeline extends StatelessWidget {
                     opacity: o.active ? 1 : 0.45,
                     child: Material(
                       // รอบติว = พื้นจาง + กรอบ (แยกจากคาบเรียน)
-                      color: o.kind == ActivityKind.tutor ? bg.withValues(alpha: 0.35) : bg,
+                      color: bg,
                       clipBehavior: Clip.antiAlias,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(6),
-                        side: clashes.contains(o.id)
-                            ? BorderSide(color: c.bad, width: 2)
-                            : (o.kind == ActivityKind.tutor
-                                ? BorderSide(color: fg.withValues(alpha: 0.6), width: 1.5)
-                                : BorderSide.none),
-                      ),
+                      shape: shape,
                       child: OccurrenceMenuArea(o: o, child: InkWell(
                         onTap: () => onTapOccurrence(o),
                         child: Padding(
@@ -224,6 +219,14 @@ class WeekTimeline extends StatelessWidget {
                                   child: Padding(
                                     padding: EdgeInsets.only(right: 3),
                                     child: Icon(Icons.lock, size: 12, semanticLabel: 'ล็อกอยู่'),
+                                  ),
+                                ),
+                              if (o.kind == ActivityKind.tutor)
+                                WidgetSpan(
+                                  alignment: PlaceholderAlignment.middle,
+                                  child: Padding(
+                                    padding: const EdgeInsets.only(right: 3),
+                                    child: Icon(Icons.edit_outlined, size: 12, color: fg, semanticLabel: 'ติว'),
                                   ),
                                 ),
                               TextSpan(
@@ -546,5 +549,102 @@ class _Card extends StatelessWidget {
         ),
       ),
     ));
+  }
+}
+
+/// มือถือ: แถบ 7 วัน (จันทร์ → อาทิตย์) ด้านบน · แตะเลือกวัน · แถบเล็กใต้เลข = ทำไปกี่ส่วน
+/// ครบทั้งวัน (วันที่ผ่านมาแล้ว / วันนี้) → แถบเขียว + จุดเขียวมุมเลข
+class WeekDayStrip extends StatelessWidget {
+  const WeekDayStrip({
+    super.key,
+    required this.days,
+    required this.byDay,
+    required this.selected,
+    required this.today,
+    required this.onPick,
+  });
+
+  final List<DateTime> days;
+  final Map<DateTime, List<Occurrence>> byDay;
+  final DateTime selected;
+  final DateTime today;
+  final ValueChanged<DateTime> onPick;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.noir;
+    return Row(children: [
+      for (final d in days)
+        Expanded(
+          child: Builder(builder: (context) {
+            final items = byDay[d] ?? const <Occurrence>[];
+            final (done, total) = dayProgress(items);
+            final complete = !d.isAfter(today) && dayComplete(items);
+            final sel = d == selected;
+            return InkWell(
+              key: ValueKey('strip-${d.day}'),
+              borderRadius: BorderRadius.circular(12),
+              onTap: () => onPick(d),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                decoration: BoxDecoration(
+                  color: sel ? c.surface : null,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(children: [
+                  Text(thaiWeekdayShort[d.weekday - 1], style: TextStyle(fontSize: 11, color: c.muted)),
+                  const SizedBox(height: 2),
+                  Stack(clipBehavior: Clip.none, children: [
+                    Container(
+                      width: 30,
+                      height: 30,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: sel ? c.accent : null,
+                        border: d == today && !sel ? Border.all(color: c.accent) : null,
+                      ),
+                      child: Text('${d.day}',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: sel ? c.onAccent : c.text,
+                          )),
+                    ),
+                    if (complete)
+                      Positioned(
+                        right: -2,
+                        top: -2,
+                        child: Container(
+                          key: ValueKey('complete-${d.day}'),
+                          width: 10,
+                          height: 10,
+                          decoration: BoxDecoration(
+                            color: c.good,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: c.bg, width: 2),
+                          ),
+                        ),
+                      ),
+                  ]),
+                  const SizedBox(height: 4),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(2),
+                    child: SizedBox(
+                      width: 26,
+                      height: 4,
+                      child: LinearProgressIndicator(
+                        value: total == 0 ? 0 : done / total,
+                        backgroundColor: c.line,
+                        color: complete ? c.good : c.accent,
+                      ),
+                    ),
+                  ),
+                ]),
+              ),
+            );
+          }),
+        ),
+    ]);
   }
 }

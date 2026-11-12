@@ -93,8 +93,12 @@ void main() {
     expect(tester.takeException(), isNull);
 
     final tabs = ['ภาพรวม', 'บทเรียน', 'เวลาเรียน', 'ติว', 'เกรด'];
-    final ys = {for (final t in tabs) tester.getCenter(find.text(t).first).dy.round()};
-    expect(ys.length, 1, reason: 'แท็บต้องอยู่แถวเดียว');
+    // แต่ละแท็บต้องมีอย่างน้อย 1 ตัวที่อยู่แถวเดียวกับ "ภาพรวม" (ข้อความเดียวกันอาจอยู่ที่อื่นในหน้าได้)
+    final y = tester.getCenter(find.text('ภาพรวม').first).dy.round();
+    for (final t in tabs) {
+      final ys = find.text(t).evaluate().map((e) => tester.getCenter(find.byWidget(e.widget)).dy.round());
+      expect(ys.any((v) => (v - y).abs() <= 3), isTrue, reason: 'แท็บ $t ต้องอยู่แถวเดียวกับภาพรวม');
+    }
 
     Finder card(String label) => find.ancestor(of: find.text(label).last, matching: find.byType(Material)).first;
     final widths = {for (final l in ['บทเรียน', 'หน่วยกิต', 'รอบติว']) tester.getSize(card(l)).width};

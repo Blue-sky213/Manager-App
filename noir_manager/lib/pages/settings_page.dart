@@ -9,7 +9,9 @@ import '../data/app_database.dart' show appSchemaVersion;
 import '../data/backup.dart';
 import '../calendar/sticker_ui.dart' show StickerSettings;
 import '../calendar/lock_flow.dart' show lockSettingKey, refreshLockState;
+import '../study/class_log.dart' show askClassLogKey;
 import '../study/mastery.dart' show GradingMode;
+import '../study/tutor_plan.dart' show defaultTutorPass, tutorPassKey;
 import '../data/study_scope.dart';
 import '../theme/noir_colors.dart';
 import '../widgets/device_preview.dart';
@@ -41,6 +43,8 @@ class _SettingsPageState extends State<SettingsPage> {
   GradingMode _grading = GradingMode.ez;
   String _mapColor = 'default';
   bool _lock = true;
+  bool _askLog = true;
+  int _pass = defaultTutorPass;
   bool _loaded = false;
 
   @override
@@ -56,12 +60,16 @@ class _SettingsPageState extends State<SettingsPage> {
     final grading = await repo.gradingMode();
     final map = await repo.getSetting('map_color');
     final lock = await cal.getSetting(lockSettingKey);
+    final askLog = await repo.getSetting(askClassLogKey);
+    final pass = int.tryParse(await repo.getSetting(tutorPassKey) ?? '');
     if (!mounted) return;
     setState(() {
       _mode = mode ?? 'study';
       _grading = grading;
       _mapColor = map ?? 'default';
       _lock = lock != 'off';
+      _askLog = askLog != 'off';
+      _pass = pass ?? defaultTutorPass;
       _loaded = true;
     });
   }
@@ -200,6 +208,36 @@ class _SettingsPageState extends State<SettingsPage> {
                           },
                         ),
                         hint: _grading == GradingMode.ez ? 'สีตามคะแนนล่าสุด' : 'เฉลี่ยทุกครั้ง + กฎเช็กซ้ำ',
+                      ),
+                    ]),
+                    const SizedBox(height: 14),
+                    section('เรียน · ติว', [
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        value: _askLog,
+                        onChanged: (v) {
+                          setState(() => _askLog = v);
+                          repo.setSetting(askClassLogKey, v ? 'on' : 'off');
+                        },
+                        title: const Text('กด "ทำแล้ว" ที่คาบเรียน → บันทึกเรียนถึงไหน'),
+                        subtitle: const Text('แผ่นเดียว: บท · หัวข้อ · การบ้าน · เวลาเลิก · ปิด = ติ๊กทำแล้วอย่างเดียว'),
+                      ),
+                      row(
+                        'ผ่าน · พักได้',
+                        SegmentedButton<int>(
+                          showSelectedIcon: false,
+                          segments: const [
+                            ButtonSegment(value: 70, label: Text('70%')),
+                            ButtonSegment(value: 80, label: Text('80%')),
+                            ButtonSegment(value: 90, label: Text('90%')),
+                          ],
+                          selected: {_pass},
+                          onSelectionChanged: (v) {
+                            setState(() => _pass = v.first);
+                            repo.setSetting(tutorPassKey, '${v.first}');
+                          },
+                        ),
+                        hint: 'บทที่เรียนแล้วเฉลี่ยถึงเกณฑ์ → ติวสัปดาห์นี้ไม่บังคับ',
                       ),
                     ]),
                     const SizedBox(height: 14),

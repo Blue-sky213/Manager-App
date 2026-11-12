@@ -10,6 +10,7 @@ import '../data/study_repository.dart';
 import '../data/study_scope.dart';
 import '../theme/noir_colors.dart';
 import '../utils/thai_date.dart';
+import 'mastery.dart' show GradingMode;
 import 'subject_colors.dart';
 import 'tutor_plan.dart';
 
@@ -35,6 +36,15 @@ class _TutorCardState extends State<TutorCard> with CalendarListener<TutorCard> 
   int _chapterRounds = 0;
   int? _loadedFor;
   StudyRepository? _settings;
+
+  // กฎติวตามบทที่เรียนถึง
+  List<ClassLog> _logs = [];
+  bool _advanced = false;
+  int _pass = defaultTutorPass;
+  bool _rest = false;
+
+  List<ChapterWithTopics> get _scope => tutorScope(widget.chapters, _logs);
+  bool get _passed => scopePassed(_scope, _pass);
 
   @override
   void didChangeDependencies() {
@@ -66,10 +76,18 @@ class _TutorCardState extends State<TutorCard> with CalendarListener<TutorCard> 
     }
     // ความยาวรอบ: อ่านจากวิชาครั้งแรกที่เปิดวิชานี้ · หลังจากนั้นใช้ค่าที่กดเลือกล่าสุด
     final minutes = _loadedFor == id ? _minutes : widget.subject.tutorMinutes;
-    final plan = planTutor(widget.chapters, minutes);
+    final logs = await settings.classLogs(id);
+    final advanced = await settings.gradingMode() == GradingMode.advanced;
+    final pass = int.tryParse(await settings.getSetting(tutorPassKey) ?? '') ?? defaultTutorPass;
+    final rest = await settings.getSetting(restKey(id, _monday)) == 'on';
+    final plan = planTutor(tutorScope(widget.chapters, logs), minutes);
     final done = plan.chapter == null ? 0 : await settings.tutorCount(plan.chapter!.id);
     if (!mounted || id != widget.subject.id) return;
     setState(() {
+      _logs = logs;
+      _advanced = advanced;
+      _pass = pass;
+      _rest = rest;
       _week = week;
       _minutes = minutes;
       _loadedFor = id;
@@ -82,14 +100,20 @@ class _TutorCardState extends State<TutorCard> with CalendarListener<TutorCard> 
     await _settings!.setTutorMinutes(widget.subject.id, m);
   }
 
-  Future<void> _findTime() async {
+  Future<void> _setRest(bool v) async {
+    setState(() => _rest = v);
+    await _settings!.setSetting(restKey(widget.subject.id, _monday), v ? 'on' : '');
+  }
+
+  /// [preview] = บทถัดไปที่ยังไม่ได้เรียน → "อ่านล่วงหน้า" (สิทธิผู้ใช้ ไม่บังคับ)
+  Future<void> _findTime({ChapterWithTopics? preview}) async {
     final repo = calendar!;
     final today = dayOnly(DateTime.now());
     final classDays = {
       for (final o in _week)
         if (o.kind == ActivityKind.classSession) dayOnly(o.day),
     };
-    final plan = planTutor(widget.chapters, _minutes);
+    final plan = planTutor(_scope, _minutes);
     final colors = await loadSubjectColors(_settings!);
     final names = {for (final s in await _settings!.subjects()) s.id: s.name};
     if (!mounted) return;
@@ -102,15 +126,17 @@ class _TutorCardState extends State<TutorCard> with CalendarListener<TutorCard> 
       avoidDays: classDays,
       subjectColors: colors,
       subjectNames: names,
-      note: plan.chapter == null
-          ? 'รอบนี้: ทวนหัวข้อที่ยังไม่ดี ${plan.review.length} หัวข้อ'
-          : 'รอบนี้: ${plan.chapter!.name}'
-              '${plan.review.isEmpty ? '' : ' + ทวน ${plan.review.length} หัวข้อ'}',
+      note: preview != null
+          ? 'อ่านล่วงหน้า: ${preview.chapter.name} (ก่อนเข้าเรียน)'
+          : plan.chapter == null
+              ? 'รอบนี้: ทวนหัวข้อที่ยังไม่ดี ${plan.review.length} หัวข้อ'
+              : 'รอบนี้: ${plan.chapter!.name}'
+                  '${plan.review.isEmpty ? '' : ' + ทวน ${plan.review.length} หัวข้อ'}',
     );
     if (picked == null) return;
     final learn = studyCategoryId(await repo.categories());
     await repo.addActivity(NewActivity(
-      name: 'ติว · ${widget.subject.name}',
+      name: '${preview != null ? 'อ่านล่วงหน้า' : 'ติว'} · ${widget.subject.name}',
       categoryId: learn,
       importance: widget.subject.importance,
       timed: true,
@@ -125,8 +151,13 @@ class _TutorCardState extends State<TutorCard> with CalendarListener<TutorCard> 
   @override
   Widget build(BuildContext context) {
     final c = context.noir;
-    final q = weekQuota(widget.subject.sessionsPerWeek, _week);
-    final plan = planTutor(widget.chapters, _minutes);
+    final scope = _scope;
+    final q = weekQuota(widget.subject.sessionsPerWeek, _week, advanced: _advanced, passed: _passed);
+    final plan = planTutor(scope, _minutes);
+    final reached = reachedIndex(widget.chapters, _logs);
+    final avg = scopeAverage(scope);
+    final focus = weakestFirst(scope).take(3).toList();
+    final ahead = reached != null && reached + 1 < widget.chapters.length ? widget.chapters[reached + 1] : null;
     final sunday = _monday.add(const Duration(days: 6));
     final tutors = _week.where((o) => o.kind == ActivityKind.tutor && o.active).toList()
       ..sort((a, b) => a.startAt!.compareTo(b.startAt!));
@@ -146,7 +177,7 @@ class _TutorCardState extends State<TutorCard> with CalendarListener<TutorCard> 
               FilledButton.tonalIcon(
                 onPressed: _findTime,
                 icon: const Icon(Icons.event_available_outlined),
-                label: const Text('หาเวลาติว'),
+                label: Text(q.remaining == 0 ? 'ติวเพิ่ม' : 'หาเวลาติว'),
               ),
             ]),
             const SizedBox(height: 8),
@@ -155,10 +186,62 @@ class _TutorCardState extends State<TutorCard> with CalendarListener<TutorCard> 
               _Chip('เป้า ${q.target} รอบ', c.surface2, c.text),
               _Chip('เรียน ${q.classes}', c.navBg, c.navText),
               _Chip('ติว ${q.tutors}/${q.tutorNeeded}', c.surface2, c.text),
-              q.remaining == 0
-                  ? _Chip(q.tutorNeeded == 0 ? 'คาบเรียนครบเป้าแล้ว' : 'ครบแล้ว', c.greenBg, c.greenText)
-                  : _Chip('ขาดอีก ${q.remaining} รอบ', c.amberBg, c.amberText),
+              if (q.passed)
+                _Chip('ผ่าน ${avg!.round()}% · พักได้', c.greenBg, c.greenText)
+              else if (q.remaining == 0)
+                _Chip(q.tutorNeeded == 0 ? 'คาบเรียนครบเป้าแล้ว' : 'ครบแล้ว', c.greenBg, c.greenText)
+              else
+                _Chip('ต้องติวอีก ${q.remaining} รอบ', c.amberBg, c.amberText),
             ]),
+            // เรียนถึงบทไหน → ขอบเขตติว
+            if (reached != null) ...[
+              const SizedBox(height: 12),
+              Text('เรียนถึง บท ${reached + 1} / ${widget.chapters.length} · ติวในขอบเขตนี้',
+                  style: TextStyle(fontSize: 13, color: c.muted)),
+              const SizedBox(height: 4),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(3),
+                child: LinearProgressIndicator(
+                  value: (reached + 1) / widget.chapters.length,
+                  minHeight: 5,
+                  backgroundColor: c.surface2,
+                ),
+              ),
+            ],
+            // ผ่านเกณฑ์ → เลือกพัก หรือติวต่อ
+            if (q.passed) ...[
+              const SizedBox(height: 10),
+              Text('บทที่เรียนแล้วเฉลี่ย ${avg!.round()}% (เกณฑ์ $_pass%) · สัปดาห์นี้เลือกได้',
+                  style: TextStyle(fontSize: 13, color: c.text)),
+              const SizedBox(height: 6),
+              Wrap(spacing: 8, children: [
+                ChoiceChip(label: const Text('พักสัปดาห์นี้'), selected: _rest, onSelected: (_) => _setRest(true)),
+                ChoiceChip(label: const Text('ติวต่อ'), selected: !_rest, onSelected: (_) => _setRest(false)),
+              ]),
+            ],
+            // หัวข้อที่ควรติวก่อน (อ่อนสุดก่อน)
+            if (reached != null && focus.isNotEmpty && !(q.passed && _rest)) ...[
+              const SizedBox(height: 12),
+              Text('ติวก่อน (อ่อนสุดก่อน)', style: TextStyle(fontSize: 13, color: c.muted)),
+              for (final t in focus)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Row(children: [
+                    Expanded(child: Text(t.name, style: TextStyle(fontSize: 13, color: c.text))),
+                    Text(t.latestScore == null ? 'ยังไม่ประเมิน' : '${t.latestScore}%',
+                        style: TextStyle(fontSize: 13, color: c.muted)),
+                  ]),
+                ),
+            ],
+            if (ahead != null)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: () => _findTime(preview: ahead),
+                  icon: const Icon(Icons.arrow_forward, size: 18),
+                  label: Text('อ่าน${ahead.chapter.name}ล่วงหน้า (ไม่บังคับ)'),
+                ),
+              ),
             const SizedBox(height: 12),
 
             // ความยาวรอบติว

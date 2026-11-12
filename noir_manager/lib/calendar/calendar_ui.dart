@@ -1049,3 +1049,61 @@ Future<DateTime?> askActualEnd(BuildContext context, Occurrence o) {
     ),
   );
 }
+
+/// กรอบเส้นประมุมมน: ใช้กับ "รอบติว" ให้แยกจากคาบเรียน (พื้นทึบ) ได้ทันที
+class DashedRoundedBorder extends ShapeBorder {
+  const DashedRoundedBorder({required this.color, this.radius = 8, this.width = 1.5, this.dash = 5, this.gap = 3});
+  final Color color;
+  final double radius;
+  final double width;
+  final double dash;
+  final double gap;
+
+  @override
+  EdgeInsetsGeometry get dimensions => EdgeInsets.all(width);
+
+  RRect _rrect(Rect r) => RRect.fromRectAndRadius(r, Radius.circular(radius));
+
+  @override
+  Path getInnerPath(Rect rect, {TextDirection? textDirection}) => Path()..addRRect(_rrect(rect.deflate(width)));
+
+  @override
+  Path getOuterPath(Rect rect, {TextDirection? textDirection}) => Path()..addRRect(_rrect(rect));
+
+  @override
+  void paint(Canvas canvas, Rect rect, {TextDirection? textDirection}) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = width;
+    final path = Path()..addRRect(_rrect(rect.deflate(width / 2)));
+    for (final m in path.computeMetrics()) {
+      for (var d = 0.0; d < m.length; d += dash + gap) {
+        canvas.drawPath(m.extractPath(d, (d + dash).clamp(0, m.length)), paint);
+      }
+    }
+  }
+
+  @override
+  ShapeBorder scale(double t) =>
+      DashedRoundedBorder(color: color, radius: radius * t, width: width * t, dash: dash, gap: gap);
+}
+
+/// พื้น + กรอบของงาน 1 ครั้ง (ใช้ร่วมกันทุกมุมมอง)
+/// คาบเรียน / งานทั่วไป = พื้นสีเต็ม · รอบติว = พื้นจาง + กรอบเส้นประสีวิชา · ทับเวลา = กรอบแดง
+(Color, ShapeBorder) occurrenceLook(NoirColors c, Occurrence o, Color bg, Color fg,
+    {bool clash = false, double radius = 8}) {
+  if (clash) {
+    return (
+      o.kind == ActivityKind.tutor ? Color.alphaBlend(bg.withValues(alpha: 0.25), c.surface) : bg,
+      RoundedRectangleBorder(borderRadius: BorderRadius.circular(radius), side: BorderSide(color: c.bad, width: 2)),
+    );
+  }
+  if (o.kind == ActivityKind.tutor) {
+    return (
+      Color.alphaBlend(bg.withValues(alpha: 0.25), c.surface),
+      DashedRoundedBorder(color: fg.withValues(alpha: 0.75), radius: radius),
+    );
+  }
+  return (bg, RoundedRectangleBorder(borderRadius: BorderRadius.circular(radius)));
+}

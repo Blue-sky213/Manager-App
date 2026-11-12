@@ -7,7 +7,19 @@ import 'mastery.dart';
 
 /// สรุปรอบของสัปดาห์
 class WeekQuota {
-  const WeekQuota({required this.target, required this.classes, required this.tutors});
+  const WeekQuota({
+    required this.target,
+    required this.classes,
+    required this.tutors,
+    this.advanced = false,
+    this.passed = false,
+  });
+
+  /// โหมด Advanced: สัปดาห์ที่มีคาบเรียน ต้องติวอย่างน้อย 1 รอบ แม้คาบเรียนครบเป้าแล้ว
+  final bool advanced;
+
+  /// บทที่เรียนแล้วผ่านเกณฑ์ (เช่น ≥ 80%) → ติวไม่บังคับ "พักได้"
+  final bool passed;
 
   /// รอบต่อสัปดาห์ตามความสำคัญของวิชา
   final int target;
@@ -18,13 +30,22 @@ class WeekQuota {
   /// รอบติวที่จองแล้ว (ไม่นับที่ยกเลิก)
   final int tutors;
 
-  /// ต้องติวกี่รอบ = เป้า − คาบเรียน
-  int get tutorNeeded => (target - classes).clamp(0, target);
+  /// รอบติวตามกฎ (ก่อนหักผ่านเกณฑ์) = เป้า − คาบเรียน · Advanced + มีคาบ → อย่างน้อย 1
+  int get ruleNeeded {
+    final base = (target - classes).clamp(0, target);
+    return advanced && classes > 0 && base < 1 ? 1 : base;
+  }
+
+  /// ต้องติวกี่รอบ (ผ่านเกณฑ์แล้ว = 0 · ติวต่อได้ตามใจ)
+  int get tutorNeeded => passed ? 0 : ruleNeeded;
   int get remaining => (tutorNeeded - tutors).clamp(0, tutorNeeded);
 }
 
-WeekQuota weekQuota(int target, Iterable<Occurrence> weekItems) => WeekQuota(
+WeekQuota weekQuota(int target, Iterable<Occurrence> weekItems, {bool advanced = false, bool passed = false}) =>
+    WeekQuota(
       target: target,
+      advanced: advanced,
+      passed: passed,
       classes: weekItems
           .where((o) =>
               o.kind == ActivityKind.classSession &&
@@ -118,4 +139,49 @@ TutorPlan planTutor(List<ChapterWithTopics> chapters, int minutes) {
 DateTime mondayOf(DateTime day) {
   final d = dayOnly(day);
   return DateTime(d.year, d.month, d.day - (d.weekday - 1));
+}
+
+
+/// ตั้งค่า: เกณฑ์ "ผ่าน · พักได้" (%) ของบทที่เรียนแล้ว
+const tutorPassKey = 'tutor_pass';
+const defaultTutorPass = 80;
+
+/// ตั้งค่าต่อวิชาในสัปดาห์: เลือก "พักสัปดาห์นี้" แล้ว (key = `rest:subjectId:วันจันทร์`)
+String restKey(int subjectId, DateTime monday) =>
+    'rest:$subjectId:${monday.year}-${monday.month}-${monday.day}';
+
+/// บทที่เรียนถึง (ลำดับในรายการบท) จากบันทึกเรียน · null = ยังไม่เคยบันทึก
+int? reachedIndex(List<ChapterWithTopics> chapters, List<ClassLog> logs) {
+  int? best;
+  for (final l in logs) {
+    final i = chapters.indexWhere((c) => c.chapter.id == l.chapterId);
+    if (i >= 0 && (best == null || i > best)) best = i;
+  }
+  return best;
+}
+
+/// ขอบเขตติว = บทแรกถึงบทที่เรียนถึง · ยังไม่เคยบันทึก → ทุกบท (แบบเดิม)
+List<ChapterWithTopics> tutorScope(List<ChapterWithTopics> chapters, List<ClassLog> logs) {
+  final i = reachedIndex(chapters, logs);
+  return i == null ? chapters : chapters.sublist(0, i + 1);
+}
+
+/// คะแนนเฉลี่ยของหัวข้อในขอบเขต · มีหัวข้อที่ยังไม่ประเมิน → null (ยังตัดสินไม่ได้)
+double? scopeAverage(List<ChapterWithTopics> scope) {
+  final topics = [for (final c in scope) ...c.subtopics];
+  if (topics.isEmpty || topics.any((t) => t.latestScore == null)) return null;
+  return topics.map((t) => t.latestScore!).reduce((a, b) => a + b) / topics.length;
+}
+
+/// ผ่านเกณฑ์ "พักได้" ไหม
+bool scopePassed(List<ChapterWithTopics> scope, int pass) {
+  final avg = scopeAverage(scope);
+  return avg != null && avg >= pass;
+}
+
+/// หัวข้อในขอบเขต เรียงอ่อนสุดก่อน (ยังไม่ประเมิน = อ่อนสุด) · ใช้เลือกว่ารอบนี้ติวอะไร
+List<Subtopic> weakestFirst(List<ChapterWithTopics> scope) {
+  final topics = [for (final c in scope) ...c.subtopics];
+  topics.sort((a, b) => (a.latestScore ?? -1).compareTo(b.latestScore ?? -1));
+  return topics;
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../calendar/achievements.dart' show dayProgress;
 import '../calendar/calendar_flows.dart';
 import '../calendar/terms_page.dart';
 import '../calendar/calendar_listener.dart';
@@ -402,10 +403,64 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
   List<Widget> _weekBody(DateTime today, double width) {
     final c = context.noir;
     final narrow = width < 720;
-    // จอแคบ: A กับ C อ่านไม่ออก → ใช้ B อัตโนมัติ
-    final style = narrow ? WeekStyle.list : _weekStyle;
     void onOcc(Occurrence o) => openOccurrence(context, calendar!, o);
     void onDay(DateTime d) => _go(day: d, view: CalView.day);
+
+    // จอแคบ (มือถือ): แถบ 7 วันด้านบน + ไทม์ไลน์ของวันที่เลือก (เวลาซ้าย กิจกรรมต่อท้าย) · ปัดซ้าย/ขวา = เปลี่ยนวัน
+    if (narrow) {
+      void step(int dir) {
+        final d = _selected.add(Duration(days: dir));
+        if (_weekDays.contains(d)) {
+          setState(() => _selected = d);
+        } else {
+          _go(day: d);
+        }
+      }
+
+      return [
+        _navRow(),
+        const SizedBox(height: 4),
+        WeekDayStrip(
+          days: _weekDays,
+          byDay: _byDay,
+          selected: _selected,
+          today: today,
+          onPick: (d) => setState(() => _selected = d),
+        ),
+        const SizedBox(height: 8),
+        GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onHorizontalDragEnd: (e) {
+            final v = e.primaryVelocity ?? 0;
+            if (v.abs() > 200) step(v < 0 ? 1 : -1);
+          },
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                Text(
+                  '${thaiShortDate(_selected)} · ทำแล้ว ${dayProgress(_byDay[_selected] ?? const []).$1}/'
+                  '${dayProgress(_byDay[_selected] ?? const []).$2}',
+                  style: TextStyle(color: c.muted, fontSize: 13),
+                ),
+                _actions(today),
+              ],
+            ),
+            const SizedBox(height: 8),
+            DayAgenda(
+              items: _byDay[_selected] ?? const [],
+              categories: _categories,
+              lifeBase: _lifeBase[_selected.weekday - 1],
+              onTap: onOcc,
+            ),
+          ]),
+        ),
+      ];
+    }
+    final style = _weekStyle;
 
     return [
       _navRow(),
@@ -415,11 +470,7 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
         crossAxisAlignment: WrapCrossAlignment.center,
         spacing: 8,
         runSpacing: 8,
-        children: [
-          if (narrow)
-            Text('จอแคบ: แสดงแบบลิสต์', style: TextStyle(color: c.muted, fontSize: 13)),
-          _actions(today),
-        ],
+        children: [_actions(today)],
       ),
       const SizedBox(height: 12),
       switch (style) {
