@@ -13,6 +13,7 @@ import '../study/tutor_plan.dart';
 import '../theme/noir_colors.dart';
 import '../utils/thai_date.dart';
 import '../widgets/dialogs.dart';
+import '../widgets/mini_form.dart';
 import 'achievements.dart';
 import 'calendar_models.dart';
 import 'calendar_repository.dart';
@@ -389,15 +390,16 @@ Future<void> _askChapterProgress(BuildContext context, int subjectId, int occurr
   final chapters = await study.chapters(subjectId);
   final ch = nextChapter(chapters);
   if (ch == null || !context.mounted) return;
-  final done = await showDialog<bool>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: const Text('ติวไปถึงไหนแล้ว?'),
-      content: Text('${ch.name}\nจบบทแล้ว → รอบหน้าไล่บทถัดไป · ยังไม่จบ → รอบหน้าติวบทนี้ต่อ'),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('ข้าม')),
-        OutlinedButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('ยังไม่จบ')),
-        FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('จบบทแล้ว')),
+  final done = await showMiniForm<bool>(
+    context,
+    (ctx) => MiniForm(
+      title: 'ติวไปถึงไหนแล้ว? · ${ch.name}',
+      secondaryLabel: 'ข้าม',
+      primaryLabel: 'จบบทแล้ว',
+      onPrimary: () => Navigator.pop(ctx, true),
+      children: [
+        MiniRow(label: 'ยังไม่จบ', valueText: 'รอบหน้าติวบทนี้ต่อ', last: true, onTap: () => Navigator.pop(ctx, false)),
+        const MiniLabel('จบบทแล้ว → รอบหน้าไล่บทถัดไป'),
       ],
     ),
   );

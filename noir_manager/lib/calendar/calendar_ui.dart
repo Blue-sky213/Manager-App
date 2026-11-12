@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../study/subject_colors.dart';
 import '../theme/noir_colors.dart';
 import '../utils/thai_date.dart';
+import '../widgets/mini_form.dart';
 import '../widgets/mini_segments.dart';
 import 'calendar_models.dart';
 import 'lock_flow.dart' show showLockBadge;
@@ -272,29 +273,14 @@ class _ActivityDialogState extends State<_ActivityDialog> {
     final save = widget.onSavePreset;
     if (save == null) return;
     final controller = TextEditingController();
-    final name = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('บันทึกเป็น Preset'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('เก็บหมวด · ความสำคัญ · เวลาเริ่ม–จบ ตอนนี้ไว้ใช้ซ้ำ'),
-            TextField(
-              controller: controller,
-              autofocus: true,
-              decoration: const InputDecoration(
-                  labelText: 'ชื่อ Preset', hintText: 'เช่น Stream, ติวเข้ม'),
-              onSubmitted: (v) => Navigator.pop(ctx, v),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('ยกเลิก')),
-          FilledButton(
-              onPressed: () => Navigator.pop(ctx, controller.text),
-              child: const Text('บันทึก')),
+    final name = await showMiniForm<String>(
+      context,
+      (ctx) => MiniForm(
+        title: 'บันทึกเป็น Preset · เก็บหมวด ความสำคัญ เวลา ไว้ใช้ซ้ำ',
+        primaryLabel: 'บันทึก',
+        onPrimary: () => Navigator.pop(ctx, controller.text),
+        children: [
+          MiniBigField(controller: controller, hint: 'ชื่อ Preset เช่น Stream, ติวเข้ม', onSubmitted: (v) => Navigator.pop(ctx, v)),
         ],
       ),
     );
@@ -742,46 +728,34 @@ class _ActivityDialogState extends State<_ActivityDialog> {
 Future<(int, int)?> showOccurrenceTimeDialog(BuildContext context, Occurrence o) {
   var start = minuteOf(o.startAt!);
   var duration = o.endAt!.difference(o.startAt!).inMinutes;
-  return showDialog<(int, int)>(
-    context: context,
-    builder: (ctx) => StatefulBuilder(
-      builder: (ctx, setLocal) => AlertDialog(
-        title: Text('แก้เวลา "${o.title}" เฉพาะ ${thaiShortDate(o.day)}'),
-        content: SizedBox(
-          width: 400,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              PickerTile(
-                icon: Icons.schedule,
-                label: 'เวลาเริ่ม',
-                value: fmtMinute(start),
-                onTap: () async {
-                  final m = await pickMinute(ctx, start, title: 'เวลาเริ่มกิจกรรม');
-                  if (m != null) setLocal(() => start = m);
-                },
-              ),
-              PickerTile(
-                icon: Icons.flag_outlined,
-                label: 'เวลาจบ',
-                value: fmtMinute(start + duration),
-                onTap: () async {
-                  final m = await pickMinute(ctx, (start + duration) % (24 * 60), title: 'เวลาจบกิจกรรม (เริ่ม ${fmtMinute(start)})');
-                  if (m != null) setLocal(() => duration = durationBetween(start, m));
-                },
-              ),
-              Text('รวม ${durationLabel(start, duration)} · วันอื่นของงานนี้ไม่เปลี่ยน',
-                  style: TextStyle(color: ctx.noir.muted, fontSize: 13)),
-            ],
+  return showMiniForm<(int, int)>(
+    context,
+    (ctx) => StatefulBuilder(
+      builder: (ctx, setLocal) => MiniForm(
+        title: 'แก้เวลา "${o.title}" เฉพาะ ${thaiShortDate(o.day)}',
+        primaryLabel: 'บันทึก',
+        onPrimary: () => Navigator.pop(ctx, (start, duration)),
+        children: [
+          MiniRow(
+            icon: Icons.schedule,
+            label: 'เริ่ม',
+            valueText: fmtMinute(start),
+            onTap: () async {
+              final m = await pickMinute(ctx, start, title: 'เวลาเริ่มกิจกรรม');
+              if (m != null) setLocal(() => start = m);
+            },
           ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('ยกเลิก')),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, (start, duration)),
-            child: const Text('บันทึก'),
+          MiniRow(
+            icon: Icons.flag_outlined,
+            label: 'จบ',
+            valueText: '${fmtMinute(start + duration)} · ${durationLabel(start, duration)}',
+            last: true,
+            onTap: () async {
+              final m = await pickMinute(ctx, (start + duration) % (24 * 60), title: 'เวลาจบกิจกรรม (เริ่ม ${fmtMinute(start)})');
+              if (m != null) setLocal(() => duration = durationBetween(start, m));
+            },
           ),
+          const MiniLabel('วันอื่นของงานนี้ไม่เปลี่ยน'),
         ],
       ),
     ),
@@ -792,52 +766,34 @@ Future<(int, int)?> showOccurrenceTimeDialog(BuildContext context, Occurrence o)
 
 Future<String?> askCancelReason(BuildContext context, Occurrence o) {
   final controller = TextEditingController();
-  return showDialog<String>(
-    context: context,
-    builder: (ctx) => StatefulBuilder(
+  return showMiniForm<String>(
+    context,
+    (ctx) => StatefulBuilder(
       builder: (ctx, setLocal) {
         final text = controller.text.trim();
-        return AlertDialog(
-          title: Text('ยกเลิก "${o.title}"'),
-          content: SizedBox(
-            width: 400,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('ต้องใส่เหตุผลทุกครั้ง (ใช้ดูสถิติย้อนหลัง)'),
-                const SizedBox(height: 8),
-                TextField(
-                  key: const Key('reason-field'),
-                  controller: controller,
-                  autofocus: true,
-                  decoration: const InputDecoration(labelText: 'เหตุผล'),
-                  onChanged: (_) => setLocal(() {}),
+        return MiniForm(
+          title: 'ยกเลิก "${o.title}" · ต้องมีเหตุผล (ดูสถิติย้อนหลัง)',
+          primaryLabel: 'ยืนยันยกเลิก',
+          secondaryLabel: 'ไม่ยกเลิก',
+          onPrimary: text.isEmpty ? null : () => Navigator.pop(ctx, text),
+          children: [
+            MiniBigField(
+              key: const Key('reason-field'),
+              controller: controller,
+              hint: 'เหตุผล',
+              onChanged: (_) => setLocal(() {}),
+            ),
+            const SizedBox(height: 10),
+            Wrap(spacing: 6, runSpacing: 6, children: [
+              for (final quick in ['ป่วย', 'งานด่วน', 'เหนื่อยเกินไป', 'ติดธุระ'])
+                ChoiceChip(
+                  showCheckmark: false,
+                  visualDensity: VisualDensity.compact,
+                  label: Text(quick),
+                  selected: text == quick,
+                  onSelected: (_) => setLocal(() => controller.text = quick),
                 ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    for (final quick in ['ป่วย', 'งานด่วน', 'เหนื่อยเกินไป', 'ติดธุระ'])
-                      ActionChip(
-                        label: Text(quick),
-                        onPressed: () => setLocal(() => controller.text = quick),
-                      ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('ไม่ยกเลิก'),
-            ),
-            FilledButton(
-              onPressed: text.isEmpty ? null : () => Navigator.pop(ctx, text),
-              child: const Text('ยืนยันยกเลิก'),
-            ),
+            ]),
           ],
         );
       },
@@ -876,10 +832,7 @@ Future<RescheduleResult?> showRescheduleDialog(
   Occurrence o, {
   bool fromInbox = false,
 }) =>
-    showDialog<RescheduleResult>(
-      context: context,
-      builder: (_) => _RescheduleDialog(o: o, fromInbox: fromInbox),
-    );
+    showMiniForm<RescheduleResult>(context, (_) => _RescheduleDialog(o: o, fromInbox: fromInbox));
 
 class _RescheduleDialog extends StatefulWidget {
   const _RescheduleDialog({required this.o, required this.fromInbox});
@@ -906,90 +859,72 @@ class _RescheduleDialogState extends State<_RescheduleDialog> {
   @override
   Widget build(BuildContext context) {
     final o = widget.o;
-    return AlertDialog(
-      title: Text(widget.fromInbox ? 'เลือกวันแทน · ${o.title}' : 'เลื่อน "${o.title}"'),
-      content: SizedBox(
-        width: 420,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (_canSeries) ...[
-              SegmentedButton<bool>(
-                segments: const [
-                  ButtonSegment(value: false, label: Text('เฉพาะครั้งนี้')),
-                  ButtonSegment(value: true, label: Text('ทั้งแถว')),
-                ],
-                selected: {_series},
-                showSelectedIcon: false,
-                onSelectionChanged: (s) => setState(() => _series = s.first),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                _series
-                    ? 'เปลี่ยนเวลาของงานซ้ำนี้ ตั้งแต่ ${thaiShortDate(o.day)} เป็นต้นไป'
-                    : 'ย้ายแค่ครั้งนี้ไปวัน/เวลาใหม่',
-                style: TextStyle(fontSize: 13, color: context.noir.muted),
-              ),
-            ],
-            if (!_series)
-              PickerTile(
-                icon: Icons.event,
-                label: 'วันแทน',
-                value: thaiShortDate(_day),
-                onTap: () async {
-                  final d = await pickDay(context, _day);
-                  if (d != null) setState(() => _day = d);
-                },
-              ),
-            if (o.timed) ...[
-              PickerTile(
-                icon: Icons.schedule,
-                label: 'เวลาเริ่ม',
-                value: fmtMinute(_start),
-                onTap: () async {
-                  final m = await pickMinute(context, _start, title: 'เวลาเริ่มกิจกรรม');
-                  if (m != null) setState(() => _start = m);
-                },
-              ),
-              PickerTile(
-                icon: Icons.flag_outlined,
-                label: 'เวลาจบ',
-                value: fmtMinute(_start + _duration),
-                onTap: () async {
-                  final m = await pickMinute(context, (_start + _duration) % (24 * 60), title: 'เวลาจบกิจกรรม (เริ่ม ${fmtMinute(_start)})');
-                  if (m != null) setState(() => _duration = durationBetween(_start, m));
-                },
-              ),
-              Text('รวม ${durationLabel(_start, _duration)}',
-                  style: TextStyle(color: context.noir.muted, fontSize: 13)),
-            ],
-          ],
+    final c = context.noir;
+    return MiniForm(
+      title: widget.fromInbox ? 'เลือกวันแทน · ${o.title}' : 'เลื่อน "${o.title}"',
+      primaryLabel: 'เลื่อน',
+      onPrimary: () => Navigator.pop(
+        context,
+        RescheduleResult(
+          series: _series,
+          day: _series ? null : _day,
+          startMinute: o.timed ? _start : null,
+          durationMin: o.timed ? _duration : null,
         ),
       ),
-      actions: [
-        if (!widget.fromInbox && !_series)
-          TextButton(
-            onPressed: () =>
-                Navigator.pop(context, const RescheduleResult.toInbox()),
-            child: const Text('ยังไม่รู้วัน → Updates'),
+      children: [
+        if (_canSeries) ...[
+          MiniSegments<bool>(
+            value: _series,
+            items: const [(false, 'เฉพาะครั้งนี้'), (true, 'ทั้งแถว')],
+            onChanged: (v) => setState(() => _series = v),
           ),
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('ปิด'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.pop(
-            context,
-            RescheduleResult(
-              series: _series,
-              day: _series ? null : _day,
-              startMinute: o.timed ? _start : null,
-              durationMin: o.timed ? _duration : null,
+          MiniLabel(_series
+              ? 'เปลี่ยนเวลาของงานซ้ำนี้ ตั้งแต่ ${thaiShortDate(o.day)} เป็นต้นไป'
+              : 'ย้ายแค่ครั้งนี้ไปวัน/เวลาใหม่'),
+        ],
+        if (!_series)
+          MiniRow(
+            icon: Icons.event,
+            label: 'วันแทน',
+            valueText: thaiShortDate(_day),
+            last: !o.timed,
+            onTap: () async {
+              final d = await pickDay(context, _day);
+              if (d != null) setState(() => _day = d);
+            },
+          ),
+        if (o.timed) ...[
+          MiniRow(
+            icon: Icons.schedule,
+            label: 'เริ่ม',
+            valueText: fmtMinute(_start),
+            onTap: () async {
+              final m = await pickMinute(context, _start, title: 'เวลาเริ่มกิจกรรม');
+              if (m != null) setState(() => _start = m);
+            },
+          ),
+          MiniRow(
+            icon: Icons.flag_outlined,
+            label: 'จบ',
+            valueText: '${fmtMinute(_start + _duration)} · ${durationLabel(_start, _duration)}',
+            last: true,
+            onTap: () async {
+              final m = await pickMinute(context, (_start + _duration) % (24 * 60),
+                  title: 'เวลาจบกิจกรรม (เริ่ม ${fmtMinute(_start)})');
+              if (m != null) setState(() => _duration = durationBetween(_start, m));
+            },
+          ),
+        ],
+        if (!widget.fromInbox && !_series)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () => Navigator.pop(context, const RescheduleResult.toInbox()),
+              icon: Icon(Icons.inbox_outlined, size: 18, color: c.muted),
+              label: const Text('ยังไม่รู้วัน → Updates'),
             ),
           ),
-          child: const Text('เลื่อน'),
-        ),
       ],
     );
   }
@@ -1003,26 +938,18 @@ Future<OverlapChoice?> askOverlap(BuildContext context, List<Occurrence> clashes
   final names = clashes
       .map((o) => '• ${o.title} (${fmtTime(o.startAt!)}–${fmtTime(o.endAt!)})')
       .join('\n');
-  return showDialog<OverlapChoice>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: const Text('เวลาทับกับงานอื่น'),
-      content: Text('ช่วงเวลานี้ทับกับ:\n$names\n\nจะทำยังไง?'),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(ctx, OverlapChoice.moveOthersToInbox),
-          child: const Text('ย้ายงานที่ทับไป Updates'),
-        ),
-        TextButton(
-          onPressed: () => Navigator.pop(ctx, OverlapChoice.allow),
-          child: const Text('ยอมทับ'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.pop(ctx, OverlapChoice.pickAgain),
-          child: const Text('เลือกเวลาอื่น'),
-        ),
-      ],
-    ),
+  return showMiniForm<OverlapChoice>(
+    context,
+    (ctx) => MiniForm(title: 'เวลาทับกับงานอื่น', children: [
+      Text('ช่วงเวลานี้ทับกับ:\n$names', style: TextStyle(color: ctx.noir.text, height: 1.5)),
+      const SizedBox(height: 8),
+      MiniRow(label: 'เลือกเวลาอื่น', onTap: () => Navigator.pop(ctx, OverlapChoice.pickAgain)),
+      MiniRow(label: 'ยอมทับ', onTap: () => Navigator.pop(ctx, OverlapChoice.allow)),
+      MiniRow(
+          label: 'ย้ายงานที่ทับไป Updates',
+          last: true,
+          onTap: () => Navigator.pop(ctx, OverlapChoice.moveOthersToInbox)),
+    ]),
   );
 }
 
@@ -1030,10 +957,7 @@ Future<OverlapChoice?> askOverlap(BuildContext context, List<Occurrence> clashes
 
 Future<List<LifeBaseDay>?> showLifeBaseDialog(
         BuildContext context, List<LifeBaseDay> current) =>
-    showDialog<List<LifeBaseDay>>(
-      context: context,
-      builder: (_) => _LifeBaseDialog(current: current),
-    );
+    showMiniForm<List<LifeBaseDay>>(context, (_) => _LifeBaseDialog(current: current));
 
 class _LifeBaseDialog extends StatefulWidget {
   const _LifeBaseDialog({required this.current});
@@ -1060,64 +984,31 @@ class _LifeBaseDialogState extends State<_LifeBaseDialog> {
   @override
   Widget build(BuildContext context) {
     final c = context.noir;
-    return AlertDialog(
-      title: const Text('เวลานอน / ตื่น (Life Base)'),
-      content: SizedBox(
-        width: 460,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (var i = 0; i < 7; i++)
-                Row(
-                  children: [
-                    SizedBox(width: 72, child: Text(thaiWeekdayLong[i])),
-                    TextButton(
-                      onPressed: () => _edit(i, bed: false),
-                      child: Text('ตื่น ${fmtMinute(_days[i].wakeMinute)}'),
-                    ),
-                    TextButton(
-                      onPressed: () => _edit(i, bed: true),
-                      child: Text('นอน ${fmtMinute(_days[i].bedMinute)}'),
-                    ),
-                    const Spacer(),
-                    Text(
-                      '${sleepHours(_days[i], _days[(i + 1) % 7]).toStringAsFixed(1)} ชม.',
-                      style: TextStyle(color: c.muted, fontSize: 13),
-                    ),
-                  ],
-                ),
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton.icon(
-                  onPressed: () => setState(() {
-                    final mon = _days[0];
-                    _days = [
-                      for (final d in _days)
-                        d.copyWith(
-                            bedMinute: mon.bedMinute, wakeMinute: mon.wakeMinute),
-                    ];
-                  }),
-                  icon: const Icon(Icons.copy_all),
-                  label: const Text('ใช้เวลาของวันจันทร์กับทุกวัน'),
-                ),
-              ),
-              Text('ชั่วโมงนอน = นอนคืนนั้น → ตื่นเช้าวันถัดไป',
-                  style: TextStyle(color: c.muted, fontSize: 12)),
-            ],
+    return MiniForm(
+      title: 'เวลานอน / ตื่น (Life Base) · นอนคืนนั้น → ตื่นเช้าวันถัดไป',
+      menu: [
+        miniMenu(
+            'ใช้เวลาของวันจันทร์กับทุกวัน',
+            () => setState(() {
+                  final mon = _days[0];
+                  _days = [for (final d in _days) d.copyWith(bedMinute: mon.bedMinute, wakeMinute: mon.wakeMinute)];
+                })),
+      ],
+      primaryLabel: 'บันทึก',
+      onPrimary: () => Navigator.pop(context, _days),
+      children: [
+        for (var i = 0; i < 7; i++)
+          Container(
+            decoration: BoxDecoration(border: i == 6 ? null : Border(bottom: BorderSide(color: c.line))),
+            child: Row(children: [
+              SizedBox(width: 64, child: Text(thaiWeekdayLong[i], style: TextStyle(color: c.muted))),
+              TextButton(onPressed: () => _edit(i, bed: false), child: Text('ตื่น ${fmtMinute(_days[i].wakeMinute)}')),
+              TextButton(onPressed: () => _edit(i, bed: true), child: Text('นอน ${fmtMinute(_days[i].bedMinute)}')),
+              const Spacer(),
+              Text('${sleepHours(_days[i], _days[(i + 1) % 7]).toStringAsFixed(1)} ชม.',
+                  style: TextStyle(color: c.muted, fontSize: 13)),
+            ]),
           ),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('ยกเลิก'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.pop(context, _days),
-          child: const Text('บันทึก'),
-        ),
       ],
     );
   }
@@ -1127,48 +1018,31 @@ class _LifeBaseDialogState extends State<_LifeBaseDialog> {
 /// ถามเวลาเลิกจริงหลังเรียน (ปุ่มลัด ±15/30 นาที หรือเลือกเวลาเอง) · null = ข้าม
 Future<DateTime?> askActualEnd(BuildContext context, Occurrence o) {
   final planned = o.endAt!;
-  Widget quick(BuildContext ctx, String label, int diff) => ActionChip(
-        label: Text(label),
-        onPressed: () => Navigator.pop(ctx, planned.add(Duration(minutes: diff))),
-      );
-  return showDialog<DateTime>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: Text('เลิกจริงกี่โมง? · ${o.title}'),
-      content: SizedBox(
-        width: 420,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('ตามตารางเลิก ${fmtTime(planned)} · เก็บไว้ทำสถิติว่าวิชานี้เลิกเร็วหรือช้า',
-                style: TextStyle(color: ctx.noir.muted, fontSize: 13)),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                quick(ctx, 'ก่อน 30 นาที', -30),
-                quick(ctx, 'ก่อน 15 นาที', -15),
-                quick(ctx, 'ตรงเวลา', 0),
-                quick(ctx, 'ช้า 15 นาที', 15),
-                quick(ctx, 'ช้า 30 นาที', 30),
-                ActionChip(
-                  avatar: const Icon(Icons.schedule, size: 18),
-                  label: const Text('เลือกเวลาเอง'),
-                  onPressed: () async {
-                    final m = await pickMinute(ctx, minuteOf(planned), title: 'เวลาเลิกจริง');
-                    if (m == null || !ctx.mounted) return;
-                    Navigator.pop(ctx, atMinute(o.day, m));
-                  },
-                ),
-              ],
-            ),
-          ],
+  return showMiniForm<DateTime>(
+    context,
+    (ctx) => MiniForm(
+      title: 'เลิกจริงกี่โมง? · ${o.title}',
+      primaryLabel: 'ตรงเวลา ${fmtTime(planned)}',
+      onPrimary: () => Navigator.pop(ctx, planned),
+      secondaryLabel: 'ข้าม',
+      children: [
+        MiniLabel('ตามตารางเลิก ${fmtTime(planned)} · เก็บไว้ดูว่าวิชานี้เลิกเร็วหรือช้า'),
+        MiniSegments<int>(
+          value: 0,
+          items: const [(-30, '−30 น.'), (-15, '−15'), (0, 'ตรง'), (15, '+15'), (30, '+30 น.')],
+          onChanged: (d) => Navigator.pop(ctx, planned.add(Duration(minutes: d))),
         ),
-      ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('ข้าม')),
+        const SizedBox(height: 6),
+        MiniRow(
+          icon: Icons.schedule,
+          label: 'เลือกเวลาเอง',
+          last: true,
+          onTap: () async {
+            final m = await pickMinute(ctx, minuteOf(planned), title: 'เวลาเลิกจริง');
+            if (m == null || !ctx.mounted) return;
+            Navigator.pop(ctx, atMinute(o.day, m));
+          },
+        ),
       ],
     ),
   );

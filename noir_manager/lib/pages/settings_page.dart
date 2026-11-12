@@ -9,6 +9,7 @@ import '../data/app_database.dart' show appSchemaVersion;
 import '../data/backup.dart';
 import '../calendar/sticker_ui.dart' show StickerSettings;
 import '../calendar/lock_flow.dart' show lockSettingKey, refreshLockState;
+import '../study/advanced_rules.dart' show greenRule, redRule, RuleChoice, ruleChoiceLabel, pickRuleChoice;
 import '../study/class_log.dart' show askClassLogKey;
 import '../study/mastery.dart' show GradingMode;
 import '../study/tutor_plan.dart' show defaultTutorPass, tutorPassKey;
@@ -18,6 +19,8 @@ import '../data/demo_year.dart' show demoMode;
 import '../shell/window_mode.dart';
 import '../widgets/device_preview.dart';
 import '../widgets/mini_dropdown.dart';
+import '../widgets/mini_form.dart';
+import '../widgets/mini_segments.dart';
 
 /// โหมดแอป: เรียน / ทำงาน / ทั้งคู่ (เก็บใน setting key = app_mode)
 const appModeKey = 'app_mode';
@@ -47,6 +50,7 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _lock = true;
   bool _askLog = true;
   int _pass = defaultTutorPass;
+  final Map<String, RuleChoice> _rules = {};
   bool _loaded = false;
 
   @override
@@ -64,6 +68,7 @@ class _SettingsPageState extends State<SettingsPage> {
     final lock = await cal.getSetting(lockSettingKey);
     final askLog = await repo.getSetting(askClassLogKey);
     final pass = int.tryParse(await repo.getSetting(tutorPassKey) ?? '');
+    final rules = {for (final r in [greenRule, redRule]) r.key: r.choiceFrom(await repo.getSetting(r.key))};
     if (!mounted) return;
     setState(() {
       _mode = mode ?? 'study';
@@ -72,6 +77,7 @@ class _SettingsPageState extends State<SettingsPage> {
       _lock = lock != 'off';
       _askLog = askLog != 'off';
       _pass = pass ?? defaultTutorPass;
+      _rules.addAll(rules);
       _loaded = true;
     });
   }
@@ -172,88 +178,85 @@ class _SettingsPageState extends State<SettingsPage> {
                     ]),
                     const SizedBox(height: 14),
                     section('โหมดแอป', [
-                      RadioGroup<String>(
-                        groupValue: _mode,
+                      MiniSegments<String>(
+                        value: _mode,
+                        items: [for (final (id, name, _) in appModes) (id, name)],
                         onChanged: (v) {
-                          if (v == null) return;
                           setState(() => _mode = v);
                           repo.setSetting(appModeKey, v);
                         },
-                        child: Column(children: [
-                          for (final (id, name, hint) in appModes)
-                            RadioListTile<String>(
-                              contentPadding: EdgeInsets.zero,
-                              value: id,
-                              title: Text(name),
-                              subtitle: Text(hint),
-                            ),
-                        ]),
                       ),
+                      const SizedBox(height: 6),
+                      Text(appModes.firstWhere((m) => m.$1 == _mode).$3, style: TextStyle(fontSize: 12, color: c.muted)),
                       if (_mode != 'study')
                         Text('โหมดทำงานเต็มรูปแบบมาในรอบ v2 · ตอนนี้ใช้ปฏิทินและวันนี้ได้ตามปกติ',
-                            style: TextStyle(fontSize: 13, color: c.warn)),
+                            style: TextStyle(fontSize: 12, color: c.warn)),
                     ]),
                     const SizedBox(height: 14),
+                    // EZ / Advanced + กฎ Advanced อยู่ที่เดียว (หน้าวิชามีแค่สวิตช์)
                     section('การให้คะแนนความเข้าใจ', [
-                      row(
-                        'โหมด',
-                        SegmentedButton<GradingMode>(
-                          showSelectedIcon: false,
-                          segments: const [
-                            ButtonSegment(value: GradingMode.ez, label: Text('EZ')),
-                            ButtonSegment(value: GradingMode.advanced, label: Text('Advanced')),
-                          ],
-                          selected: {_grading},
-                          onSelectionChanged: (v) {
-                            setState(() => _grading = v.first);
-                            repo.setGradingMode(v.first);
-                          },
-                        ),
-                        hint: _grading == GradingMode.ez ? 'สีตามคะแนนล่าสุด' : 'เฉลี่ยทุกครั้ง + กฎเช็กซ้ำ',
+                      MiniSegments<GradingMode>(
+                        value: _grading,
+                        items: const [(GradingMode.ez, 'EZ'), (GradingMode.advanced, 'Advanced')],
+                        onChanged: (v) {
+                          setState(() => _grading = v);
+                          repo.setGradingMode(v);
+                        },
                       ),
+                      const SizedBox(height: 6),
+                      Text(
+                        _grading == GradingMode.ez
+                            ? 'EZ = สีตามคะแนนล่าสุด'
+                            : 'Advanced = เฉลี่ยทุกรอบ · เคยตกต้องเขียว 2 รอบติดถึงผ่าน',
+                        style: TextStyle(fontSize: 12, color: c.muted),
+                      ),
+                      if (_grading == GradingMode.advanced)
+                        for (final (i, r) in [greenRule, redRule].indexed)
+                          MiniRow(
+                            key: Key('rule-${r.key}'),
+                            label: i == 0 ? 'เคยตก → เขียว 2 รอบติด' : 'เคยเขียว → ตก 2 รอบติด',
+                            valueText: ruleChoiceLabel(r, _rules[r.key] ?? RuleChoice.ask),
+                            last: i == 1,
+                            onTap: () async {
+                              final v = await pickRuleChoice(context, r, _rules[r.key] ?? RuleChoice.ask);
+                              if (v == null) return;
+                              setState(() => _rules[r.key] = v);
+                              await repo.setSetting(r.key, v.name);
+                            },
+                          ),
                     ]),
                     const SizedBox(height: 14),
                     section('เรียน · ติว', [
-                      SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
+                      MiniSwitchRow(
+                        label: 'กด "ทำแล้ว" ที่คาบเรียน → บันทึกเรียนถึงไหน',
                         value: _askLog,
                         onChanged: (v) {
                           setState(() => _askLog = v);
                           repo.setSetting(askClassLogKey, v ? 'on' : 'off');
                         },
-                        title: const Text('กด "ทำแล้ว" ที่คาบเรียน → บันทึกเรียนถึงไหน'),
-                        subtitle: const Text('แผ่นเดียว: บท · หัวข้อ · การบ้าน · เวลาเลิก · ปิด = ติ๊กทำแล้วอย่างเดียว'),
                       ),
-                      row(
-                        'ผ่าน · พักได้',
-                        SegmentedButton<int>(
-                          showSelectedIcon: false,
-                          segments: const [
-                            ButtonSegment(value: 70, label: Text('70%')),
-                            ButtonSegment(value: 80, label: Text('80%')),
-                            ButtonSegment(value: 90, label: Text('90%')),
-                          ],
-                          selected: {_pass},
-                          onSelectionChanged: (v) {
-                            setState(() => _pass = v.first);
-                            repo.setSetting(tutorPassKey, '${v.first}');
-                          },
-                        ),
-                        hint: 'บทที่เรียนแล้วเฉลี่ยถึงเกณฑ์ → ติวสัปดาห์นี้ไม่บังคับ',
+                      const MiniLabel('ผ่าน · พักติวได้ เมื่อบทที่เรียนแล้วเฉลี่ยถึง'),
+                      MiniSegments<int>(
+                        value: _pass,
+                        items: const [(70, '70%'), (80, '80%'), (90, '90%')],
+                        onChanged: (v) {
+                          setState(() => _pass = v);
+                          repo.setSetting(tutorPassKey, '$v');
+                        },
                       ),
                     ]),
                     const SizedBox(height: 14),
                     section('ล็อก', [
-                      SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
+                      MiniSwitchRow(
+                        label: '🔒 ล็อกงานที่เริ่มไปแล้ว',
+                        detail: 'เลื่อน / ยกเลิก / แก้ / ลบ ต้องยืนยัน',
                         value: _lock,
+                        last: true,
                         onChanged: (v) {
                           setState(() => _lock = v);
                           final cal = CalendarScope.of(context);
                           cal.setSetting(lockSettingKey, v ? 'on' : 'off').then((_) => refreshLockState(cal));
                         },
-                        title: const Text('🔒 ล็อกงานที่เริ่มไปแล้ว'),
-                        subtitle: const Text('กรอกผลได้ตามปกติ · เลื่อน / ยกเลิก / แก้ / ลบ ต้องยืนยันก่อน · ตั้งคำมั่นได้ที่คลิกขวา → คำมั่น'),
                       ),
                     ]),
                     const SizedBox(height: 14),
@@ -263,15 +266,15 @@ class _SettingsPageState extends State<SettingsPage> {
                       section('หน้าต่าง', [
                         ValueListenableBuilder(
                           valueListenable: fullscreen,
-                          builder: (context, on, _) => SwitchListTile(
-                            contentPadding: EdgeInsets.zero,
+                          builder: (context, on, _) => MiniSwitchRow(
+                            label: 'เต็มจอไร้ขอบ (F11)',
+                            detail: 'Esc / F11 = กลับหน้าต่างปกติ',
                             value: on,
+                            last: true,
                             onChanged: (v) {
                               setFullscreen(v);
                               repo.setSetting(fullscreenKey, v ? 'on' : 'off');
                             },
-                            title: const Text('เต็มจอไร้ขอบ (F11)'),
-                            subtitle: const Text('ไม่มีแถบชื่อหน้าต่าง · Esc / F11 = กลับหน้าต่างปกติ · จำไว้ตอนเปิดครั้งถัดไป'),
                           ),
                         ),
                       ]),
@@ -280,13 +283,12 @@ class _SettingsPageState extends State<SettingsPage> {
                     section('ข้อมูลตัวอย่าง (ทดสอบ)', [
                       ValueListenableBuilder(
                         valueListenable: demoMode,
-                        builder: (context, on, _) => SwitchListTile(
-                          contentPadding: EdgeInsets.zero,
+                        builder: (context, on, _) => MiniSwitchRow(
+                          label: 'ใช้ข้อมูลตัวอย่าง 1 ปี',
+                          detail: 'อยู่ในหน่วยความจำ · ไม่แตะข้อมูลจริง',
                           value: on,
+                          last: true,
                           onChanged: (v) => demoMode.value = v,
-                          title: const Text('ใช้ข้อมูลตัวอย่าง 1 ปี'),
-                          subtitle: const Text(
-                              'เหมือนใช้แอปมาแล้ว 1 ปี · อยู่ในหน่วยความจำเท่านั้น ไม่เขียนลงไฟล์ ไม่แตะข้อมูลจริง · ปิด / ปิดแอป = หายเอง'),
                         ),
                       ),
                     ]),
@@ -421,17 +423,12 @@ class _BackupSectionState extends State<_BackupSection> {
   }
 
   Future<void> _restore(File f) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('กู้คืนข้อมูล?'),
-        content: Text('ข้อมูลจะกลับไปเป็นของไฟล์ ${p.basename(f.path)}\n'
-            'แอปจะสำรองข้อมูลตอนนี้ไว้ก่อน (เผื่อเปลี่ยนใจ) แล้วกู้คืนเมื่อเปิดแอปครั้งถัดไป'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('ยกเลิก')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('กู้คืนเมื่อเปิดใหม่')),
-        ],
-      ),
+    final ok = await confirmMini(
+      context,
+      title: 'กู้คืนข้อมูล?',
+      message: 'ข้อมูลจะกลับไปเป็นของไฟล์ ${p.basename(f.path)}\n'
+          'แอปจะสำรองข้อมูลตอนนี้ไว้ก่อน (เผื่อเปลี่ยนใจ) แล้วกู้คืนเมื่อเปิดแอปครั้งถัดไป',
+      okLabel: 'กู้คืนเมื่อเปิดใหม่',
     );
     if (ok != true) return;
     await widget.backup!.scheduleRestore(f);

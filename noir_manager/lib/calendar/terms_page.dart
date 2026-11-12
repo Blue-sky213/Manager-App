@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../theme/noir_colors.dart';
 import '../utils/thai_date.dart';
 import '../widgets/dialogs.dart';
+import '../widgets/mini_form.dart';
+import '../widgets/mini_segments.dart';
 import 'calendar_listener.dart';
 import 'calendar_models.dart';
 import 'holiday_flow.dart';
@@ -48,39 +50,26 @@ class _TermsPageState extends State<TermsPage> with CalendarListener<TermsPage> 
   Future<void> _editTerm([Term? old]) async {
     var year = old?.year ?? 1;
     var termNo = old?.termNo ?? 1;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setLocal) => AlertDialog(
-          title: Text(old == null ? 'เพิ่มภาคเรียน' : 'แก้ภาคเรียน'),
-          content: Column(mainAxisSize: MainAxisSize.min, children: [
-            Row(children: [
-              const SizedBox(width: 64, child: Text('ปีที่')),
-              Wrap(spacing: 6, children: [
-                for (var y = 1; y <= 4; y++)
-                  ChoiceChip(
-                    label: Text('$y'),
-                    selected: year == y,
-                    onSelected: (_) => setLocal(() => year = y),
-                  ),
-              ]),
-            ]),
-            const SizedBox(height: 8),
-            Row(children: [
-              const SizedBox(width: 64, child: Text('เทอม')),
-              Wrap(spacing: 6, children: [
-                for (final (t, label) in [(1, '1'), (2, '2'), (3, 'ฤดูร้อน')])
-                  ChoiceChip(
-                    label: Text(label),
-                    selected: termNo == t,
-                    onSelected: (_) => setLocal(() => termNo = t),
-                  ),
-              ]),
-            ]),
-          ]),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('ยกเลิก')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('เลือกวัน')),
+    final ok = await showMiniForm<bool>(
+      context,
+      (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => MiniForm(
+          title: old == null ? 'เพิ่มภาคเรียน' : 'แก้ภาคเรียน',
+          primaryLabel: 'เลือกวัน',
+          onPrimary: () => Navigator.pop(ctx, true),
+          children: [
+            const MiniLabel('ปีที่'),
+            MiniSegments<int>(
+              value: year,
+              items: [for (var y = 1; y <= 4; y++) (y, '$y')],
+              onChanged: (y) => setLocal(() => year = y),
+            ),
+            const MiniLabel('เทอม'),
+            MiniSegments<int>(
+              value: termNo,
+              items: const [(1, '1'), (2, '2'), (3, 'ฤดูร้อน')],
+              onChanged: (t) => setLocal(() => termNo = t),
+            ),
           ],
         ),
       ),

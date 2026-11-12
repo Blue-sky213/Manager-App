@@ -5,6 +5,7 @@ import '../calendar/calendar_repository.dart';
 import '../data/study_scope.dart';
 import '../theme/noir_colors.dart';
 import '../widgets/dialogs.dart';
+import '../widgets/mini_form.dart';
 import 'attendance.dart';
 import 'grading.dart';
 
@@ -98,66 +99,66 @@ class _GradeCardState extends State<GradeCard> {
       return null;
     }
 
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setLocal) => AlertDialog(
-          title: Text(part == null ? 'เพิ่มส่วนคะแนน' : 'แก้ส่วนคะแนน'),
-          content: SizedBox(
-            width: 380,
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              TextField(
-                controller: name,
-                autofocus: part == null,
-                onChanged: (_) {
-                  if (showErr) setLocal(() {});
-                },
-                decoration: InputDecoration(
-                  labelText: 'ชื่อ *',
-                  hintText: 'เช่น งาน, สอบย่อย, สอบปลายภาค',
-                  errorText: err(name, 'ใส่ชื่อส่วนคะแนน'),
-                ),
-              ),
-              TextField(
+    Widget errText(String? m) => m == null
+        ? const SizedBox.shrink()
+        : Padding(padding: const EdgeInsets.only(top: 4), child: Text(m, style: TextStyle(fontSize: 12, color: context.noir.bad)));
+    final ok = await showMiniForm<bool>(
+      context,
+      (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => MiniForm(
+          title: part == null ? 'เพิ่มส่วนคะแนน' : 'แก้ส่วนคะแนน',
+          primaryLabel: part == null ? 'เพิ่ม' : 'บันทึก',
+          onPrimary: () {
+            final w = double.tryParse(weight.text.trim());
+            if (name.text.trim().isEmpty || w == null || w <= 0) {
+              setLocal(() => showErr = true);
+              return;
+            }
+            Navigator.pop(ctx, true);
+          },
+          children: [
+            MiniBigField(
+              controller: name,
+              autofocus: part == null,
+              hint: 'ชื่อ เช่น งาน, สอบย่อย, สอบปลายภาค',
+              onChanged: (_) {
+                if (showErr) setLocal(() {});
+              },
+            ),
+            errText(err(name, 'ใส่ชื่อส่วนคะแนน')),
+            MiniRow(
+              icon: Icons.percent,
+              label: 'คะแนนเก็บ (จาก 100)',
+              value: MiniInlineField(
                 controller: weight,
+                hint: 'เช่น 20',
+                width: 90,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 onChanged: (_) {
                   if (showErr) setLocal(() {});
                 },
-                decoration: InputDecoration(
-                  labelText: 'คะแนนเก็บ (จาก 100) *',
-                  hintText: 'เช่น 20',
-                  errorText: err(weight, 'ใส่คะแนนเก็บ', number: true),
+              ),
+              last: part != null,
+            ),
+            errText(err(weight, 'ใส่คะแนนเก็บ', number: true)),
+            if (part == null) ...[
+              MiniRow(
+                icon: Icons.tag,
+                label: 'จำนวนชิ้น',
+                value: MiniInlineField(controller: count, hint: '1', width: 90, keyboardType: TextInputType.number),
+              ),
+              MiniRow(
+                icon: Icons.call_split,
+                label: 'เต็มชิ้นละ',
+                last: true,
+                value: MiniInlineField(
+                  controller: full,
+                  hint: 'แบ่งเท่ากัน',
+                  width: 120,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 ),
               ),
-              if (part == null) ...[
-                TextField(
-                  controller: count,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'จำนวนชิ้น', hintText: 'เช่น งาน 4 ชิ้น'),
-                ),
-                TextField(
-                  controller: full,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(
-                      labelText: 'เต็มชิ้นละ (เว้นว่าง = แบ่งเท่ากัน)', hintText: 'เช่น งานละ 5 · สอบเต็ม 60'),
-                ),
-              ],
-            ]),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('ยกเลิก')),
-            FilledButton(
-              onPressed: () {
-                final w = double.tryParse(weight.text.trim());
-                if (name.text.trim().isEmpty || w == null || w <= 0) {
-                  setLocal(() => showErr = true);
-                  return;
-                }
-                Navigator.pop(ctx, true);
-              },
-              child: Text(part == null ? 'เพิ่ม' : 'บันทึก'),
-            ),
+            ],
           ],
         ),
       ),
@@ -184,39 +185,35 @@ class _GradeCardState extends State<GradeCard> {
     final got = TextEditingController(text: item.got == null ? '' : fmtScore(item.got!));
     final full = TextEditingController(text: fmtScore(item.full));
     final name = TextEditingController(text: item.name);
-    final res = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(item.name),
-        content: SizedBox(
-          width: 340,
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Row(children: [
-              Expanded(
-                child: TextField(
-                  controller: got,
-                  autofocus: true,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(labelText: 'ได้', hintText: 'เว้นว่าง = ยังไม่ได้คะแนน'),
-                  onSubmitted: (_) => Navigator.pop(ctx, 'save'),
-                ),
-              ),
-              const Padding(padding: EdgeInsets.symmetric(horizontal: 10), child: Text('/')),
-              Expanded(
-                child: TextField(
-                  controller: full,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(labelText: 'เต็ม'),
-                ),
-              ),
-            ]),
-            TextField(controller: name, decoration: const InputDecoration(labelText: 'ชื่อชิ้น')),
-          ]),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, 'delete'), child: const Text('ลบชิ้นนี้')),
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('ยกเลิก')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, 'save'), child: const Text('บันทึก')),
+    final res = await showMiniForm<String>(
+      context,
+      (ctx) => MiniForm(
+        title: item.name,
+        menu: [miniMenu('ลบชิ้นนี้', () => Navigator.pop(ctx, 'delete'), danger: true)],
+        primaryLabel: 'บันทึก',
+        onPrimary: () => Navigator.pop(ctx, 'save'),
+        children: [
+          MiniBigField(
+            controller: got,
+            hint: 'ได้',
+            fontSize: 28,
+            suffix: '/ ${fmtScore(item.full)}',
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            onSubmitted: (_) => Navigator.pop(ctx, 'save'),
+          ),
+          const MiniLabel('เว้นว่าง = ยังไม่ได้คะแนน'),
+          MiniRow(
+            icon: Icons.flag_outlined,
+            label: 'เต็ม',
+            value: MiniInlineField(
+                controller: full, width: 90, keyboardType: const TextInputType.numberWithOptions(decimal: true)),
+          ),
+          MiniRow(
+            icon: Icons.label_outline,
+            label: 'ชื่อชิ้น',
+            last: true,
+            value: MiniInlineField(controller: name, width: 180),
+          ),
         ],
       ),
     );

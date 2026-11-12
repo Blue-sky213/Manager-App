@@ -26,6 +26,8 @@ import '../theme/noir_colors.dart';
 import '../utils/thai_date.dart';
 import '../widgets/mini_dropdown.dart';
 import '../widgets/dialogs.dart';
+import '../widgets/mini_form.dart';
+import '../widgets/mini_segments.dart';
 
 /// หน้า "วิชา": Study Tree + Mastery Score
 /// วิชา → บท → หัวข้อย่อย · แตะหัวข้อย่อยเพื่อบันทึกคะแนน / ติดธง / ลบ
@@ -220,37 +222,11 @@ class _StudyPageState extends State<StudyPage> {
   /// เลือกรอบติวต่อสัปดาห์ภายในช่วงของความสำคัญ (น้อย 1–2 · กลาง 2–3 · สูง 3–7)
   Future<void> _changeSessions(Subject subject) async {
     final (lo, hi) = sessionRange(subject.importance);
-    final picked = await showDialog<int>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('รอบติวต่อสัปดาห์'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('ความสำคัญ${subject.importanceLabel} เลือกได้ $lo–$hi รอบ'),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (var n = lo; n <= hi; n++)
-                  ChoiceChip(
-                    label: Text('$n'),
-                    selected: n == subject.sessionsPerWeek,
-                    onSelected: (_) => Navigator.pop(ctx, n),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text('อยากได้มากกว่านี้ → เปลี่ยนความสำคัญของวิชาก่อน',
-                style: TextStyle(fontSize: 12, color: ctx.noir.muted)),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('ปิด')),
-        ],
-      ),
+    final picked = await showMiniChoice<int>(
+      context,
+      title: 'รอบติวต่อสัปดาห์ · ความสำคัญ${subject.importanceLabel} ($lo–$hi รอบ)',
+      current: subject.sessionsPerWeek,
+      items: [for (var n = lo; n <= hi; n++) miniChoice(n, '$n รอบ')],
     );
     if (picked == null) return;
     await _repo!.setSessionsPerWeek(subject.id, picked);
@@ -296,20 +272,15 @@ class _StudyPageState extends State<StudyPage> {
   /// เติมรายละเอียดให้วิชาตัวอย่าง (คะแนน ห้อง คาบที่เรียนแล้ว ติว งานหมวดอื่น วันหยุด)
   /// แตะข้อมูลเดิม → ถามก่อน และแนะนำให้สำรองข้อมูลก่อน
   Future<void> _enrichDemo() async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('เติมรายละเอียดตัวอย่าง'),
-        content: const Text('เพิ่มให้วิชาตัวอย่างปี 1 ภาค 1:\n'
-            '• คะแนนหัวข้อ · ห้องเรียน · สถานะบท\n'
-            '• คาบที่ผ่านมา = ทำแล้ว + เวลาเลิกจริง (ยกเลิก 1 คาบ)\n'
-            '• รอบติว · วิ่ง / สตรีม / ส่งงาน · Updates · วันหยุด\n\n'
-            'ของที่มีอยู่แล้วไม่ถูกทับ · ลบทีละรายการได้ · แนะนำให้สำรองข้อมูลก่อน'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('ยกเลิก')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('เติมเลย')),
-        ],
-      ),
+    final ok = await confirmMini(
+      context,
+      title: 'เติมรายละเอียดตัวอย่าง',
+      message: 'เพิ่มให้วิชาตัวอย่างปี 1 ภาค 1:\n'
+          '• คะแนนหัวข้อ · ห้องเรียน · สถานะบท\n'
+          '• คาบที่ผ่านมา = ทำแล้ว + เวลาเลิกจริง (ยกเลิก 1 คาบ)\n'
+          '• รอบติว · วิ่ง / สตรีม / ส่งงาน · Updates · วันหยุด\n\n'
+          'ของที่มีอยู่แล้วไม่ถูกทับ · ลบทีละรายการได้ · แนะนำให้สำรองข้อมูลก่อน',
+      okLabel: 'เติมเลย',
     );
     if (ok != true || !mounted) return;
     final summary = await enrichDemoTerm(_repo!, CalendarScope.of(context));
@@ -349,9 +320,9 @@ class _StudyPageState extends State<StudyPage> {
     final post = {for (final l in _links) if (l.from == subject.id) l.to};
     final newPre = {...pre}, newPost = {...post};
 
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(builder: (ctx, setLocal) {
+    final ok = await showMiniForm<bool>(
+      context,
+      (ctx) => StatefulBuilder(builder: (ctx, setLocal) {
         final c = ctx.noir;
         Widget section(String title, List<Subject> items, Set<int> picked) => Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -384,21 +355,13 @@ class _StudyPageState extends State<StudyPage> {
                   ),
               ],
             );
-        return AlertDialog(
-          title: Text('เส้นเชื่อม · ${subject.name}'),
-          content: SizedBox(
-            width: 480,
-            child: ListView(
-              shrinkWrap: true,
-              children: [
-                section('ต้องเรียนก่อนวิชานี้', before, newPre),
-                section('วิชานี้ต่อยอดไปที่', after, newPost),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('ยกเลิก')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('บันทึก')),
+        return MiniForm(
+          title: 'เส้นเชื่อม · ${subject.name}',
+          primaryLabel: 'บันทึก',
+          onPrimary: () => Navigator.pop(ctx, true),
+          children: [
+            section('ต้องเรียนก่อนวิชานี้', before, newPre),
+            section('วิชานี้ต่อยอดไปที่', after, newPost),
           ],
         );
       }),
@@ -1025,46 +988,33 @@ class _StudyPageState extends State<StudyPage> {
     var term = subject.planTerm ?? 1;
     final code = TextEditingController(text: subject.code ?? '');
     final credits = TextEditingController(text: subject.credits ?? '');
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setLocal) => AlertDialog(
-          title: const Text('จัดในแผน 4 ปี'),
-          content: SizedBox(
-            width: 400,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('ปีที่'),
-                Wrap(spacing: 6, children: [
-                  for (var y = 1; y <= 6; y++)
-                    ChoiceChip(
-                        label: Text('$y'),
-                        selected: y == year,
-                        onSelected: (_) => setLocal(() => year = y)),
-                ]),
-                const SizedBox(height: 8),
-                const Text('ภาคเรียน'),
-                Wrap(spacing: 6, children: [
-                  for (var t = 1; t <= 3; t++)
-                    ChoiceChip(
-                        label: Text(termLabel(t)),
-                        selected: t == term,
-                        onSelected: (_) => setLocal(() => term = t)),
-                ]),
-                TextField(
-                    controller: code,
-                    decoration: const InputDecoration(labelText: 'รหัสวิชา', hintText: '060233115')),
-                TextField(
-                    controller: credits,
-                    decoration: const InputDecoration(labelText: 'หน่วยกิต', hintText: '3(2-2-5)')),
-              ],
+    final ok = await showMiniForm<bool>(
+      context,
+      (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => MiniForm(
+          title: 'จัดในแผน 4 ปี · ${subject.name}',
+          primaryLabel: 'บันทึก',
+          onPrimary: () => Navigator.pop(ctx, true),
+          children: [
+            const MiniLabel('ปีที่'),
+            MiniSegments<int>(
+              value: year,
+              items: [for (var y = 1; y <= 6; y++) (y, '$y')],
+              onChanged: (y) => setLocal(() => year = y),
             ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('ยกเลิก')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('บันทึก')),
+            const MiniLabel('ภาคเรียน'),
+            MiniSegments<int>(
+              value: term,
+              items: [for (var t = 1; t <= 3; t++) (t, termLabel(t))],
+              onChanged: (t) => setLocal(() => term = t),
+            ),
+            const SizedBox(height: 6),
+            MiniRow(icon: Icons.tag, label: 'รหัสวิชา', value: MiniInlineField(controller: code, hint: '060233115')),
+            MiniRow(
+                icon: Icons.school_outlined,
+                label: 'หน่วยกิต',
+                last: true,
+                value: MiniInlineField(controller: credits, hint: '3(2-2-5)')),
           ],
         ),
       ),
@@ -1078,11 +1028,10 @@ class _StudyPageState extends State<StudyPage> {
   /// สีประจำวิชา (ใช้ในไทม์ไลน์หาเวลาติว)
   Future<void> _pickColor(Subject subject) async {
     final current = subject.colorIndex ?? subject.id;
-    final picked = await showDialog<int>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('สีวิชา · ${subject.name}'),
-        content: Wrap(spacing: 10, runSpacing: 10, children: [
+    final picked = await showMiniForm<int>(
+      context,
+      (ctx) => MiniForm(title: 'สีวิชา · ${subject.name}', children: [
+        Wrap(spacing: 10, runSpacing: 10, children: [
           for (var i = 0; i < subjectPalette.length; i++)
             InkWell(
               customBorder: const CircleBorder(),
@@ -1093,14 +1042,12 @@ class _StudyPageState extends State<StudyPage> {
                 decoration: BoxDecoration(
                   color: subjectPalette[i],
                   shape: BoxShape.circle,
-                  border: i == current % subjectPalette.length
-                      ? Border.all(color: Colors.white, width: 3)
-                      : null,
+                  border: i == current % subjectPalette.length ? Border.all(color: ctx.noir.text, width: 3) : null,
                 ),
               ),
             ),
         ]),
-      ),
+      ]),
     );
     if (picked == null) return;
     await _repo!.setSubjectColor(subject.id, picked);
@@ -1126,55 +1073,20 @@ class _StudyPageState extends State<StudyPage> {
   }
 
   Future<void> _chapterKind(Chapter chapter) async {
-    final k = await showDialog<ChapterKind>(
-      context: context,
-      builder: (ctx) => SimpleDialog(
-        title: Text('ประเภทบท · ${chapter.name}'),
-        children: [
-          for (final (kind, detail) in const [
-            (ChapterKind.theory, 'อ่าน · ทำความเข้าใจ · ทดสอบตัวเอง'),
-            (ChapterKind.practice, 'ดูตัวอย่าง → ลงมือทำ · คละโจทย์'),
-            (ChapterKind.mixed, 'ทฤษฎีครึ่งแรก → ลงมือทำครึ่งหลัง'),
-          ])
-            SimpleDialogOption(
-              onPressed: () => Navigator.pop(ctx, kind),
-              child: ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Icon(kind == chapter.kind
-                    ? Icons.radio_button_checked
-                    : Icons.radio_button_unchecked),
-                title: Text(chapterKindLabel(kind)),
-                subtitle: Text(detail),
-              ),
-            ),
-        ],
-      ),
-    );
+    final k = await showMiniChoice<ChapterKind>(context, title: 'ประเภทบท · ${chapter.name}', current: chapter.kind, items: [
+      miniChoice(ChapterKind.theory, chapterKindLabel(ChapterKind.theory), detail: 'อ่าน · ทำความเข้าใจ · ทดสอบตัวเอง'),
+      miniChoice(ChapterKind.practice, chapterKindLabel(ChapterKind.practice), detail: 'ดูตัวอย่าง → ลงมือทำ · คละโจทย์'),
+      miniChoice(ChapterKind.mixed, chapterKindLabel(ChapterKind.mixed), detail: 'ทฤษฎีครึ่งแรก → ลงมือทำครึ่งหลัง'),
+    ]);
     if (k == null) return;
     await _repo!.setChapterKind(chapter.id, k);
     await _reload();
   }
 
   Future<void> _chapterStatus(Chapter chapter) async {
-    final st = await showDialog<ChapterStatus>(
-      context: context,
-      builder: (ctx) => SimpleDialog(
-        title: Text('สถานะบท · ${chapter.name}'),
-        children: [
-          for (final s in ChapterStatus.values)
-            SimpleDialogOption(
-              onPressed: () => Navigator.pop(ctx, s),
-              child: ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Icon(s == chapter.status
-                    ? Icons.radio_button_checked
-                    : Icons.radio_button_unchecked),
-                title: Text(chapterStatusLabel(s)),
-              ),
-            ),
-        ],
-      ),
-    );
+    final st = await showMiniChoice<ChapterStatus>(context, title: 'สถานะบท · ${chapter.name}', current: chapter.status, items: [
+      for (final s in ChapterStatus.values) miniChoice(s, chapterStatusLabel(s)),
+    ]);
     if (st == null) return;
     await _repo!.setChapterStatus(chapter.id, st);
     await _reload();
@@ -1289,7 +1201,6 @@ class _StudyPageState extends State<StudyPage> {
     }
   }
 
-  Future<void> _openSettings() => showStudySettings(context, _repo!);
 
   /// กดยุบ / ขยาย แล้วบันทึกทันที (ปิดเปิดแอปก็ยังเป็นแบบเดิม)
   Future<void> _setCollapsed(Set<String> keys) async {
@@ -1510,36 +1421,21 @@ class _StudyPageState extends State<StudyPage> {
           ],
           const _Legend(),
           const SizedBox(height: 12),
-          // สวิตช์โหมด EZ / Advanced (จำไว้ในฐานข้อมูล ทุกวิชาใช้ร่วมกัน)
-          Row(
-            children: [
-              SegmentedButton<GradingMode>(
-              segments: const [
-                ButtonSegment(value: GradingMode.ez, label: Text('EZ')),
-                ButtonSegment(
-                    value: GradingMode.advanced, label: Text('Advanced')),
-              ],
-              selected: {_mode},
-              showSelectedIcon: false,
-              onSelectionChanged: (selected) async {
-                await _repo!.setGradingMode(selected.first);
-                await _reload();
-              },
+          // สวิตช์โหมด EZ / Advanced อย่างเดียว · กฎ Advanced อยู่หน้าตั้งค่า
+          Align(
+            alignment: Alignment.centerLeft,
+            child: SizedBox(
+              width: 220,
+              child: MiniSegments<GradingMode>(
+                key: const Key('grading-switch'),
+                value: _mode,
+                items: const [(GradingMode.ez, 'EZ'), (GradingMode.advanced, 'Advanced')],
+                onChanged: (m) async {
+                  await _repo!.setGradingMode(m);
+                  await _reload();
+                },
               ),
-              if (_mode == GradingMode.advanced)
-                IconButton(
-                  tooltip: 'ตั้งค่าโหมด Advanced',
-                  icon: const Icon(Icons.settings_outlined),
-                  onPressed: _openSettings,
-                ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            _mode == GradingMode.ez
-                ? 'EZ: สีและ % = คะแนนล่าสุด'
-                : 'Advanced: สีและ % = ค่าเฉลี่ยทุกรอบ · เคยตกต้องเขียว 2 รอบติดถึงผ่าน',
-            style: TextStyle(fontSize: 12, color: c.muted),
+            ),
           ),
           const SizedBox(height: 8),
           if (_chapters.isNotEmpty)

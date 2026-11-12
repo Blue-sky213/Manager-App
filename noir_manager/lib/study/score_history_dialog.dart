@@ -4,6 +4,7 @@ import '../data/study_models.dart';
 import '../data/study_repository.dart';
 import '../theme/noir_colors.dart';
 import '../utils/thai_date.dart';
+import '../widgets/mini_form.dart';
 import 'mastery.dart';
 
 /// ตารางประวัติคะแนนของ 1 หัวข้อ: ดู · แก้ · ลบ · ยกเลิกโมฆะ
@@ -13,10 +14,7 @@ Future<void> showScoreHistory(
   StudyRepository repo,
   Subtopic topic,
 ) {
-  return showDialog<void>(
-    context: context,
-    builder: (_) => _ScoreHistoryDialog(repo: repo, topic: topic),
-  );
+  return showMiniForm<void>(context, (_) => _ScoreHistoryDialog(repo: repo, topic: topic));
 }
 
 class _ScoreHistoryDialog extends StatefulWidget {
@@ -55,31 +53,18 @@ class _ScoreHistoryDialogState extends State<_ScoreHistoryDialog> {
   Future<bool> _confirm(String what, List<ScoreRecord> after) async {
     final before = _summary(_rows!);
     final afterText = _summary(after);
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('ยืนยันการแก้คะแนน'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(what),
-            const SizedBox(height: 12),
-            const Text('ผลลัพธ์ของหัวข้อนี้จะเปลี่ยน:',
-                style: TextStyle(fontWeight: FontWeight.w600)),
-            Text('ก่อน: $before'),
-            Text('หลัง: $afterText'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('ยกเลิก'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('ยืนยัน'),
-          ),
+    final ok = await showMiniForm<bool>(
+      context,
+      (ctx) => MiniForm(
+        title: 'ยืนยันการแก้คะแนน',
+        primaryLabel: 'ยืนยัน',
+        onPrimary: () => Navigator.pop(ctx, true),
+        onSecondary: () => Navigator.pop(ctx, false),
+        children: [
+          Text(what, style: TextStyle(color: ctx.noir.text, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          MiniRow(label: 'ก่อน', valueText: before),
+          MiniRow(label: 'หลัง', valueText: afterText, last: true),
         ],
       ),
     );
@@ -125,9 +110,9 @@ class _ScoreHistoryDialogState extends State<_ScoreHistoryDialog> {
   Future<int?> _askScore(int current) async {
     final controller = TextEditingController(text: '$current');
     String? error;
-    return showDialog<int>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
+    return showMiniForm<int>(
+      context,
+      (ctx) => StatefulBuilder(
         builder: (ctx, setLocal) {
           void save() {
             final v = int.tryParse(controller.text.trim());
@@ -138,22 +123,20 @@ class _ScoreHistoryDialogState extends State<_ScoreHistoryDialog> {
             Navigator.pop(ctx, v);
           }
 
-          return AlertDialog(
-            title: const Text('แก้คะแนน'),
-            content: TextField(
-              controller: controller,
-              autofocus: true,
-              keyboardType: TextInputType.number,
-              decoration:
-                  InputDecoration(labelText: 'คะแนน (%)', errorText: error),
-              onSubmitted: (_) => save(),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('ยกเลิก'),
+          return MiniForm(
+            title: 'แก้คะแนน',
+            primaryLabel: 'ต่อไป',
+            onPrimary: save,
+            children: [
+              MiniBigField(
+                controller: controller,
+                hint: '0–100',
+                suffix: '%',
+                fontSize: 28,
+                keyboardType: TextInputType.number,
+                onSubmitted: (_) => save(),
               ),
-              FilledButton(onPressed: save, child: const Text('ต่อไป')),
+              if (error != null) Text(error!, style: TextStyle(fontSize: 12, color: ctx.noir.bad)),
             ],
           );
         },
@@ -167,48 +150,25 @@ class _ScoreHistoryDialogState extends State<_ScoreHistoryDialog> {
     final rows = _rows;
     final hasVoided = rows?.any((r) => r.voided) ?? false;
 
-    return AlertDialog(
-      title: Text('ประวัติคะแนน · ${widget.topic.name}'),
-      content: SizedBox(
-        width: 460,
-        child: rows == null
-            ? const SizedBox(
-                height: 80, child: Center(child: CircularProgressIndicator()))
-            : rows.isEmpty
-                ? const Text('ยังไม่มีคะแนน')
-                : SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(_summary(rows),
-                            style: TextStyle(color: c.muted, fontSize: 13)),
-                        const SizedBox(height: 8),
-                        for (var i = 0; i < rows.length; i++)
-                          _HistoryRow(
-                            index: i,
-                            record: rows[i],
-                            onEdit: () => _edit(i),
-                            onDelete: () => _delete(i),
-                          ),
-                        if (hasVoided) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            'รอบสีจาง = โมฆะ (ไม่นำมาคิด แต่ยังเก็บไว้)',
-                            style: TextStyle(fontSize: 12, color: c.muted),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-      ),
-      actions: [
-        if (hasVoided)
-          TextButton(onPressed: _undoVoid, child: const Text('ยกเลิกโมฆะ')),
-        FilledButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('ปิด'),
-        ),
+    return MiniForm(
+      title: 'ประวัติคะแนน · ${widget.topic.name}',
+      menu: [if (hasVoided) miniMenu('ยกเลิกโมฆะ', _undoVoid)],
+      children: [
+        if (rows == null)
+          const SizedBox(height: 80, child: Center(child: CircularProgressIndicator()))
+        else if (rows.isEmpty)
+          Text('ยังไม่มีคะแนน', style: TextStyle(color: c.muted))
+        else ...[
+          Text(_summary(rows), style: TextStyle(color: c.muted, fontSize: 13)),
+          const SizedBox(height: 8),
+          for (var i = 0; i < rows.length; i++)
+            _HistoryRow(index: i, record: rows[i], onEdit: () => _edit(i), onDelete: () => _delete(i)),
+          if (hasVoided) ...[
+            const SizedBox(height: 8),
+            Text('รอบสีจาง = โมฆะ (ไม่นำมาคิด แต่ยังเก็บไว้) · ยกเลิกโมฆะที่เมนู ⋮',
+                style: TextStyle(fontSize: 12, color: c.muted)),
+          ],
+        ],
       ],
     );
   }

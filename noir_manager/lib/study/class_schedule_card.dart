@@ -11,6 +11,8 @@ import '../shell/app_nav.dart';
 import '../theme/noir_colors.dart';
 import '../utils/thai_date.dart';
 import '../widgets/dialogs.dart';
+import '../widgets/mini_form.dart';
+import '../widgets/mini_segments.dart';
 import 'credit_hours.dart';
 
 /// การ์ด "ตารางเรียน + วันสอบ + สถิติเวลาเลิก" ของวิชาที่เลือก (ในหน้าวิชา)
@@ -332,101 +334,71 @@ Future<_SlotDraft?> _askSlot(BuildContext context) async {
   var from = dayOnly(DateTime.now());
   var to = from.add(const Duration(days: 7 * 13 - 3)); // ~3 เดือน (13 สัปดาห์)
 
-  final result = await showDialog<_SlotDraft>(
-    context: context,
-    builder: (ctx) => StatefulBuilder(
-      builder: (ctx, setLocal) => AlertDialog(
-        title: const Text('เพิ่มคาบเรียน'),
-        content: SizedBox(
-          width: 420,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _ClassInfoFields(
-                  type: type,
-                  onType: (t) => setLocal(() => type = t),
-                  room: room,
-                  section: section,
-                ),
-                const SizedBox(height: 12),
-                const Text('เรียนวันไหน (เลือกได้หลายวัน)'),
-                const SizedBox(height: 6),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    for (var d = 1; d <= 7; d++)
-                      FilterChip(
-                        label: Text(thaiWeekdayShort[d - 1]),
-                        selected: weekdays.contains(d),
-                        onSelected: (on) => setLocal(() {
-                          weekdays = on ? {...weekdays, d} : ({...weekdays}..remove(d));
-                        }),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                PickerTile(
-                  icon: Icons.schedule,
-                  label: 'เวลาเริ่มเรียน',
-                  value: fmtMinute(start),
-                  onTap: () async {
-                    final m = await pickMinute(ctx, start, title: 'เวลาเริ่มเรียน');
-                    if (m != null) setLocal(() => start = m);
-                  },
-                ),
-                PickerTile(
-                  icon: Icons.flag_outlined,
-                  label: 'เวลาเลิกเรียน (ตามตาราง)',
-                  value: fmtMinute(start + minutes),
-                  onTap: () async {
-                    final m = await pickMinute(ctx, (start + minutes) % (24 * 60),
-                        title: 'เวลาเลิกเรียนตามตาราง (เริ่ม ${fmtMinute(start)})');
-                    if (m != null) setLocal(() => minutes = durationBetween(start, m));
-                  },
-                ),
-                Text('คาบละ ${durationText(minutes)}',
-                    style: TextStyle(color: ctx.noir.muted, fontSize: 13)),
-                const SizedBox(height: 8),
-                PickerTile(
-                  icon: Icons.event,
-                  label: 'เริ่มเทอม',
-                  value: thaiShortDate(from),
-                  onTap: () async {
-                    final d = await pickDay(ctx, from);
-                    if (d != null) setLocal(() => from = dayOnly(d));
-                  },
-                ),
-                PickerTile(
-                  icon: Icons.event_busy,
-                  label: 'คาบสุดท้าย',
-                  value: thaiShortDate(to),
-                  onTap: () async {
-                    final d = await pickDay(ctx, to);
-                    if (d != null) setLocal(() => to = dayOnly(d));
-                  },
-                ),
-              ],
+  final result = await showMiniForm<_SlotDraft>(
+    context,
+    (ctx) => StatefulBuilder(
+      builder: (ctx, setLocal) => MiniForm(
+        title: 'เพิ่มคาบเรียน',
+        primaryLabel: 'เพิ่มคาบ',
+        onPrimary: weekdays.isEmpty || to.isBefore(from)
+            ? null
+            : () => Navigator.pop(ctx, (
+                  weekdays: weekdays,
+                  start: start,
+                  minutes: minutes,
+                  from: from,
+                  to: to,
+                  info: ClassInfo(type: type, room: room.text.trim(), section: section.text.trim()).normalized,
+                )),
+        children: [
+          // ประเภท = แถบเลือก · วัน = วงกลม · ที่เหลือเป็นแถว
+          _ClassInfoFields(type: type, onType: (t) => setLocal(() => type = t), room: room, section: section, below: [
+            const MiniLabel('เรียนวันไหน (เลือกได้หลายวัน)'),
+            WeekdayCircles(
+              selected: weekdays,
+              onToggle: (d) => setLocal(() {
+                weekdays = weekdays.contains(d) ? ({...weekdays}..remove(d)) : {...weekdays, d};
+              }),
             ),
+            const SizedBox(height: 6),
+            MiniRow(
+              icon: Icons.schedule,
+              label: 'เริ่ม',
+              valueText: fmtMinute(start),
+              onTap: () async {
+                final m = await pickMinute(ctx, start, title: 'เวลาเริ่มเรียน');
+                if (m != null) setLocal(() => start = m);
+              },
+            ),
+            MiniRow(
+              icon: Icons.flag_outlined,
+              label: 'เลิก (ตามตาราง)',
+              valueText: '${fmtMinute(start + minutes)} · ${durationText(minutes)}',
+              onTap: () async {
+                final m = await pickMinute(ctx, (start + minutes) % (24 * 60),
+                    title: 'เวลาเลิกเรียนตามตาราง (เริ่ม ${fmtMinute(start)})');
+                if (m != null) setLocal(() => minutes = durationBetween(start, m));
+              },
+            ),
+          ]),
+          MiniRow(
+            icon: Icons.event,
+            label: 'เริ่มเทอม',
+            valueText: thaiShortDate(from),
+            onTap: () async {
+              final d = await pickDay(ctx, from);
+              if (d != null) setLocal(() => from = dayOnly(d));
+            },
           ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('ยกเลิก')),
-          FilledButton(
-            onPressed: weekdays.isEmpty || to.isBefore(from)
-                ? null
-                : () => Navigator.pop(ctx, (
-                      weekdays: weekdays,
-                      start: start,
-                      minutes: minutes,
-                      from: from,
-                      to: to,
-                      info: ClassInfo(type: type, room: room.text.trim(), section: section.text.trim())
-                          .normalized,
-                    )),
-            child: const Text('เพิ่มคาบ'),
+          MiniRow(
+            icon: Icons.event_busy,
+            label: 'คาบสุดท้าย',
+            valueText: thaiShortDate(to),
+            last: true,
+            onTap: () async {
+              final d = await pickDay(ctx, to);
+              if (d != null) setLocal(() => to = dayOnly(d));
+            },
           ),
         ],
       ),
@@ -438,45 +410,38 @@ Future<_SlotDraft?> _askSlot(BuildContext context) async {
 }
 
 /// ประเภท (ทฤษฎี/ปฏิบัติ/ไม่ระบุ) + ห้อง + กลุ่มเรียน · ใช้ทั้งตอนเพิ่มคาบและตอนแก้คาบเดิม
+/// [below] = แถวที่แทรกระหว่างแถบประเภทกับแถวกลุ่ม/ห้อง
 class _ClassInfoFields extends StatelessWidget {
-  const _ClassInfoFields({required this.type, required this.onType, required this.room, required this.section});
+  const _ClassInfoFields(
+      {required this.type, required this.onType, required this.room, required this.section, this.below = const []});
 
   final ClassType? type;
   final ValueChanged<ClassType?> onType;
   final TextEditingController room;
   final TextEditingController section;
+  final List<Widget> below;
 
   @override
   Widget build(BuildContext context) => Column(
-        mainAxisSize: MainAxisSize.min, // กล่องสูงแค่พอดีเนื้อหา
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text('ประเภทคาบ'),
-          const SizedBox(height: 6),
-          Wrap(spacing: 6, runSpacing: 6, children: [
-            for (final t in [ClassType.theory, ClassType.lab, null])
-              ChoiceChip(
-                label: Text(t == null ? 'ไม่ระบุ' : '${classTypeLabel(t)} (${t == ClassType.theory ? 'S' : 'L'})'),
-                selected: type == t,
-                onSelected: (_) => onType(t),
-              ),
-          ]),
-          const SizedBox(height: 8),
-          Row(children: [
-            Expanded(
-              child: TextField(
-                controller: section,
-                decoration: const InputDecoration(labelText: 'กลุ่มเรียน', hintText: 'S.1 / L.1'),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: TextField(
-                controller: room,
-                decoration: const InputDecoration(labelText: 'ห้อง', hintText: '1-B4-08'),
-              ),
-            ),
-          ]),
+          MiniSegments<ClassType?>(
+            value: type,
+            items: const [(ClassType.theory, 'ทฤษฎี S'), (ClassType.lab, 'ปฏิบัติ L'), (null, 'ไม่ระบุ')],
+            onChanged: onType,
+          ),
+          ...below,
+          MiniRow(
+            icon: Icons.groups_outlined,
+            label: 'กลุ่มเรียน',
+            value: MiniInlineField(controller: section, hint: 'S.1 / L.1'),
+          ),
+          MiniRow(
+            icon: Icons.meeting_room_outlined,
+            label: 'ห้อง',
+            value: MiniInlineField(controller: room, hint: '1-B4-08'),
+          ),
         ],
       );
 }
@@ -486,27 +451,16 @@ Future<ClassInfo?> _askClassInfo(BuildContext context, ClassInfo initial) async 
   final room = TextEditingController(text: initial.room ?? '');
   final section = TextEditingController(text: initial.section ?? '');
   var type = initial.type;
-  final result = await showDialog<ClassInfo>(
-    context: context,
-    builder: (ctx) => StatefulBuilder(
-      builder: (ctx, setLocal) => AlertDialog(
-        title: const Text('ประเภท / ห้อง / กลุ่มเรียน'),
-        content: SizedBox(
-          width: 420,
-          child: _ClassInfoFields(
-            type: type,
-            onType: (t) => setLocal(() => type = t),
-            room: room,
-            section: section,
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('ยกเลิก')),
-          FilledButton(
-            onPressed: () => Navigator.pop(
-                ctx, ClassInfo(type: type, room: room.text.trim(), section: section.text.trim()).normalized),
-            child: const Text('บันทึก'),
-          ),
+  final result = await showMiniForm<ClassInfo>(
+    context,
+    (ctx) => StatefulBuilder(
+      builder: (ctx, setLocal) => MiniForm(
+        title: 'ประเภท · ห้อง · กลุ่มเรียน',
+        primaryLabel: 'บันทึก',
+        onPrimary: () =>
+            Navigator.pop(ctx, ClassInfo(type: type, room: room.text.trim(), section: section.text.trim()).normalized),
+        children: [
+          _ClassInfoFields(type: type, onType: (t) => setLocal(() => type = t), room: room, section: section),
         ],
       ),
     ),

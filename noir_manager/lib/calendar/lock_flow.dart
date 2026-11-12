@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../theme/noir_colors.dart';
 import 'calendar_models.dart';
 import 'calendar_repository.dart';
+import '../widgets/mini_form.dart';
 
 /// 🔒 ล็อกงานที่เริ่มไปแล้ว: กรอกผล (ทำแล้ว · บันทึกเรียน) ได้ตามปกติ
 /// แต่การแก้ย้อนหลัง (เลื่อน · ยกเลิก · แก้เวลา · แก้ไข · ลบ) ต้องยืนยันก่อน
@@ -70,39 +71,31 @@ Future<bool> confirmUnlock(BuildContext context, CalendarRepository repo, Occurr
   if (!context.mounted) return false;
   final c = context.noir;
   final hasNote = note != null && note.trim().isNotEmpty;
-  final res = await showDialog<String>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: const Text('🔒 งานนี้เริ่มไปแล้ว'),
-      content: SizedBox(
-        width: 420,
-        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          if (hasNote) ...[
-            Text('คุณตั้งใจไว้ว่า', style: TextStyle(color: c.muted)),
-            const SizedBox(height: 6),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: c.amberBg, borderRadius: BorderRadius.circular(10)),
-              child: Text('"${note.trim()}"',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: c.amberText)),
-            ),
-            const SizedBox(height: 12),
-            Text('คุณต้องการแก้ ถึงแม้ว่าความตั้งใจนี้อาจต้องสะดุด อย่างงั้นหรอ?', style: TextStyle(color: c.text)),
-          ] else
-            Text('แก้ย้อนหลังจะทำให้บันทึกไม่ตรงกับที่เกิดขึ้นจริง และสถิติคลาดไป · แก้จริงไหม?',
-                style: TextStyle(color: c.text)),
-        ]),
-      ),
-      actions: [
-        if (hasNote)
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, 'drop'),
-            style: TextButton.styleFrom(foregroundColor: c.bad),
-            child: const Text('เลิกตั้งใจข้อนี้'),
+  final res = await showMiniForm<String>(
+    context,
+    (ctx) => MiniForm(
+      title: '🔒 งานนี้เริ่มไปแล้ว',
+      menu: [if (hasNote) miniMenu('เลิกตั้งใจข้อนี้', () => Navigator.pop(ctx, 'drop'), danger: true)],
+      secondaryLabel: 'แก้ครั้งนี้',
+      onSecondary: () => Navigator.pop(ctx, 'edit'),
+      primaryLabel: hasNote ? 'ไม่แก้ ทำต่อ' : 'ไม่แก้',
+      onPrimary: () => Navigator.pop(ctx),
+      children: [
+        if (hasNote) ...[
+          Text('คุณตั้งใจไว้ว่า', style: TextStyle(color: c.muted)),
+          const SizedBox(height: 6),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: c.amberBg, borderRadius: BorderRadius.circular(10)),
+            child: Text('"${note.trim()}"',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: c.amberText)),
           ),
-        TextButton(onPressed: () => Navigator.pop(ctx, 'edit'), child: const Text('แก้ครั้งนี้')),
-        FilledButton(onPressed: () => Navigator.pop(ctx), child: Text(hasNote ? 'ไม่แก้ ทำต่อ' : 'ไม่แก้')),
+          const SizedBox(height: 12),
+          Text('คุณต้องการแก้ ถึงแม้ว่าความตั้งใจนี้อาจต้องสะดุด อย่างงั้นหรอ?', style: TextStyle(color: c.text)),
+        ] else
+          Text('แก้ย้อนหลังจะทำให้บันทึกไม่ตรงกับที่เกิดขึ้นจริง และสถิติคลาดไป · แก้จริงไหม?',
+              style: TextStyle(color: c.text)),
       ],
     ),
   );
@@ -115,27 +108,15 @@ Future<void> editCommitment(BuildContext context, CalendarRepository repo, Occur
   final current = await repo.getSetting(commitmentKey(o.activityId)) ?? '';
   if (!context.mounted) return;
   final ctl = TextEditingController(text: current);
-  final res = await showDialog<String>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: const Text('🔒 คำมั่นของงานนี้'),
-      content: SizedBox(
-        width: 420,
-        child: TextField(
-          controller: ctl,
-          autofocus: true,
-          maxLines: 2,
-          decoration: const InputDecoration(
-            labelText: 'ตั้งใจไว้ว่า…',
-            hintText: 'เช่น ผมต้องการทำต่อเนื่องโดยไม่เว้น',
-            helperText: 'จะถูกยกขึ้นมาถามเมื่อจะแก้งานที่เริ่มไปแล้ว',
-          ),
-        ),
-      ),
-      actions: [
-        if (current.isNotEmpty) TextButton(onPressed: () => Navigator.pop(ctx, ''), child: const Text('ลบคำมั่น')),
-        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('ยกเลิก')),
-        FilledButton(onPressed: () => Navigator.pop(ctx, ctl.text.trim()), child: const Text('บันทึก')),
+  final res = await showMiniForm<String>(
+    context,
+    (ctx) => MiniForm(
+      title: '🔒 คำมั่นของงานนี้ · ถูกยกขึ้นมาถามเมื่อจะแก้งานที่เริ่มแล้ว',
+      menu: [if (current.isNotEmpty) miniMenu('ลบคำมั่น', () => Navigator.pop(ctx, ''), danger: true)],
+      primaryLabel: 'บันทึก',
+      onPrimary: () => Navigator.pop(ctx, ctl.text.trim()),
+      children: [
+        MiniBigField(controller: ctl, hint: 'ตั้งใจไว้ว่า… เช่น ทำต่อเนื่องไม่เว้น', fontSize: 18),
       ],
     ),
   );

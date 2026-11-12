@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../theme/noir_colors.dart';
 import '../utils/thai_date.dart';
 import '../widgets/dialogs.dart';
+import '../widgets/mini_form.dart';
 import 'calendar_listener.dart';
 import 'calendar_models.dart';
 import 'calendar_repository.dart';
@@ -144,16 +145,13 @@ class _DayStickerCardState extends State<DayStickerCard> with CalendarListener<D
 Future<void> showStickerPicker(BuildContext context, CalendarRepository repo, DateTime day) async {
   final packs = (await repo.stickerPacks()).where((p) => p.enabled && p.stickers.isNotEmpty).toList();
   if (!context.mounted) return;
-  final picked = await showDialog<Sticker>(
-    context: context,
-    builder: (ctx) {
+  final picked = await showMiniForm<Sticker>(
+    context,
+    (ctx) {
       final c = ctx.noir;
-      return AlertDialog(
-        title: Text('แปะสติกเกอร์ · ${thaiShortDate(day)}'),
-        content: SizedBox(
-          width: 440,
-          child: SingleChildScrollView(
-            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+      return MiniForm(
+        title: 'แปะสติกเกอร์ · ${thaiShortDate(day)}',
+        children: [
               for (final p in packs) ...[
                 Padding(
                   padding: const EdgeInsets.only(top: 8, bottom: 6),
@@ -186,10 +184,7 @@ Future<void> showStickerPicker(BuildContext context, CalendarRepository repo, Da
                 ]),
               ],
               if (packs.isEmpty) Text('ทุกชุดถูกซ่อนอยู่ · เปิดได้ในตั้งค่า → สติกเกอร์', style: TextStyle(color: c.muted)),
-            ]),
-          ),
-        ),
-        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('ปิด'))],
+        ],
       );
     },
   );
@@ -236,18 +231,26 @@ class _StickerSettingsState extends State<StickerSettings> with CalendarListener
       return t.characters.length == 1 ? null : 'ใส่ได้ 1 ตัว';
     }
 
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
+    final ok = await showMiniForm<bool>(
+      context,
+      (ctx) => StatefulBuilder(
         builder: (ctx, setLocal) {
           final c = ctx.noir;
           final n = picked.length;
-          return AlertDialog(
-            title: Text(pack == null ? 'เพิ่มสติกเกอร์' : 'เพิ่มลงชุด "${pack.name}"'),
-            content: SizedBox(
-              width: 420,
-              child: SingleChildScrollView(
-                child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          return MiniForm(
+            title: pack == null ? 'เพิ่มสติกเกอร์' : 'เพิ่มลงชุด "${pack.name}"',
+            primaryLabel: n > 0 ? 'เพิ่ม $n ชิ้น' : 'เพิ่ม',
+            onPrimary: () {
+              showErr = true;
+              if (picked.isEmpty &&
+                  (emojiErr() != null || emoji.text.trim().isEmpty || name.text.trim().isEmpty)) {
+                setLocal(() {});
+                return;
+              }
+              Navigator.pop(ctx, true);
+            },
+            onSecondary: () => Navigator.pop(ctx, false),
+            children: [
                   Align(
                     alignment: Alignment.centerLeft,
                     child: OutlinedButton.icon(
@@ -298,45 +301,32 @@ class _StickerSettingsState extends State<StickerSettings> with CalendarListener
                     ]),
                   ],
                   if (picked.isEmpty) ...[
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: emoji,
-                      style: const TextStyle(fontSize: 28),
-                      onChanged: (_) => setLocal(() {}),
-                      decoration: InputDecoration(
-                        labelText: 'หรือใส่อีโมจิ',
-                        hintText: '🐱',
-                        helperText: 'Windows กด Win + .',
-                        errorText: emojiErr(),
+                    const SizedBox(height: 6),
+                    MiniRow(
+                      icon: Icons.emoji_emotions_outlined,
+                      label: 'หรืออีโมจิ (Win + .)',
+                      value: MiniInlineField(
+                        controller: emoji,
+                        hint: '🐱',
+                        width: 70,
+                        onChanged: (_) => setLocal(() {}),
                       ),
                     ),
-                    TextField(
-                      controller: name,
-                      onChanged: (_) => setLocal(() {}),
-                      decoration: InputDecoration(
-                        labelText: 'ชื่อ *',
-                        hintText: 'เช่น อยากนอน',
-                        errorText: showErr && name.text.trim().isEmpty ? 'ใส่ชื่อ' : null,
+                    if (emojiErr() != null) Text(emojiErr()!, style: TextStyle(fontSize: 12, color: c.bad)),
+                    MiniRow(
+                      icon: Icons.label_outline,
+                      label: 'ชื่อ',
+                      last: true,
+                      value: MiniInlineField(
+                        controller: name,
+                        hint: 'เช่น อยากนอน',
+                        width: 160,
+                        onChanged: (_) => setLocal(() {}),
                       ),
                     ),
+                    if (showErr && name.text.trim().isEmpty)
+                      Text('ใส่ชื่อ', style: TextStyle(fontSize: 12, color: c.bad)),
                   ],
-                ]),
-              ),
-            ),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('ยกเลิก')),
-              FilledButton(
-                onPressed: () {
-                  showErr = true;
-                  if (picked.isEmpty &&
-                      (emojiErr() != null || emoji.text.trim().isEmpty || name.text.trim().isEmpty)) {
-                    setLocal(() {});
-                    return;
-                  }
-                  Navigator.pop(ctx, true);
-                },
-                child: Text(n > 0 ? 'เพิ่ม $n ชิ้น' : 'เพิ่ม'),
-              ),
             ],
           );
         },
