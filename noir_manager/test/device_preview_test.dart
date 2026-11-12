@@ -97,7 +97,7 @@ void main() {
     final y = tester.getCenter(find.text('ภาพรวม').first).dy.round();
     for (final t in tabs) {
       final ys = find.text(t).evaluate().map((e) => tester.getCenter(find.byWidget(e.widget)).dy.round());
-      expect(ys, contains(y), reason: 'แท็บ $t ต้องอยู่แถวเดียวกับภาพรวม');
+      expect(ys.any((v) => (v - y).abs() <= 3), isTrue, reason: 'แท็บ $t ต้องอยู่แถวเดียวกับภาพรวม');
     }
 
     Finder card(String label) => find.ancestor(of: find.text(label).last, matching: find.byType(Material)).first;

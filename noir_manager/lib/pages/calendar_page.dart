@@ -435,16 +435,20 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
             if (v.abs() > 200) step(v < 0 ? 1 : -1);
           },
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Row(children: [
-              Expanded(
-                child: Text(
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                Text(
                   '${thaiShortDate(_selected)} · ทำแล้ว ${dayProgress(_byDay[_selected] ?? const []).$1}/'
                   '${dayProgress(_byDay[_selected] ?? const []).$2}',
                   style: TextStyle(color: c.muted, fontSize: 13),
                 ),
-              ),
-              _actions(today),
-            ]),
+                _actions(today),
+              ],
+            ),
             const SizedBox(height: 8),
             DayAgenda(
               items: _byDay[_selected] ?? const [],
