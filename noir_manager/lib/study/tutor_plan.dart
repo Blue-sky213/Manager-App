@@ -146,7 +146,7 @@ DateTime mondayOf(DateTime day) {
 const tutorPassKey = 'tutor_pass';
 const defaultTutorPass = 80;
 
-/// ตั้งค่าต่อวิชาในสัปดาห์: เลือก "พักสัปดาห์นี้" แล้ว (key = rest:<subjectId>:<วันจันทร์>)
+/// ตั้งค่าต่อวิชาในสัปดาห์: เลือก "พักสัปดาห์นี้" แล้ว (key = `rest:subjectId:วันจันทร์`)
 String restKey(int subjectId, DateTime monday) =>
     'rest:$subjectId:${monday.year}-${monday.month}-${monday.day}';
 

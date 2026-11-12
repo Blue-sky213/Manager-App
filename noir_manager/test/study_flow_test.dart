@@ -92,6 +92,8 @@ void main() {
     await tester.pumpWidget(NoirManagerApp(studyRepository: study, calendarRepository: cal));
     await tester.pumpAndSettle();
 
+    await tester.ensureVisible(find.text('เรียน · ทดสอบ'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('เรียน · ทดสอบ'));
     await tester.pumpAndSettle();
     expect(find.text('บันทึกเรียนถึงไหน'), findsNothing); // เมนูซ้ำถูกเอาออก
