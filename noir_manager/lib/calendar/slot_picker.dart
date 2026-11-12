@@ -549,6 +549,9 @@ class _WeekGrid extends StatelessWidget {
   final VoidCallback onDragEnd;
   static final _rowKey = GlobalKey();
 
+  /// จุดที่จับในกล่อง (นาทีจากหัวกล่อง) · เก็บไว้นอก build เพราะกล่องถูกสร้างใหม่ทุกครั้งที่ขยับ
+  static int _grab = 0;
+
   /// เวลาบนสุดของตาราง (ตื่นเร็วสุดของสัปดาห์ ปัดลงเป็นชั่วโมง)
   final int axisFrom;
   final List<SlotDay> week;
@@ -571,12 +574,12 @@ class _WeekGrid extends StatelessWidget {
       const head = 36.0;
       final pxH = ((box.maxHeight - head) / hours).clamp(26.0, 60.0);
       final narrow = box.maxWidth < 600;
+      final colW = (box.maxWidth - 34) / 7;
       double y(int m) => (m - axisFrom) / 60 * pxH;
 
       Widget column(SlotDay d) {
         final past = d.day.isBefore(today);
         return LayoutBuilder(builder: (context, cb) {
-          final w = cb.maxWidth;
           return GestureDetector(
             key: ValueKey('slotcol-${d.day.day}'),
             behavior: HitTestBehavior.opaque,
@@ -620,14 +623,6 @@ class _WeekGrid extends StatelessWidget {
                       ),
                     ),
                 if (past) Positioned.fill(child: IgnorePointer(child: ColoredBox(color: c.bg.withValues(alpha: 0.5)))),
-                if (selectedDay == d.day && selectedStart != null)
-                  Positioned(
-                    left: 1,
-                    right: 1,
-                    top: y(selectedStart!),
-                    height: y(selectedStart! + len) - y(selectedStart!),
-                    child: _selectionBox(context, d, w, pxH, axisFrom),
-                  ),
               ]),
             ),
           );
@@ -654,6 +649,8 @@ class _WeekGrid extends StatelessWidget {
                 ),
             ]),
           ),
+          // กล่องที่เลือกวางทับทั้งตาราง (ไม่อยู่ในคอลัมน์วัน) → ลากข้ามวันได้ต่อเนื่อง ไม่หลุดกลางทาง
+          Stack(clipBehavior: Clip.none, children: [
           Row(key: _rowKey, crossAxisAlignment: CrossAxisAlignment.start, children: [
             SizedBox(
               width: 34,
@@ -677,6 +674,16 @@ class _WeekGrid extends StatelessWidget {
                 ),
               ),
           ]),
+          if (selectedStart != null && week.indexWhere((d) => d.day == selectedDay) case final i when i >= 0)
+            Positioned(
+              key: const ValueKey('slot-selected-pos'),
+              left: 34 + i * colW + 2.5,
+              width: colW - 5,
+              top: y(selectedStart!),
+              height: y(selectedStart! + len) - y(selectedStart!),
+              child: _selectionBox(context, week[i], colW - 5, pxH, axisFrom),
+            ),
+          ]),
         ]),
       );
     });
@@ -687,7 +694,6 @@ class _WeekGrid extends StatelessWidget {
     final c = context.noir;
     final bad = _blocked(d, selectedStart!, len);
     final color = bad ? c.bad : c.accent;
-    var grab = 0;
     int snap(double m) => ((m / 15).round() * 15);
     (int, double)? at(Offset global) {
       final box = _rowKey.currentContext?.findRenderObject() as RenderBox?;
@@ -702,12 +708,12 @@ class _WeekGrid extends StatelessWidget {
       child: GestureDetector(
         key: const ValueKey('slot-selected'),
         onPanStart: (e) {
-          grab = (e.localPosition.dy / pxH * 60).round();
+          _grab = (e.localPosition.dy / pxH * 60).round();
           onDragStart();
         },
         onPanUpdate: (e) {
           final hit = at(e.globalPosition);
-          if (hit != null) onDragMove(week[hit.$1], snap(hit.$2 - grab));
+          if (hit != null) onDragMove(week[hit.$1], snap(hit.$2 - _grab));
         },
         onPanEnd: (_) => onDragEnd(),
         child: DecoratedBox(
