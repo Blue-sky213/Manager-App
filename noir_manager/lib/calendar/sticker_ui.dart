@@ -346,6 +346,114 @@ class _StickerSettingsState extends State<StickerSettings> with CalendarListener
     }
   }
 
+  /// แผ่นรายละเอียดชุด: ตารางรูปล้วน (ชี้ / กดค้าง = ชื่อ) · กด "แก้ไข" ถึงขึ้น ✕ + ลบทั้งชุด
+  Future<void> _openPack(StickerPack pack) async {
+    final repo = calendar!;
+    var editing = false;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setLocal) {
+        final c = ctx.noir;
+        // อ่านชุดล่าสุดทุกครั้ง (ลบชิ้นแล้วตารางอัปเดต)
+        final p = _packs.where((x) => x.id == pack.id).firstOrNull ?? pack;
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Row(children: [
+              Expanded(
+                child: Text(p.name, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: c.text)),
+              ),
+              if (!p.builtin)
+                TextButton(
+                  onPressed: () => setLocal(() => editing = !editing),
+                  child: Text(editing ? 'เสร็จ' : 'แก้ไข'),
+                ),
+            ]),
+            Text('${p.stickers.length} ชิ้น · ชี้ / กดค้าง = ดูชื่อ', style: TextStyle(fontSize: 12, color: c.muted)),
+            const SizedBox(height: 12),
+            Flexible(
+              child: SingleChildScrollView(
+                child: Wrap(spacing: 10, runSpacing: 10, children: [
+                  for (final st in p.stickers)
+                    Tooltip(
+                      message: st.name,
+                      triggerMode: TooltipTriggerMode.longPress,
+                      child: Stack(clipBehavior: Clip.none, children: [
+                        Container(
+                          width: 56,
+                          height: 56,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(color: c.surface2, borderRadius: BorderRadius.circular(12)),
+                          child: StickerGlyph(st, size: 36),
+                        ),
+                        if (editing)
+                          Positioned(
+                            right: -6,
+                            top: -6,
+                            child: InkWell(
+                              key: ValueKey('del-sticker-${st.id}'),
+                              onTap: () async {
+                                await repo.deleteSticker(st.id);
+                                await reload();
+                                setLocal(() {});
+                              },
+                              child: CircleAvatar(
+                                radius: 10,
+                                backgroundColor: c.bad,
+                                child: const Icon(Icons.close, size: 13, color: Colors.white),
+                              ),
+                            ),
+                          ),
+                      ]),
+                    ),
+                  if (!p.builtin)
+                    InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () async {
+                        await _addSticker(p);
+                        await reload();
+                        setLocal(() {});
+                      },
+                      child: Container(
+                        width: 56,
+                        height: 56,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          border: Border.all(color: c.line2),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(Icons.add, color: c.accent),
+                      ),
+                    ),
+                ]),
+              ),
+            ),
+            if (editing && !p.builtin) ...[
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  style: TextButton.styleFrom(foregroundColor: c.bad),
+                  onPressed: () async {
+                    if (await confirmDelete(ctx, p.name)) {
+                      await repo.deleteStickerPack(p.id);
+                      if (ctx.mounted) Navigator.pop(ctx);
+                    }
+                  },
+                  icon: const Icon(Icons.delete_outline),
+                  label: const Text('ลบทั้งชุด'),
+                ),
+              ),
+            ],
+          ]),
+        );
+      }),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = context.noir;
@@ -357,40 +465,43 @@ class _StickerSettingsState extends State<StickerSettings> with CalendarListener
             onPressed: _packFromImages, icon: const Icon(Icons.photo_library_outlined), label: const Text('ชุดจากรูป')),
       ]),
       const SizedBox(height: 8),
+      // ชุดละแถว: ชื่อ · จำนวน · รูปตัวอย่าง 5 รูป · สวิตช์ · แตะ = ดูทั้งชุด / แก้ไข
       for (final p in _packs)
         GestureDetector(
           onSecondaryTapUp: (e) => _packMenu(p, e.globalPosition),
           onLongPressStart: (e) => _packMenu(p, e.globalPosition),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              Row(children: [
+          child: InkWell(
+            key: ValueKey('pack-${p.id}'),
+            borderRadius: BorderRadius.circular(10),
+            onTap: () => _openPack(p),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+              child: Row(children: [
                 Expanded(
-                  child: Text('${p.name}${p.builtin ? '' : ' · ของฉัน'}',
-                      style: TextStyle(fontWeight: FontWeight.w600, color: p.enabled ? c.text : c.muted)),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(p.name, style: TextStyle(fontWeight: FontWeight.w600, color: p.enabled ? c.text : c.muted)),
+                    Text('${p.stickers.length} ชิ้น · ${p.builtin ? 'ในแอป' : 'ของฉัน'}',
+                        style: TextStyle(fontSize: 12, color: c.muted)),
+                  ]),
                 ),
-                Switch(
-                  value: p.enabled,
-                  onChanged: (v) => calendar!.setStickerPackEnabled(p.id, v),
+                Opacity(
+                  opacity: p.enabled ? 1 : 0.4,
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    for (final st in p.stickers.take(5))
+                      Padding(padding: const EdgeInsets.only(left: 2), child: StickerGlyph(st, size: 22)),
+                    if (p.stickers.length > 5)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 4),
+                        child: Text('+${p.stickers.length - 5}', style: TextStyle(fontSize: 12, color: c.muted)),
+                      ),
+                  ]),
                 ),
+                Switch(value: p.enabled, onChanged: (v) => calendar!.setStickerPackEnabled(p.id, v)),
               ]),
-              Wrap(spacing: 4, runSpacing: 4, children: [
-                for (final s in p.stickers)
-                  p.builtin
-                      ? Tooltip(message: s.name, child: StickerGlyph(s, size: 26))
-                      : InputChip(
-                          avatar: StickerGlyph(s, size: 20),
-                          label: Text(s.name),
-                          onDeleted: () => calendar!.deleteSticker(s.id),
-                          deleteButtonTooltipMessage: 'ลบสติกเกอร์นี้',
-                        ),
-                if (!p.builtin)
-                  ActionChip(avatar: const Icon(Icons.add, size: 16), label: const Text('เพิ่ม'), onPressed: () => _addSticker(p)),
-              ]),
-            ]),
+            ),
           ),
         ),
-      Text('คลิกขวา / กดค้างที่ชุด = เพิ่มสติกเกอร์ · ลบชุด (ชุดในแอปซ่อนได้ แต่ลบไม่ได้)',
+      Text('แตะชุด = ดูทั้งหมด · แก้ไข / ลบ อยู่ในนั้น (ชุดในแอปซ่อนได้ แต่ลบไม่ได้)',
           style: TextStyle(fontSize: 12, color: c.muted)),
     ]);
   }

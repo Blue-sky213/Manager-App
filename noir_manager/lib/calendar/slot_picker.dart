@@ -1,5 +1,5 @@
-/// กล่องหาช่วงว่าง (ไทม์ไลน์ + ลิสต์แนะนำ) สำหรับ "งานครั้งเดียว" เช่น รอบติว
-/// แถว = วันที่ (เช่น 7 วันข้างหน้า) · ใช้ free_slots.dart คำนวณ
+/// หน้าต่าง "จองเวลา" (เช่น รอบติว): เห็นภาพทั้งสัปดาห์ / ทั้งเดือนก่อน แล้วค่อยแตะเลือก
+/// สัปดาห์ = 7 คอลัมน์ × เวลา (เส้นทุกชั่วโมง) · เดือน = ชั่วโมงว่างต่อวัน 3 ระดับสี
 library;
 
 import 'package:flutter/material.dart';
@@ -11,15 +11,73 @@ import 'calendar_models.dart';
 import 'calendar_repository.dart';
 import 'calendar_ui.dart';
 import 'free_slots.dart';
+import 'lock_flow.dart' show showLockBadge;
 
 /// ผลที่เลือก: วัน · นาทีเริ่ม · ความยาว
 typedef PickedSlot = ({DateTime day, int start, int minutes});
 
-/// ระบายสีงานในไทม์ไลน์ตามอะไร
-enum SlotColorMode { subject, importance }
+/// ข้อมูล 1 วันในหน้าจอง
+class SlotDay {
+  SlotDay(this.day, this.busy, this.from, this.to);
+  final DateTime day;
+  final List<Busy> busy;
 
-const double _rowH = 30;
-const double _labelW = 96;
+  /// ช่วงที่จองได้ของวัน (ตื่น → นอน · วันนี้เริ่มหลังเวลาปัจจุบัน)
+  final int from;
+  final int to;
+
+  /// ช่วงว่างจริง (ไม่ทับงานไหนเลย) · ใช้แนะนำ + นับชั่วโมงว่าง
+  List<Gap> get gaps => from < to ? freeGaps(busy, from, to) : const [];
+
+  /// ช่วงที่จองได้ ถ้ายอมทับงาน "แทนได้"
+  List<Gap> get bookable => from < to ? freeGaps(busy.where((b) => !b.replaceable).toList(), from, to) : const [];
+
+  /// ชั่วโมงว่างที่ยาวพอสำหรับรอบยาว [len] นาที
+  double freeHours(int len) => gaps.where((g) => g.length >= len).fold(0, (s, g) => s + g.length) / 60;
+}
+
+/// ระดับสีของหน้าเดือน: 0 = ไม่มีช่องยาวพอ · 1 = < 3 ชม. · 2 = 3–7 ชม. · 3 = 7 ชม.ขึ้นไป
+int freeLevel(double hours) => hours <= 0 ? 0 : (hours < 3 ? 1 : (hours < 7 ? 2 : 3));
+
+/// เลือกเวลาเริ่มจากจุดที่แตะ: ปัด 15 นาที แล้วขยับให้ทั้งรอบอยู่ในช่องที่จองได้ · null = ช่องสั้นเกิน / แตะโดนงานที่ทับไม่ได้
+int? fitStart(List<Gap> bookable, int minute, int len) {
+  for (final g in bookable) {
+    if (minute < g.start || minute >= g.end) continue;
+    if (g.length < len) return null;
+    final s = (minute ~/ 15) * 15;
+    return s.clamp(g.start, g.end - len);
+  }
+  return null;
+}
+
+Future<SlotDay> _loadDay(CalendarRepository repo, DateTime day, List<LifeBaseDay> lifeBase, int bufferAfter) async {
+  final now = DateTime.now();
+  final list = <Busy>[];
+  for (final x in await repo.occurrencesOn(day)) {
+    if (!x.timed || !x.active) continue;
+    final s = minuteOf(x.startAt!);
+    final e = (s + x.endAt!.difference(x.startAt!).inMinutes).clamp(s, 24 * 60);
+    // รอบติวมีพักเงียบหลังจบ → กันเวลาต่อท้ายงานติวไว้ด้วย
+    final pad = x.kind == ActivityKind.tutor ? bufferAfter : 0;
+    list.add(Busy(s, (e + pad).clamp(s, 24 * 60), x.title,
+        subjectId: x.subjectId,
+        importance: x.importance,
+        tutor: x.kind == ActivityKind.tutor,
+        classSession: x.kind == ActivityKind.classSession,
+        locked: showLockBadge(x)));
+  }
+  final lb = lifeBase[day.weekday - 1];
+  var from = lb.wakeMinute;
+  final to = lb.bedMinute < 12 * 60 ? 24 * 60 : lb.bedMinute;
+  final today = dayOnly(now);
+  if (day.isBefore(today)) {
+    from = to; // วันที่ผ่านแล้ว จองไม่ได้
+  } else if (day == today) {
+    final nowMin = ((now.hour * 60 + now.minute + 14) ~/ 15) * 15;
+    if (nowMin > from) from = nowMin;
+  }
+  return SlotDay(day, list, from, to);
+}
 
 Future<PickedSlot?> pickFreeSlot(
   BuildContext context,
@@ -33,360 +91,672 @@ Future<PickedSlot?> pickFreeSlot(
   String? note,
   Map<int, Color> subjectColors = const {},
   Map<int, String> subjectNames = const {},
+  int? subjectId,
 }) async {
   final lifeBase = await repo.lifeBase();
-  final now = DateTime.now();
-  final busy = <int, List<Busy>>{};
-  final gaps = <int, List<Gap>>{};
-  for (var i = 0; i < days.length; i++) {
-    final day = dayOnly(days[i]);
-    final list = <Busy>[];
-    for (final x in await repo.occurrencesOn(day)) {
-      if (!x.timed || !x.active) continue;
-      final s = minuteOf(x.startAt!);
-      final e = (s + x.endAt!.difference(x.startAt!).inMinutes).clamp(s, 24 * 60);
-      // รอบติวมีพักเงียบหลังจบ → กันเวลาต่อท้ายงานติวไว้ด้วย
-      final pad = x.kind == ActivityKind.tutor ? bufferAfter : 0;
-      list.add(Busy(s, (e + pad).clamp(s, 24 * 60), x.title,
-          subjectId: x.subjectId,
-          importance: x.importance,
-          tutor: x.kind == ActivityKind.tutor));
-    }
-    final lb = lifeBase[day.weekday - 1];
-    var from = lb.wakeMinute;
-    final to = lb.bedMinute < 12 * 60 ? 24 * 60 : lb.bedMinute;
-    if (day == dayOnly(now)) {
-      final nowMin = ((now.hour * 60 + now.minute + 14) ~/ 15) * 15;
-      if (nowMin > from) from = nowMin;
-    }
-    busy[i] = list;
-    gaps[i] = from < to ? freeGaps(list, from, to) : const [];
-  }
   if (!context.mounted) return null;
-
-  final axisFrom = (lifeBase.map((l) => l.wakeMinute).reduce((a, b) => a < b ? a : b) ~/ 60) * 60;
-  const axisTo = 24 * 60;
-  String rowName(int i) => thaiShortDate(days[i]);
-
-  var len = minutes;
-  int? row;
-  var start = preferStart;
-  var initialized = false;
-  var mode = SlotColorMode.subject;
-
+  final anchor = dayOnly(days.isEmpty ? DateTime.now() : days.first);
+  final wide = MediaQuery.sizeOf(context).width >= 720;
+  final body = _SlotPicker(
+    repo: repo,
+    title: title,
+    note: note,
+    minutes: minutes,
+    anchor: anchor,
+    lifeBase: lifeBase,
+    preferStart: preferStart,
+    bufferAfter: bufferAfter,
+    avoidDays: avoidDays,
+    subjectColors: subjectColors,
+    subjectId: subjectId,
+  );
   return showDialog<PickedSlot>(
     context: context,
-    builder: (ctx) => StatefulBuilder(builder: (ctx, setLocal) {
-      final c = ctx.noir;
-      final wide = MediaQuery.sizeOf(ctx).width >= 720;
-      // วันที่มีคาบเรียนวิชานี้อยู่แล้ว → เลื่อนลงท้ายรายการ (เว้นระยะให้สมองได้พัก)
-      final raw = suggestSlots(gaps, len + bufferAfter, preferStart, limit: 12);
-      final suggestions = [
-        ...raw.where((s) => !avoidDays.contains(dayOnly(days[s.row]))),
-        ...raw.where((s) => avoidDays.contains(dayOnly(days[s.row]))),
-      ].take(6).toList();
-      // เปิดกล่องครั้งแรก: เลือกช่องแนะนำอันแรกไว้ให้เลย
-      if (!initialized) {
-        initialized = true;
-        if (suggestions.isNotEmpty) {
-          row = suggestions.first.row;
-          start = suggestions.first.start;
+    builder: (_) => wide
+        ? Dialog(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 1080, maxHeight: 760), child: body))
+        : Dialog.fullscreen(child: SafeArea(child: body)),
+  );
+}
+
+class _SlotPicker extends StatefulWidget {
+  const _SlotPicker({
+    required this.repo,
+    required this.title,
+    required this.note,
+    required this.minutes,
+    required this.anchor,
+    required this.lifeBase,
+    required this.preferStart,
+    required this.bufferAfter,
+    required this.avoidDays,
+    required this.subjectColors,
+    required this.subjectId,
+  });
+
+  final CalendarRepository repo;
+  final String title;
+  final String? note;
+  final int minutes;
+  final DateTime anchor;
+  final List<LifeBaseDay> lifeBase;
+  final int preferStart;
+  final int bufferAfter;
+  final Set<DateTime> avoidDays;
+  final Map<int, Color> subjectColors;
+  final int? subjectId;
+
+  @override
+  State<_SlotPicker> createState() => _SlotPickerState();
+}
+
+class _SlotPickerState extends State<_SlotPicker> {
+  late int _len = widget.minutes;
+  late DateTime _monday = _mondayOf(widget.anchor);
+  late DateTime _month = DateTime(widget.anchor.year, widget.anchor.month);
+  bool _monthView = false;
+  List<SlotDay> _week = [];
+  Map<DateTime, SlotDay> _monthDays = {};
+  DateTime? _day;
+  int? _start;
+  bool _autoPicked = false;
+
+  static DateTime _mondayOf(DateTime d) => DateTime(d.year, d.month, d.day - (d.weekday - 1));
+
+  @override
+  void initState() {
+    super.initState();
+    _loadWeek();
+  }
+
+  Future<void> _loadWeek() async {
+    final week = [
+      for (var i = 0; i < 7; i++)
+        await _loadDay(widget.repo, DateTime(_monday.year, _monday.month, _monday.day + i), widget.lifeBase,
+            widget.bufferAfter),
+    ];
+    if (!mounted) return;
+    setState(() {
+      _week = week;
+      // เปิดครั้งแรก: เลือกช่องแนะนำอันแรกไว้ให้เลย
+      if (!_autoPicked) {
+        _autoPicked = true;
+        final r = _recommend();
+        if (r.isNotEmpty) {
+          _day = r.first.$1;
+          _start = r.first.$2;
         }
       }
-      final hits = row == null ? const <Busy>[] : clashesAt(busy[row]!, start, len);
+    });
+  }
 
-      Color colorOf(Busy b) => switch (mode) {
-            SlotColorMode.subject =>
-              b.subjectId == null ? c.line2 : (subjectColors[b.subjectId] ?? c.line2),
-            SlotColorMode.importance => importancePalette[b.importance] ?? c.line2,
-          };
+  Future<void> _loadMonth() async {
+    final first = DateTime(_month.year, _month.month);
+    final last = DateTime(_month.year, _month.month + 1, 0);
+    final out = <DateTime, SlotDay>{};
+    for (var d = first; !d.isAfter(last); d = DateTime(d.year, d.month, d.day + 1)) {
+      out[d] = await _loadDay(widget.repo, d, widget.lifeBase, widget.bufferAfter);
+    }
+    if (!mounted) return;
+    setState(() => _monthDays = out);
+  }
 
-      // ลากเมาส์ค้าง (หรือนิ้ว) ได้ต่อเนื่อง: แปลงตำแหน่ง → (แถว, นาที) ปัดทีละ 5 นาที
-      void dragTo(Offset local, double trackW) {
-        final ppm = trackW / (axisTo - axisFrom);
-        final i = (local.dy ~/ _rowH).clamp(0, days.length - 1);
-        final at = axisFrom + ((local.dx - _labelW) / ppm).round();
-        final s = (((at - len ~/ 2) / 5).round() * 5).clamp(axisFrom, axisTo - len);
-        if (i != row || s != start) {
-          setLocal(() {
-            row = i;
-            start = s;
-          });
-        }
+  /// ช่องแนะนำของสัปดาห์ (ไม่เกิน 3): ใกล้เวลาที่ชอบ · วันที่มีคาบเรียนวิชานี้ไว้ท้าย
+  List<(DateTime, int)> _recommend() {
+    final gaps = {for (var i = 0; i < _week.length; i++) i: _week[i].gaps};
+    final raw = suggestSlots(gaps, _len + widget.bufferAfter, widget.preferStart, limit: 14);
+    final sorted = [
+      ...raw.where((s) => !widget.avoidDays.contains(_week[s.row].day)),
+      ...raw.where((s) => widget.avoidDays.contains(_week[s.row].day)),
+    ];
+    final seen = <DateTime>{};
+    final out = <(DateTime, int)>[];
+    for (final s in sorted) {
+      if (seen.add(_week[s.row].day)) out.add((_week[s.row].day, s.start));
+      if (out.length == 3) break;
+    }
+    return out;
+  }
+
+  void _shiftWeek(int dir) {
+    setState(() {
+      _monday = DateTime(_monday.year, _monday.month, _monday.day + 7 * dir);
+      _week = [];
+    });
+    _loadWeek();
+  }
+
+  void _shiftMonth(int dir) {
+    setState(() {
+      _month = DateTime(_month.year, _month.month + dir);
+      _monthDays = {};
+    });
+    _loadMonth();
+  }
+
+  void _tap(SlotDay d, int minute) {
+    final s = fitStart(d.bookable, minute, _len);
+    if (s == null) return;
+    setState(() {
+      _day = d.day;
+      _start = s;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.noir;
+    final selDay = _week.where((d) => d.day == _day).firstOrNull ?? _monthDays[_day];
+    final hits = selDay == null || _start == null ? const <Busy>[] : clashesAt(selDay.busy, _start!, _len);
+    final blocked = hits.any((b) => !b.replaceable);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [
+          Expanded(
+            child: Text(widget.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: c.text)),
+          ),
+          IconButton(tooltip: 'ปิด', onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close)),
+        ]),
+        if (widget.note != null) Text(widget.note!, style: TextStyle(fontSize: 13, color: c.muted)),
+        const SizedBox(height: 8),
+        // ความยาวรอบ: เปลี่ยนแล้วช่องที่สั้นเกินจะเลือกไม่ได้ทันที
+        Wrap(spacing: 6, runSpacing: 6, children: [
+          for (final m in const [30, 45, 60, 90, 120])
+            ChoiceChip(
+              label: Text(durationText(m)),
+              selected: _len == m,
+              onSelected: (_) => setState(() {
+                _len = m;
+                if (selDay != null && _start != null) _start = fitStart(selDay.bookable, _start!, m);
+              }),
+            ),
+        ]),
+        const SizedBox(height: 8),
+        Row(children: [
+          SegmentedButton<bool>(
+            style: const ButtonStyle(visualDensity: VisualDensity.compact),
+            showSelectedIcon: false,
+            segments: const [
+              ButtonSegment(value: false, label: Text('สัปดาห์')),
+              ButtonSegment(value: true, label: Text('เดือน')),
+            ],
+            selected: {_monthView},
+            onSelectionChanged: (v) {
+              setState(() => _monthView = v.first);
+              if (v.first && _monthDays.isEmpty) _loadMonth();
+            },
+          ),
+          const Spacer(),
+          IconButton(
+            tooltip: _monthView ? 'เดือนก่อน' : 'สัปดาห์ก่อน',
+            onPressed: () => _monthView ? _shiftMonth(-1) : _shiftWeek(-1),
+            icon: const Icon(Icons.chevron_left),
+          ),
+          Text(
+            _monthView
+                ? thaiMonthYear(_month)
+                : '${thaiShortDate(_monday)} – ${thaiShortDate(_monday.add(const Duration(days: 6)))}',
+            style: TextStyle(fontSize: 13, color: c.text),
+          ),
+          IconButton(
+            tooltip: _monthView ? 'เดือนถัดไป' : 'สัปดาห์ถัดไป',
+            onPressed: () => _monthView ? _shiftMonth(1) : _shiftWeek(1),
+            icon: const Icon(Icons.chevron_right),
+          ),
+        ]),
+        const SizedBox(height: 4),
+        Expanded(
+          child: _monthView
+              ? _MonthFree(
+                  month: _month,
+                  days: _monthDays,
+                  len: _len,
+                  selected: _day,
+                  onPick: (d) {
+                    setState(() {
+                      _monthView = false;
+                      _monday = _mondayOf(d);
+                      _week = [];
+                      final g = _monthDays[d]?.gaps.where((g) => g.length >= _len).firstOrNull;
+                      _day = g == null ? null : d;
+                      _start = g?.start;
+                    });
+                    _loadWeek();
+                  },
+                )
+              : _week.isEmpty
+                  ? const Center(child: CircularProgressIndicator())
+                  : _WeekGrid(
+                      week: _week,
+                      len: _len,
+                      recommended: _recommend(),
+                      selectedDay: _day,
+                      selectedStart: _start,
+                      subjectColors: widget.subjectColors,
+                      subjectId: widget.subjectId,
+                      onTap: _tap,
+                      axisFrom: (widget.lifeBase.map((l) => l.wakeMinute).reduce((a, b) => a < b ? a : b) ~/ 60) * 60,
+                    ),
+        ),
+        const SizedBox(height: 8),
+        _Legend(month: _monthView),
+        const SizedBox(height: 8),
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 12,
+          runSpacing: 8,
+          children: [
+            Text(
+              _day == null || _start == null
+                  ? 'แตะช่องสีเขียวเพื่อเลือกเวลา'
+                  : blocked
+                      ? '⚠ ชนกับ ${hits.where((b) => !b.replaceable).map((b) => b.title).join(', ')}'
+                      : hits.isEmpty
+                          ? '${thaiShortDate(_day!)} ${rangeText(_start!, _len)}'
+                          : '${thaiShortDate(_day!)} ${rangeText(_start!, _len)} · ทับ ${hits.map((b) => b.title).join(', ')} (ย้ายได้ที่ปฏิทิน)',
+              style: TextStyle(fontWeight: FontWeight.w600, color: blocked ? c.bad : c.text),
+            ),
+            FilledButton(
+              onPressed: _day == null || _start == null || blocked
+                  ? null
+                  : () => Navigator.pop(context, (day: _day!, start: _start!, minutes: _len)),
+              child: const Text('จองเวลานี้'),
+            ),
+          ],
+        ),
+      ]),
+    );
+  }
+}
+
+/// สีพื้นของช่วงว่าง / ไม่ว่าง (ใช้ทั้งตารางและคำอธิบาย)
+Color _freeColor(NoirColors c) => c.greenBg;
+
+class _Legend extends StatelessWidget {
+  const _Legend({required this.month});
+  final bool month;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.noir;
+    Widget item(Widget mark, String text) => Row(mainAxisSize: MainAxisSize.min, children: [
+          mark,
+          const SizedBox(width: 4),
+          Text(text, style: TextStyle(fontSize: 11, color: c.muted)),
+        ]);
+    Widget box(Color color, {Border? border}) => Container(
+        width: 12,
+        height: 12,
+        decoration: BoxDecoration(color: color, border: border, borderRadius: BorderRadius.circular(3)));
+    if (month) {
+      return Wrap(spacing: 12, runSpacing: 4, children: [
+        for (final l in [1, 2, 3]) item(box(monthLevelColor(c, l).$1), const ['', 'ว่างน้อย < 3 ชม.', '3–7 ชม.', 'ว่างมาก 7+ ชม.'][l]),
+        item(box(c.line), 'ไม่มีช่องยาวพอ'),
+      ]);
+    }
+    return Wrap(spacing: 12, runSpacing: 4, children: [
+      item(box(_freeColor(c)), 'ว่าง'),
+      item(const Text('🎓', style: TextStyle(fontSize: 11)), 'เรียน'),
+      item(SizedBox(width: 12, height: 12, child: DecoratedBox(decoration: ShapeDecoration(shape: DashedRoundedBorder(color: c.muted, radius: 3, width: 1.2, dash: 3, gap: 2)))), 'ติว'),
+      item(const _Hatch(width: 12, height: 12), '⇄ แทนได้ (จองทับได้)'),
+      item(const Text('🔒', style: TextStyle(fontSize: 11)), 'ล็อก'),
+      item(box(Colors.transparent, border: Border.all(color: c.good, width: 1.5)), '★ แนะนำ'),
+    ]);
+  }
+}
+
+/// สีหน้าเดือน 3 ระดับ (พื้น, ตัวหนังสือ) · ว่างมาก = เขียวเข้มตัวขาว
+(Color, Color) monthLevelColor(NoirColors c, int level) => switch (level) {
+      1 => (Color.alphaBlend(c.good.withValues(alpha: 0.18), c.surface), c.text),
+      2 => (Color.alphaBlend(c.good.withValues(alpha: 0.5), c.surface), c.text),
+      3 => (c.good, Colors.white),
+      _ => (c.line, c.muted),
+    };
+
+/// ลายขีดเฉียง = งาน "แทนได้"
+class _Hatch extends StatelessWidget {
+  const _Hatch({this.width, this.height});
+  final double? width;
+  final double? height;
+
+  @override
+  Widget build(BuildContext context) =>
+      SizedBox(width: width, height: height, child: CustomPaint(painter: _HatchPainter(context.noir.muted)));
+}
+
+class _HatchPainter extends CustomPainter {
+  _HatchPainter(this.color);
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final p = Paint()
+      ..color = color.withValues(alpha: 0.35)
+      ..strokeWidth = 1.2;
+    canvas.save();
+    canvas.clipRect(Offset.zero & size);
+    for (var x = -size.height; x < size.width; x += 6) {
+      canvas.drawLine(Offset(x, size.height), Offset(x + size.height, 0), p);
+    }
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_HatchPainter old) => old.color != color;
+}
+
+/// ตารางสัปดาห์: 7 คอลัมน์ × เวลา · เส้นทุกชั่วโมง (ประครึ่งชั่วโมง) · กล่องมีชื่อ + ไอคอน
+class _WeekGrid extends StatelessWidget {
+  const _WeekGrid({
+    required this.week,
+    required this.len,
+    required this.recommended,
+    required this.selectedDay,
+    required this.selectedStart,
+    required this.subjectColors,
+    required this.subjectId,
+    required this.onTap,
+    required this.axisFrom,
+  });
+
+  /// เวลาบนสุดของตาราง (ตื่นเร็วสุดของสัปดาห์ ปัดลงเป็นชั่วโมง)
+  final int axisFrom;
+  final List<SlotDay> week;
+  final int len;
+  final List<(DateTime, int)> recommended;
+  final DateTime? selectedDay;
+  final int? selectedStart;
+  final Map<int, Color> subjectColors;
+  final int? subjectId;
+  final void Function(SlotDay day, int minute) onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.noir;
+    final today = dayOnly(DateTime.now());
+    const axisTo = 24 * 60;
+    final hours = (axisTo - axisFrom) ~/ 60;
+
+    return LayoutBuilder(builder: (context, box) {
+      const head = 36.0;
+      final pxH = ((box.maxHeight - head) / hours).clamp(26.0, 60.0);
+      final narrow = box.maxWidth < 600;
+      double y(int m) => (m - axisFrom) / 60 * pxH;
+
+      Widget column(SlotDay d) {
+        final past = d.day.isBefore(today);
+        return LayoutBuilder(builder: (context, cb) {
+          final w = cb.maxWidth;
+          return GestureDetector(
+            key: ValueKey('slotcol-${d.day.day}'),
+            behavior: HitTestBehavior.opaque,
+            onTapUp: (e) => onTap(d, axisFrom + (e.localPosition.dy / pxH * 60).round()),
+            child: SizedBox(
+              height: hours * pxH,
+              child: Stack(clipBehavior: Clip.hardEdge, children: [
+                // พื้น: ช่วงจองได้ = เขียว · นอก (นอน / ผ่านไปแล้ว) = เทา
+                Positioned.fill(child: ColoredBox(color: c.surface2)),
+                if (d.from < d.to)
+                  Positioned(left: 0, right: 0, top: y(d.from), height: y(d.to) - y(d.from), child: ColoredBox(color: _freeColor(c))),
+                for (var h = 0; h < hours; h++) ...[
+                  Positioned(left: 0, right: 0, top: h * pxH, child: Container(height: 1, color: c.line)),
+                  Positioned(left: 0, right: 0, top: h * pxH + pxH / 2, child: Container(height: 1, color: c.line.withValues(alpha: 0.4))),
+                ],
+                for (final b in d.busy)
+                  if (b.end > axisFrom)
+                    Positioned(
+                      left: 1,
+                      right: 1,
+                      top: y(b.start.clamp(axisFrom, axisTo)),
+                      height: (y(b.end) - y(b.start.clamp(axisFrom, axisTo)) - 1).clamp(2.0, double.infinity),
+                      child: _BusyBox(b: b, color: _colorOf(c, b), narrow: narrow, thisSubject: b.subjectId != null && b.subjectId == subjectId),
+                    ),
+                for (final (rd, rs) in recommended)
+                  if (rd == d.day)
+                    Positioned(
+                      left: 1,
+                      right: 1,
+                      top: y(rs),
+                      height: y(rs + len) - y(rs),
+                      child: IgnorePointer(
+                        child: Container(
+                          alignment: Alignment.topRight,
+                          decoration: BoxDecoration(
+                            border: Border.all(color: c.good, width: 1.5),
+                            borderRadius: BorderRadius.circular(5),
+                          ),
+                          child: Text('★', style: TextStyle(fontSize: 10, color: c.good)),
+                        ),
+                      ),
+                    ),
+                if (past) Positioned.fill(child: IgnorePointer(child: ColoredBox(color: c.bg.withValues(alpha: 0.5)))),
+                if (selectedDay == d.day && selectedStart != null)
+                  Positioned(
+                    left: 1,
+                    right: 1,
+                    top: y(selectedStart!),
+                    height: y(selectedStart! + len) - y(selectedStart!),
+                    child: IgnorePointer(
+                      child: DecoratedBox(
+                        key: const ValueKey('slot-selected'),
+                        decoration: ShapeDecoration(
+                          color: c.surface.withValues(alpha: 0.9),
+                          shape: DashedRoundedBorder(color: c.accent, radius: 5, width: 2),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(2),
+                          child: Text(
+                            w < 60 ? fmtMinute(selectedStart!) : rangeText(selectedStart!, len),
+                            maxLines: 2,
+                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: c.accent),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ]),
+            ),
+          );
+        });
       }
 
-      Widget timeline() => LayoutBuilder(builder: (ctx, box) {
-            final trackW = box.maxWidth - _labelW;
-            final ppm = trackW / (axisTo - axisFrom);
-            double x(int m) => _labelW + (m - axisFrom) * ppm;
-            return MouseRegion(
-              cursor: SystemMouseCursors.grab,
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onPanDown: (d) => dragTo(d.localPosition, trackW),
-                onPanUpdate: (d) => dragTo(d.localPosition, trackW),
-                child: SizedBox(
-                  height: _rowH * days.length,
-                  child: Stack(children: [
-                    for (var i = 0; i < days.length; i++) ...[
-                      Positioned(
-                        left: 0,
-                        top: i * _rowH,
-                        width: _labelW,
-                        height: _rowH,
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(rowName(i),
-                              style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: i == row ? FontWeight.w600 : FontWeight.w400,
-                                  color: i == row ? c.accent : c.muted)),
-                        ),
-                      ),
-                      for (final g in gaps[i]!)
-                        Positioned(
-                          left: x(g.start),
-                          width: (g.length * ppm - 2).clamp(0.0, double.infinity),
-                          top: i * _rowH + 3,
-                          height: _rowH - 6,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: g.length >= len ? c.greenBg : c.surface,
-                              borderRadius: BorderRadius.circular(5),
-                              border: Border.all(
-                                  color: g.length >= len ? c.good.withValues(alpha: 0.5) : c.line),
-                            ),
-                          ),
-                        ),
-                      for (final b in busy[i]!)
-                        Positioned(
-                          left: x(b.start),
-                          width: ((b.end - b.start) * ppm - 2).clamp(0.0, double.infinity),
-                          top: i * _rowH + 3,
-                          height: _rowH - 6,
-                          // ชี้เมาส์ค้าง = เห็นชื่อเต็ม + เวลา (กล่องเล็กตัวหนังสือถูกตัด)
-                          child: Tooltip(
-                            message: '${b.title}\n${rangeText(b.start, b.end - b.start)}',
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 4),
-                              alignment: Alignment.centerLeft,
-                              decoration: BoxDecoration(
-                                color: b.tutor ? colorOf(b).withValues(alpha: 0.45) : colorOf(b),
-                                borderRadius: BorderRadius.circular(5),
-                                border: b.tutor ? Border.all(color: colorOf(b), width: 1.5) : null,
-                              ),
-                              child: Text(
-                                b.title.replaceFirst('เรียน · ', '').replaceFirst('ติว · ', 'ติว '),
-                                maxLines: 1,
-                                overflow: TextOverflow.clip,
-                                style: TextStyle(fontSize: 10, color: onColor(colorOf(b))),
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                    if (row != null)
-                      Positioned(
-                        left: x(start),
-                        width: len * ppm,
-                        top: row! * _rowH + 1,
-                        height: _rowH - 2,
-                        child: IgnorePointer(
-                          child: Container(
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              color: hits.isEmpty ? c.accent : c.bad,
-                              borderRadius: BorderRadius.circular(5),
-                              boxShadow: const [BoxShadow(blurRadius: 6, color: Colors.black38)],
-                            ),
-                            child: Text(rangeText(start, len),
-                                maxLines: 1,
-                                overflow: TextOverflow.clip,
-                                style: TextStyle(
-                                    fontSize: 11, fontWeight: FontWeight.w600, color: c.onAccent)),
-                          ),
-                        ),
-                      ),
+      return SingleChildScrollView(
+        child: Column(children: [
+          // หัววัน
+          SizedBox(
+            height: head,
+            child: Row(children: [
+              const SizedBox(width: 34),
+              for (final d in week)
+                Expanded(
+                  child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    Text(thaiWeekdayShort[d.day.weekday - 1], style: TextStyle(fontSize: 11, color: c.muted)),
+                    Text('${d.day.day}',
+                        style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: d.day == today ? c.accent : c.text)),
                   ]),
                 ),
+            ]),
+          ),
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            SizedBox(
+              width: 34,
+              height: hours * pxH,
+              child: Stack(children: [
+                for (var h = 0; h < hours; h++)
+                  if (h % (pxH < 34 ? 2 : 1) == 0)
+                    Positioned(
+                      top: h * pxH - 6,
+                      right: 4,
+                      child: Text((axisFrom ~/ 60 + h).toString().padLeft(2, '0'),
+                          style: TextStyle(fontSize: 10, color: c.muted)),
+                    ),
+              ]),
+            ),
+            for (final d in week)
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 1.5),
+                  child: ClipRRect(borderRadius: BorderRadius.circular(6), child: column(d)),
+                ),
               ),
-            );
-          });
+          ]),
+        ]),
+      );
+    });
+  }
 
-      // คำอธิบายสี มุมขวาบนของไทม์ไลน์
-      Widget legend() {
-        final entries = <(Color, String)>[];
-        if (mode == SlotColorMode.subject) {
-          final ids = {
-            for (final l in busy.values)
-              for (final b in l)
-                if (b.subjectId != null) b.subjectId!,
-          };
-          for (final id in ids) {
-            entries.add((subjectColors[id] ?? c.line2, subjectNames[id] ?? 'วิชา $id'));
-          }
-          entries.add((c.line2, 'งานอื่น'));
-        } else {
-          for (final i in [3, 2, 1]) {
-            entries.add((importancePalette[i]!, importanceNames[i]!));
-          }
-        }
-        Widget dot(Color color, String name, {Color? border}) => Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 10,
-                  height: 10,
+  Color _colorOf(NoirColors c, Busy b) {
+    if (b.subjectId != null) return subjectColors[b.subjectId] ?? c.line2;
+    return c.line2;
+  }
+}
+
+/// กล่องงาน 1 ชิ้นในตาราง: ไอคอน (🔒 🎓 ✎ ⇄) + ชื่อ
+class _BusyBox extends StatelessWidget {
+  const _BusyBox({required this.b, required this.color, required this.narrow, required this.thisSubject});
+  final Busy b;
+  final Color color;
+  final bool narrow;
+  final bool thisSubject;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.noir;
+    final name = b.title.replaceFirst('เรียน · ', '').replaceFirst('ติว · ', '');
+    final icon = [
+      if (b.locked) '🔒',
+      if (b.classSession && !narrow) '🎓',
+      if (b.tutor) '✎',
+      if (b.replaceable) '⇄',
+    ].join();
+    final text = Text(
+      '$icon${icon.isEmpty ? '' : ' '}$name',
+      maxLines: 4,
+      overflow: TextOverflow.clip,
+      style: TextStyle(
+        fontSize: narrow ? 8.5 : 11,
+        height: 1.15,
+        fontWeight: thisSubject ? FontWeight.w600 : FontWeight.w400,
+        color: b.tutor || b.replaceable ? c.text : onColor(color),
+      ),
+    );
+    return Tooltip(
+      message: '${b.title}\n${rangeText(b.start, b.end - b.start)}${b.replaceable ? '\n⇄ แทนได้ · จองทับได้' : ''}',
+      child: b.tutor
+          ? DecoratedBox(
+              decoration: ShapeDecoration(
+                color: c.surface,
+                shape: DashedRoundedBorder(color: color, radius: 4, width: 1.5, dash: 4, gap: 2),
+              ),
+              child: Padding(padding: const EdgeInsets.all(2), child: text),
+            )
+          : b.replaceable
+              ? Container(
+                  decoration: BoxDecoration(
+                    color: c.surface,
+                    border: Border.all(color: c.line2),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Stack(children: [
+                    const Positioned.fill(child: _Hatch()),
+                    Padding(padding: const EdgeInsets.all(2), child: text),
+                  ]),
+                )
+              : Container(
+                  padding: const EdgeInsets.all(2),
                   decoration: BoxDecoration(
                     color: color,
-                    borderRadius: BorderRadius.circular(3),
-                    border: border == null ? null : Border.all(color: border),
+                    borderRadius: BorderRadius.circular(4),
+                    border: thisSubject ? Border.all(color: c.text.withValues(alpha: 0.5), width: 1.2) : null,
                   ),
+                  child: text,
                 ),
-                const SizedBox(width: 5),
-                Text(name, style: TextStyle(fontSize: 11, color: c.text)),
-              ],
-            );
-        // แถวคำอธิบายสี วางเหนือไทม์ไลน์ (ไม่ลอยทับช่อง)
-        return Wrap(
-          spacing: 12,
-          runSpacing: 4,
-          children: [
-            for (final (color, name) in entries) dot(color, name),
-            dot(c.greenBg, 'ว่างพอ', border: c.good),
-            dot(c.accent, 'ที่เลือก'),
-          ],
-        );
-      }
+    );
+  }
+}
 
-      return AlertDialog(
-        title: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis),
-        content: SizedBox(
-          width: wide ? 960 : 420,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (note != null) Text(note, style: TextStyle(fontSize: 13, color: c.muted)),
-                if (wide) ...[
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 6,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      Text('สีตาม', style: TextStyle(fontSize: 13, color: c.muted)),
-                      SegmentedButton<SlotColorMode>(
-                        style: const ButtonStyle(visualDensity: VisualDensity.compact),
-                        segments: const [
-                          ButtonSegment(value: SlotColorMode.subject, label: Text('วิชา')),
-                          ButtonSegment(value: SlotColorMode.importance, label: Text('ความสำคัญ')),
-                        ],
-                        selected: {mode},
-                        showSelectedIcon: false,
-                        onSelectionChanged: (v) => setLocal(() => mode = v.first),
-                      ),
-                      Text('· ลากเมาส์ค้างเพื่อเลื่อน · ชี้ที่กล่องเพื่อดูชื่อเต็ม',
-                          style: TextStyle(fontSize: 12, color: c.muted)),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration:
-                        BoxDecoration(color: c.surface, borderRadius: BorderRadius.circular(10)),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        legend(),
-                        const SizedBox(height: 8),
-                        timeline(),
-                      ],
+/// หน้าเดือน: ตัวเลขชั่วโมงว่างต่อวัน (เฉพาะช่องที่ยาวพอ) · 3 ระดับสี · แตะวัน → เปิดสัปดาห์นั้น
+class _MonthFree extends StatelessWidget {
+  const _MonthFree({
+    required this.month,
+    required this.days,
+    required this.len,
+    required this.selected,
+    required this.onPick,
+  });
+
+  final DateTime month;
+  final Map<DateTime, SlotDay> days;
+  final int len;
+  final DateTime? selected;
+  final ValueChanged<DateTime> onPick;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.noir;
+    if (days.isEmpty) return const Center(child: CircularProgressIndicator());
+    final first = DateTime(month.year, month.month);
+    final lead = first.weekday - 1;
+    final count = DateTime(month.year, month.month + 1, 0).day;
+    final today = dayOnly(DateTime.now());
+    return SingleChildScrollView(
+      child: Column(children: [
+        Row(children: [
+          for (final w in thaiWeekdayShort)
+            Expanded(child: Center(child: Text(w, style: TextStyle(fontSize: 11, color: c.muted)))),
+        ]),
+        const SizedBox(height: 4),
+        GridView.count(
+          crossAxisCount: 7,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          mainAxisSpacing: 4,
+          crossAxisSpacing: 4,
+          childAspectRatio: 1.05,
+          children: [
+            for (var i = 0; i < lead; i++) const SizedBox(),
+            for (var n = 1; n <= count; n++)
+              Builder(builder: (context) {
+                final d = DateTime(month.year, month.month, n);
+                final past = d.isBefore(today);
+                final hours = past ? 0.0 : (days[d]?.freeHours(len) ?? 0);
+                final (bg, fg) = monthLevelColor(c, freeLevel(hours));
+                return Opacity(
+                  opacity: past ? 0.4 : 1,
+                  child: Material(
+                    color: bg,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      side: d == selected ? BorderSide(color: c.accent, width: 2) : BorderSide.none,
                     ),
-                  ),
-                ],
-                const SizedBox(height: 12),
-                Text('ช่วงว่างแนะนำ', style: TextStyle(fontWeight: FontWeight.w600, color: c.text)),
-                const SizedBox(height: 6),
-                if (suggestions.isEmpty)
-                  Text('ไม่มีช่วงว่างพอใน ${days.length} วันนี้ ลองลดเวลาติว',
-                      style: TextStyle(color: c.bad)),
-                for (final sg in suggestions)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
-                    child: Material(
-                      color: sg.row == row && sg.start == start ? c.navBg : c.surface,
-                      borderRadius: BorderRadius.circular(10),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(10),
-                        onTap: () => setLocal(() {
-                          row = sg.row;
-                          start = sg.start;
-                        }),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                          child: Row(children: [
-                            SizedBox(
-                                width: 120,
-                                child: Text(rowName(sg.row),
-                                    style: const TextStyle(fontWeight: FontWeight.w600))),
-                            Expanded(
-                              child: Text.rich(TextSpan(children: [
-                                TextSpan(
-                                    text: rangeText(sg.start, len),
-                                    style: const TextStyle(fontWeight: FontWeight.w600)),
-                                TextSpan(
-                                  text: ' · ว่าง ${fmtMinute(sg.gap.start)}–${fmtMinute(sg.gap.end)}'
-                                      '${avoidDays.contains(dayOnly(days[sg.row])) ? ' · วันเดียวกับคาบเรียน' : ''}',
-                                  style: TextStyle(fontSize: 12, color: c.muted),
-                                ),
-                              ])),
-                            ),
-                            if (sg == suggestions.first)
-                              Text('แนะนำ', style: TextStyle(fontSize: 12, color: c.good)),
-                          ]),
+                    child: InkWell(
+                      key: ValueKey('slotday-$n'),
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: past ? null : () => onPick(d),
+                      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                        Text('$n', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: fg)),
+                        FittedBox(
+                          child: Text(
+                            hours <= 0 ? '—' : '${hours == hours.roundToDouble() ? hours.toInt() : hours.toStringAsFixed(1)} ชม.',
+                            style: TextStyle(fontSize: 10, color: fg),
+                          ),
                         ),
-                      ),
+                      ]),
                     ),
                   ),
-                const SizedBox(height: 6),
-                Wrap(spacing: 6, runSpacing: 6, children: [
-                  for (final m in const [30, 60, 90, 120])
-                    ChoiceChip(
-                      label: Text(durationText(m)),
-                      selected: len == m,
-                      onSelected: (_) => setLocal(() => len = m),
-                    ),
-                  ActionChip(
-                      label: const Text('−15 นาที'),
-                      onPressed: () => setLocal(() => start = (start - 15).clamp(0, 24 * 60 - len))),
-                  ActionChip(
-                      label: const Text('+15 นาที'),
-                      onPressed: () => setLocal(() => start = (start + 15).clamp(0, 24 * 60 - len))),
-                ]),
-                const SizedBox(height: 8),
-                if (row != null)
-                  Text(
-                    hits.isEmpty
-                        ? '${rowName(row!)} ${rangeText(start, len)} · ไม่ชนกับงานไหน'
-                        : '⚠ ${rowName(row!)} ${rangeText(start, len)} ชนกับ ${hits.map((b) => b.title).join(', ')}',
-                    style: TextStyle(fontWeight: FontWeight.w600, color: hits.isEmpty ? c.good : c.bad),
-                  ),
-              ],
-            ),
-          ),
+                );
+              }),
+          ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('ยกเลิก')),
-          FilledButton(
-            onPressed: row == null
-                ? null
-                : () => Navigator.pop(ctx, (day: dayOnly(days[row!]), start: start, minutes: len)),
-            child: Text(row == null ? 'เลือกช่วงเวลา' : 'จอง ${rowName(row!)} ${rangeText(start, len)}'),
-          ),
-        ],
-      );
-    }),
-  );
+      ]),
+    );
+  }
 }
