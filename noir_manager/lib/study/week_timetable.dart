@@ -8,6 +8,8 @@ import '../data/study_scope.dart';
 import '../theme/noir_colors.dart';
 import '../utils/thai_date.dart';
 import '../widgets/dialogs.dart';
+import '../widgets/mini_form.dart';
+import '../widgets/mini_segments.dart';
 import 'class_schedule_card.dart';
 import 'credit_hours.dart';
 import 'subject_colors.dart';
@@ -141,32 +143,28 @@ class _WeekTimetablePageState extends State<WeekTimetablePage> with CalendarList
       return;
     }
     var year = years.first, term = 1;
-    final pick = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setLocal) => AlertDialog(
-          title: const Text('จำลองตารางเรียน (ทดสอบ)'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('คาบละไม่เกิน 2 ชม. · ทฤษฎี/ปฏิบัติแยกคาบ · วิชาละไม่เกิน 4 ชม./สัปดาห์\n'
-                  'จ–ศ 08:00–18:00 พักเที่ยง · ไม่ชนคาบเดิม · ข้ามวิชาที่มีคาบแล้ว'),
-              const SizedBox(height: 12),
-              Wrap(spacing: 8, children: [
-                for (final y in years)
-                  ChoiceChip(label: Text('ปี $y'), selected: year == y, onSelected: (_) => setLocal(() => year = y)),
-              ]),
-              const SizedBox(height: 8),
-              Wrap(spacing: 8, children: [
-                for (final t in [1, 2])
-                  ChoiceChip(label: Text('ภาค $t'), selected: term == t, onSelected: (_) => setLocal(() => term = t)),
-              ]),
-            ],
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('ยกเลิก')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('จำลอง')),
+    final pick = await showMiniForm<bool>(
+      context,
+      (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => MiniForm(
+          title: 'จำลองตารางเรียน (ทดสอบ)',
+          primaryLabel: 'จำลอง',
+          onPrimary: () => Navigator.pop(ctx, true),
+          onSecondary: () => Navigator.pop(ctx, false),
+          children: [
+            const MiniLabel('คาบ ≤ 2 ชม. · ทฤษฎี/ปฏิบัติแยกคาบ · วิชา ≤ 4 ชม./สัปดาห์ · '
+                'จ–ศ 08:00–18:00 · ไม่ชนคาบเดิม · ข้ามวิชาที่มีคาบแล้ว'),
+            MiniSegments<int>(
+              value: year,
+              items: [for (final y in years) (y, 'ปี $y')],
+              onChanged: (y) => setLocal(() => year = y),
+            ),
+            const SizedBox(height: 8),
+            MiniSegments<int>(
+              value: term,
+              items: const [(1, 'ภาค 1'), (2, 'ภาค 2')],
+              onChanged: (t) => setLocal(() => term = t),
+            ),
           ],
         ),
       ),
@@ -232,33 +230,25 @@ class _WeekTimetablePageState extends State<WeekTimetablePage> with CalendarList
     final hasSlots = {for (final e in _bySubject.entries) if (e.value.any((a) => a.kind == ActivityKind.classSession)) e.key.id};
     int order(Subject s) => (hasSlots.contains(s.id) ? 0 : 1000) + (s.planYear ?? 9) * 10 + (s.planTerm ?? 9);
     final list = [..._subjects]..sort((a, b) => order(a).compareTo(order(b)));
-    return showDialog<Subject>(
-      context: context,
-      builder: (ctx) => SimpleDialog(
-        title: const Text('เพิ่มคาบให้วิชาไหน'),
-        children: [
-          SizedBox(
-            width: 440,
-            height: 420,
-            child: ListView(
-              children: [
-                for (final s in list)
-                  ListTile(
-                    dense: true,
-                    leading: CircleAvatar(radius: 6, backgroundColor: subjectColorOf(s)),
-                    title: Text(s.name),
-                    subtitle: Text([
-                      if (s.code != null) s.code!,
-                      if (s.planYear != null) 'ปี ${s.planYear} · ${s.planTerm == 3 ? 'ฤดูร้อน' : 'ภาค ${s.planTerm}'}',
-                      if (hasSlots.contains(s.id)) 'มีคาบแล้ว',
-                    ].join(' · ')),
-                    onTap: () => Navigator.pop(ctx, s),
-                  ),
-              ],
+    return showMiniForm<Subject>(
+      context,
+      (ctx) => MiniForm(title: 'เพิ่มคาบให้วิชาไหน', children: [
+        for (final (i, s) in list.indexed)
+          MiniRow(
+            value: Text(
+              [
+                if (s.code != null) s.code!,
+                if (s.planYear != null) 'ปี ${s.planYear} · ${s.planTerm == 3 ? 'ฤดูร้อน' : 'ภาค ${s.planTerm}'}',
+                if (hasSlots.contains(s.id)) 'มีคาบแล้ว',
+              ].join(' · '),
+              style: TextStyle(fontSize: 12, color: ctx.noir.muted),
             ),
+            label: s.name,
+            last: i == list.length - 1,
+            trailing: CircleAvatar(radius: 6, backgroundColor: subjectColorOf(s)),
+            onTap: () => Navigator.pop(ctx, s),
           ),
-        ],
-      ),
+      ]),
     );
   }
 

@@ -1,14 +1,14 @@
 /// กฎพิเศษของโหมด Advanced: เหตุการณ์ที่ "ค่าเฉลี่ยรวม" หลอกตา แล้วต้องถามผู้ใช้
 ///
 /// ทุกเหตุการณ์มี 3 ทางเลือกในหน้าตั้งค่า: ถามทุกครั้ง / ทางเลือก A อัตโนมัติ / ทางเลือก B อัตโนมัติ
-/// กล่องถามมีติ๊ก "ไม่ต้องถามอีก" → จำคำตอบล่าสุด แก้ได้ที่ปุ่ม ⚙
+/// กล่องถามมีติ๊ก "ไม่ต้องถามอีก" → จำคำตอบล่าสุด แก้ได้ที่หน้าตั้งค่า
 library;
 
 import 'package:flutter/material.dart';
 
 import '../data/study_models.dart';
-import '../data/study_repository.dart';
-
+import '../theme/noir_colors.dart';
+import '../widgets/mini_form.dart';
 
 /// เหตุการณ์ 1: เคยตก (<60) → เขียว (>80) 2 รอบติด แต่ค่าเฉลี่ยยังไม่เขียว
 const String greenRuleKey = 'green_twice_rule';
@@ -87,9 +87,9 @@ class RuleDecision {
 /// กล่องถาม: เขียว 2 รอบติดแล้ว นับเป็นเขียวเลยไหม?
 Future<RuleDecision?> askGreenTwice(BuildContext context, Subtopic t) {
   final lastTwo = t.scores.sublist(t.scores.length - 2).map((s) => '${s.score}%');
-  return showDialog<RuleDecision>(
-    context: context,
-    builder: (_) => _RuleDialog(
+  return showMiniForm<RuleDecision>(
+    context,
+    (_) => _RuleDialog(
       title: 'เขียว 2 รอบติดแล้ว',
       message: '"${t.name}" ได้ ${lastTwo.join(' และ ')} สองรอบล่าสุด '
           'แต่ค่าเฉลี่ยทุกรอบยังเป็น ${t.averageScore}%\n\n'
@@ -107,9 +107,9 @@ Future<RuleDecision?> askRedTwice(BuildContext context, Subtopic t) {
   final best = s.sublist(0, s.length - 2).map((p) => p.score).reduce(
         (a, b) => a > b ? a : b,
       );
-  return showDialog<RuleDecision>(
-    context: context,
-    builder: (_) => _RuleDialog(
+  return showMiniForm<RuleDecision>(
+    context,
+    (_) => _RuleDialog(
       title: 'คะแนนตก 2 รอบติด',
       message: '"${t.name}" เคยได้ $best% แต่ 2 รอบล่าสุดได้ ${lastTwo.join(' และ ')}\n\n'
           'ใส่คะแนนถูกจริงไหม? ถ้าถูก จะคิดจาก 2 รอบล่าสุดเท่านั้น '
@@ -148,147 +148,46 @@ class _RuleDialogState extends State<_RuleDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(widget.title),
-      content: SizedBox(
-        width: 400,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(widget.message),
-            const SizedBox(height: 8),
-            CheckboxListTile(
-              contentPadding: EdgeInsets.zero,
-              controlAffinity: ListTileControlAffinity.leading,
-              value: _remember,
-              onChanged: (v) => setState(() => _remember = v ?? false),
-              title: const Text('ไม่ต้องถามอีก'),
-              subtitle:
-                  const Text('ใช้คำตอบนี้ทุกครั้ง · เปลี่ยนได้ที่ปุ่ม ⚙ ตั้งค่า'),
-            ),
-          ],
-        ),
+    final c = context.noir;
+    final options = [
+      MiniRow(label: widget.text.recentLabel, onTap: () => _answer(RuleAnswer.recent)),
+      if (widget.text.allowAverage)
+        MiniRow(label: widget.text.averageLabel, onTap: () => _answer(RuleAnswer.average)),
+      if (widget.offerWrongScore)
+        MiniRow(label: 'ใส่ผิด → แก้คะแนน', onTap: () => _answer(RuleAnswer.wrongScore)),
+    ];
+    return MiniForm(title: widget.title, children: [
+      Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Text(widget.message, style: TextStyle(color: c.text)),
       ),
-      actions: [
-        if (widget.offerWrongScore)
-          TextButton(
-            onPressed: () => _answer(RuleAnswer.wrongScore),
-            child: const Text('ใส่ผิด → แก้คะแนน'),
-          ),
-        if (widget.text.allowAverage)
-          TextButton(
-            onPressed: () => _answer(RuleAnswer.average),
-            child: Text(widget.text.averageLabel),
-          ),
-        FilledButton(
-          onPressed: () => _answer(RuleAnswer.recent),
-          child: Text(widget.text.recentLabel),
-        ),
-      ],
-    );
-  }
-}
-
-/// กล่องตั้งค่าโหมด Advanced (ชั่วคราว จนกว่าจะมีหน้า Settings เต็ม)
-/// แตะตัวเลือกแล้วบันทึกทันที
-Future<void> showStudySettings(BuildContext context, StudyRepository repo) async {
-  final current = {
-    for (final r in [greenRule, redRule])
-      r.key: r.choiceFrom(await repo.getSetting(r.key)),
-  };
-  if (!context.mounted) return;
-  await showDialog<void>(
-    context: context,
-    builder: (_) => _SettingsDialog(repo: repo, initial: current),
-  );
-}
-
-class _SettingsDialog extends StatefulWidget {
-  const _SettingsDialog({required this.repo, required this.initial});
-
-  final StudyRepository repo;
-  final Map<String, RuleChoice> initial;
-
-  @override
-  State<_SettingsDialog> createState() => _SettingsDialogState();
-}
-
-class _SettingsDialogState extends State<_SettingsDialog> {
-  late final Map<String, RuleChoice> _values = Map.of(widget.initial);
-
-  Future<void> _set(String key, RuleChoice choice) async {
-    setState(() => _values[key] = choice);
-    await widget.repo.setSetting(key, choice.name);
-  }
-
-  Widget _section(RuleText r) {
-    Widget option(RuleChoice choice, String label, String detail) => ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: Icon(_values[r.key] == choice
-              ? Icons.radio_button_checked
-              : Icons.radio_button_unchecked),
-          title: Text(label),
-          subtitle: Text(detail),
-          onTap: () => _set(r.key, choice),
-        );
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('เมื่อ${r.event}:',
-            style: const TextStyle(fontWeight: FontWeight.w600)),
-        option(
-          RuleChoice.ask,
-          'ถามทุกครั้ง',
-          r.allowAverage
-              ? 'เด้งกล่องถามเมื่อเกิดเหตุการณ์'
-              : 'ถามว่าใส่คะแนนถูกไหม (แนะนำ · กันใส่ผิด)',
-        ),
-        option(
-          RuleChoice.recent,
-          r.allowAverage
-              ? '${r.recentLabel}อัตโนมัติ'
-              : 'นับจาก 2 รอบล่าสุดอัตโนมัติ (ไม่ถาม)',
-          r.recentDetail,
-        ),
-        if (r.allowAverage)
-          option(RuleChoice.average, '${r.averageLabel}อัตโนมัติ', r.averageDetail)
-        else
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            enabled: false,
-            leading: const Icon(Icons.block),
-            title: Text(r.averageLabel),
-            subtitle: Text(r.averageDetail),
-          ),
-      ],
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('ตั้งค่าโหมด Advanced'),
-      content: SizedBox(
-        width: 440,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _section(greenRule),
-              const Divider(height: 24),
-              _section(redRule),
-            ],
-          ),
-        ),
+      MiniSwitchRow(
+        label: 'ไม่ต้องถามอีก',
+        detail: 'เปลี่ยนได้ที่หน้าตั้งค่า',
+        value: _remember,
+        onChanged: (v) => setState(() => _remember = v),
       ),
-      actions: [
-        FilledButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('เสร็จ'),
-        ),
-      ],
-    );
+      for (var i = 0; i < options.length; i++)
+        i == options.length - 1
+            ? MiniRow(label: options[i].label, onTap: options[i].onTap, last: true)
+            : options[i],
+    ]);
   }
 }
+
+/// ข้อความสั้นของตัวเลือกที่ตั้งไว้ (แสดงทางขวาของแถวในหน้าตั้งค่า)
+String ruleChoiceLabel(RuleText r, RuleChoice c) => switch (c) {
+      RuleChoice.ask => 'ถามทุกครั้ง',
+      RuleChoice.recent => r.allowAverage ? r.recentLabel : 'นับ 2 รอบล่าสุด',
+      RuleChoice.average => r.averageLabel,
+    };
+
+/// แผ่นเลือกกฎ 1 ข้อ (เปิดจากหน้าตั้งค่า) · คืนตัวเลือกใหม่ หรือ null ถ้าปิด
+Future<RuleChoice?> pickRuleChoice(BuildContext context, RuleText r, RuleChoice current) =>
+    showMiniChoice<RuleChoice>(context, title: 'เมื่อ${r.event}', current: current, items: [
+      miniChoice(RuleChoice.ask, 'ถามทุกครั้ง',
+          detail: r.allowAverage ? 'เด้งกล่องถาม' : 'ถามว่าใส่คะแนนถูกไหม (แนะนำ)'),
+      miniChoice(RuleChoice.recent, '${ruleChoiceLabel(r, RuleChoice.recent)}อัตโนมัติ', detail: r.recentDetail),
+      miniChoice(RuleChoice.average, '${r.averageLabel}${r.allowAverage ? 'อัตโนมัติ' : ''}',
+          detail: r.averageDetail, enabled: r.allowAverage),
+    ]);

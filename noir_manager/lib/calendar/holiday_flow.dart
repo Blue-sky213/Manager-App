@@ -7,6 +7,7 @@ library;
 import 'package:flutter/material.dart';
 
 import '../utils/thai_date.dart';
+import '../widgets/mini_form.dart';
 import 'calendar_flows.dart';
 import 'calendar_models.dart';
 import 'calendar_repository.dart';
@@ -142,20 +143,18 @@ Future<void> holidayFlow(BuildContext context, CalendarRepository repo,
       : '${thaiShortDate(from)} – ${thaiShortDate(to)}';
   final count = groups.values.fold<int>(0, (n, l) => n + l.length);
 
-  final ok = await showDialog<bool>(
-    context: context,
-    builder: (ctx) => StatefulBuilder(
+  final ok = await showMiniForm<bool>(
+    context,
+    (ctx) => StatefulBuilder(
       builder: (ctx, setLocal) {
         final muted = TextStyle(fontSize: 12, color: Theme.of(ctx).hintColor);
-        return AlertDialog(
-          title: Text('วันหยุด: $name'),
-          content: SizedBox(
-            width: 520,
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
+        return MiniForm(
+          title: 'วันหยุด: $name',
+          maxWidth: 560,
+          secondaryLabel: 'ไว้ทีหลัง',
+          primaryLabel: 'ยืนยัน',
+          onPrimary: () => Navigator.pop(ctx, true),
+          children: [
                   Text('$when · งานที่ตรงวันหยุด $count รายการ', style: muted),
                   Text('ติ๊กกลุ่มที่หยุด · กลุ่มที่ไม่ติ๊กยังเหมือนเดิม', style: muted),
                   const SizedBox(height: 8),
@@ -173,6 +172,7 @@ Future<void> holidayFlow(BuildContext context, CalendarRepository repo,
                       Wrap(spacing: 6, runSpacing: 6, children: [
                         for (final c in HolidayChoice.values)
                           ChoiceChip(
+                            showCheckmark: false,
                             label: Text(holidayChoiceLabel(c)),
                             selected: groupChoice[e.key] == c,
                             onSelected: (_) => setLocal(() {
@@ -221,13 +221,6 @@ Future<void> holidayFlow(BuildContext context, CalendarRepository repo,
                     ],
                   ],
                 ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('ไว้ทีหลัง')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('ยืนยัน')),
-          ],
         );
       },
     ),

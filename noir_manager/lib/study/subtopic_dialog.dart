@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../data/study_models.dart';
+import '../theme/noir_colors.dart';
+import '../widgets/mini_form.dart';
 
 /// ผลลัพธ์จากกล่องหัวข้อย่อย
 class SubtopicEdit {
@@ -21,10 +23,7 @@ class SubtopicEdit {
 
 /// กล่องจัดการหัวข้อย่อย: บันทึกคะแนน · ติด/เอาธงออก · เปลี่ยนชื่อ · ลบ
 Future<SubtopicEdit?> showSubtopicDialog(BuildContext context, Subtopic topic) {
-  return showDialog<SubtopicEdit>(
-    context: context,
-    builder: (_) => _SubtopicDialog(topic: topic),
-  );
+  return showMiniForm<SubtopicEdit>(context, (_) => _SubtopicDialog(topic: topic));
 }
 
 class _SubtopicDialog extends StatefulWidget {
@@ -63,81 +62,54 @@ class _SubtopicDialogState extends State<_SubtopicDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.noir;
     final latest = widget.topic.latestScore;
-
-    return AlertDialog(
-      title: Text(widget.topic.name),
-      content: SizedBox(
-        width: 360,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(latest == null
-                ? 'ยังไม่เคยประเมิน'
-                : 'คะแนนล่าสุด $latest% · เฉลี่ย ${widget.topic.averageScore}% '
-                    '(${widget.topic.scores.length} รอบ)'),
+    // คะแนนตัวใหญ่ · ลบ / เปลี่ยนชื่อ อยู่ในเมนู ⋮ · ปุ่มล่างเหลือ 2
+    return MiniForm(
+      title: widget.topic.name,
+      menu: [
+        miniMenu('เปลี่ยนชื่อ', () => Navigator.pop(context, SubtopicEdit(examFlag: _flag, rename: true))),
+        miniMenu('ลบหัวข้อ', () => Navigator.pop(context, SubtopicEdit(examFlag: _flag, delete: true)), danger: true),
+      ],
+      primaryLabel: 'บันทึก',
+      onPrimary: _save,
+      children: [
+        const MiniLabel('คะแนนรอบนี้'),
+        MiniBigField(
+          key: const Key('score-field'),
+          controller: _scoreController,
+          hint: '0–100',
+          suffix: '%',
+          fontSize: 28,
+          keyboardType: TextInputType.number,
+          onSubmitted: (_) => _save(),
+        ),
+        if (_error != null)
+          Padding(padding: const EdgeInsets.only(top: 4), child: Text(_error!, style: TextStyle(fontSize: 12, color: c.bad))),
+        Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Wrap(crossAxisAlignment: WrapCrossAlignment.center, children: [
+            Text(
+              latest == null
+                  ? 'ยังไม่เคยประเมิน · เว้นว่างถ้าแค่จะติด/เอาดาวออก'
+                  : 'ล่าสุด $latest% · เฉลี่ย ${widget.topic.averageScore}% (${widget.topic.scores.length} รอบ)',
+              style: TextStyle(fontSize: 12, color: c.muted),
+            ),
             if (latest != null)
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton.icon(
-                  style: TextButton.styleFrom(padding: EdgeInsets.zero),
-                  onPressed: () => Navigator.pop(
-                    context,
-                    SubtopicEdit(examFlag: _flag, history: true),
-                  ),
-                  icon: const Icon(Icons.history, size: 18),
-                  label: const Text('ประวัติคะแนน · แก้คะแนนที่ใส่ผิด'),
-                ),
+              TextButton(
+                style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                onPressed: () => Navigator.pop(context, SubtopicEdit(examFlag: _flag, history: true)),
+                child: const Text('ประวัติ · แก้คะแนน ›'),
               ),
-            const SizedBox(height: 16),
-            TextField(
-              key: const Key('score-field'),
-              controller: _scoreController,
-              autofocus: true,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                labelText: 'คะแนนรอบนี้ (%)',
-                hintText: '0–100 · เว้นว่างถ้าแค่จะติด/เอาดาวออก',
-                errorText: _error,
-              ),
-              onSubmitted: (_) => _save(),
-            ),
-            const SizedBox(height: 8),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              secondary: const Icon(Icons.star_outline),
-              title: const Text('อาจออกสอบ'),
-              subtitle: const Text('ติดดาวไว้ · ขึ้นในกล่อง "อาจออกสอบ" เสมอ'),
-              value: _flag,
-              onChanged: (v) => setState(() => _flag = v),
-            ),
-          ],
+          ]),
         ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(
-            context,
-            SubtopicEdit(examFlag: _flag, delete: true),
-          ),
-          style: TextButton.styleFrom(
-            foregroundColor: Theme.of(context).colorScheme.error,
-          ),
-          child: const Text('ลบหัวข้อ'),
+        MiniSwitchRow(
+          icon: _flag ? Icons.star : Icons.star_outline,
+          label: 'อาจออกสอบ',
+          value: _flag,
+          onChanged: (v) => setState(() => _flag = v),
+          last: true,
         ),
-        TextButton(
-          onPressed: () => Navigator.pop(
-            context,
-            SubtopicEdit(examFlag: _flag, rename: true),
-          ),
-          child: const Text('เปลี่ยนชื่อ'),
-        ),
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('ยกเลิก'),
-        ),
-        FilledButton(onPressed: _save, child: const Text('บันทึก')),
       ],
     );
   }

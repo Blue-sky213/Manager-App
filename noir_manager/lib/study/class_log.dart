@@ -9,6 +9,8 @@ import '../data/study_scope.dart';
 import '../theme/noir_colors.dart';
 import '../utils/thai_date.dart';
 import '../widgets/dialogs.dart';
+import '../widgets/mini_form.dart';
+import '../widgets/mini_segments.dart';
 import 'attendance.dart';
 import 'grading.dart';
 
@@ -82,27 +84,19 @@ Future<bool> showClassLogDialog(BuildContext context,
   final parts = await repo.gradeParts(subjectId);
   final next = await nextClassAfter(cal, subjectId, day);
   if (!context.mounted) return false;
-  final sheet = MediaQuery.sizeOf(context).width < 600;
-  Widget body(bool asSheet) => _ClassLogDialog(
-        subjectId: subjectId,
-        day: day,
-        chapters: chapters,
-        parts: parts,
-        nextClass: next,
-        existing: existing,
-        occurrence: occurrence,
-        justDone: justDone,
-        sheet: asSheet,
-      );
-  final input = sheet
-      ? await showModalBottomSheet<ClassLogInput>(
-          context: context,
-          isScrollControlled: true,
-          useSafeArea: true,
-          showDragHandle: true,
-          builder: (_) => body(true),
-        )
-      : await showDialog<ClassLogInput>(context: context, builder: (_) => body(false));
+  final input = await showMiniForm<ClassLogInput>(
+    context,
+    (_) => _ClassLogDialog(
+      subjectId: subjectId,
+      day: day,
+      chapters: chapters,
+      parts: parts,
+      nextClass: next,
+      existing: existing,
+      occurrence: occurrence,
+      justDone: justDone,
+    ),
+  );
   if (input == null) return false;
   final occ = occurrence;
   if (input.actualEnd != null && occ != null) await cal.setActualTimes(occ.id, end: input.actualEnd);
@@ -179,12 +173,10 @@ class _ClassLogDialog extends StatefulWidget {
     this.existing,
     this.occurrence,
     this.justDone = false,
-    this.sheet = false,
   });
 
   final Occurrence? occurrence;
   final bool justDone;
-  final bool sheet;
   final int subjectId;
   final DateTime day;
   final List<ChapterWithTopics> chapters;
@@ -238,26 +230,23 @@ class _ClassLogDialogState extends State<_ClassLogDialog> {
   /// ใส่รายการบทตาม course outline ทีเดียว (บรรทัดละบท)
   Future<void> _addOutline() async {
     final ctl = TextEditingController();
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('รายการบทตาม course outline'),
-        content: SizedBox(
-          width: 420,
-          child: TextField(
+    final ok = await showMiniForm<bool>(
+      context,
+      (ctx) => MiniForm(
+        title: 'รายการบทตาม course outline',
+        primaryLabel: 'เพิ่มทุกบท',
+        onPrimary: () => Navigator.pop(ctx, true),
+        children: [
+          TextField(
             controller: ctl,
             autofocus: true,
             minLines: 6,
             maxLines: 12,
             decoration: const InputDecoration(
               hintText: 'บรรทัดละบท เช่น\nบท 1 พื้นฐานภาษา\nบท 2 ลูปและเงื่อนไข\nบท 3 ฟังก์ชัน',
-              border: OutlineInputBorder(),
+              border: InputBorder.none,
             ),
           ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('ยกเลิก')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('เพิ่มทุกบท')),
         ],
       ),
     );
@@ -293,251 +282,241 @@ class _ClassLogDialogState extends State<_ClassLogDialog> {
     setState(() => _due = DateTime(base.year, base.month, base.day, t.hour, t.minute));
   }
 
+  Future<void> _pickChapter() async {
+    final v = await showMiniChoice<int>(context, title: 'บทที่เรียน', current: _chapter, items: [
+      for (final ch in _chapters) miniChoice(ch.chapter.id, ch.chapter.name, detail: chapterStatusLabel(ch.chapter.status)),
+      miniChoice(_newId, '+ เพิ่มบทเอง'),
+    ]);
+    if (v == null || !mounted) return;
+    setState(() {
+      _chapter = v;
+      _picked.clear();
+    });
+  }
+
+  Future<void> _pickDue(DateTime? next, DateTime week) => showMiniSubSheet(context,
+      title: 'กำหนดส่ง',
+      parentSetState: setState,
+      build: (ctx, set) => Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            if (next != null)
+              MiniRow(
+                label: 'คาบหน้า',
+                valueText: thaiShortDate(next),
+                trailing: Icon(_due == next ? Icons.check_circle : Icons.circle_outlined, size: 20),
+                onTap: () => set(() => _due = next),
+              ),
+            MiniRow(
+              label: 'อาทิตย์หน้า',
+              valueText: thaiShortDate(week),
+              trailing: Icon(_due == week ? Icons.check_circle : Icons.circle_outlined, size: 20),
+              onTap: () => set(() => _due = week),
+            ),
+            MiniRow(icon: Icons.event, label: 'เลือกวัน', valueText: _due == null ? '—' : thaiShortDate(_due!), onTap: () async {
+              await _pickDate();
+              set(() {});
+            }),
+            MiniRow(icon: Icons.schedule, label: 'เวลา', valueText: _due == null ? '—' : _hm(_due!), last: true, onTap: () async {
+              await _pickTime();
+              set(() {});
+            }),
+          ]));
+
   @override
   Widget build(BuildContext context) {
     final c = context.noir;
     final current = _chapters.where((ch) => ch.chapter.id == _chapter).firstOrNull;
     final next = widget.nextClass;
     final week = nextWeek(widget.day);
-    Widget label(String t) => Padding(
-          padding: const EdgeInsets.only(top: 14, bottom: 6),
-          child: Text(t, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: c.muted)),
-        );
-
     final o = widget.occurrence;
     final titleText = widget.justDone
         ? '✓ เรียนเสร็จ · ${o?.title.replaceFirst(RegExp(r'^เรียน · '), '') ?? thaiShortDate(widget.day)}'
-        : 'คาบ ${thaiShortDate(widget.day)} เรียนถึงไหน';
-    final fields = Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            // ---- บท ----
-            if (_chapters.isEmpty) ...[
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: c.amberBg, borderRadius: BorderRadius.circular(10)),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('วิชานี้ยังไม่มีรายการบท', style: TextStyle(fontWeight: FontWeight.w600, color: c.amberText)),
-                  const SizedBox(height: 4),
-                  Text('ใส่บทตาม course outline ก่อน จะได้เลือกบทเดียวกันทุกคาบ อ้างอิงได้',
-                      style: TextStyle(fontSize: 13, color: c.amberText)),
-                  const SizedBox(height: 8),
-                  FilledButton.tonalIcon(
-                    onPressed: _addOutline,
-                    icon: const Icon(Icons.playlist_add),
-                    label: const Text('ใส่รายการบท'),
-                  ),
-                ]),
+        : 'บันทึกคาบ · ${thaiShortDate(widget.day)}';
+    Widget err(String? msg) => msg == null
+        ? const SizedBox.shrink()
+        : Padding(padding: const EdgeInsets.only(top: 4), child: Text(msg, style: TextStyle(fontSize: 12, color: c.bad)));
+    final part = widget.parts.where((p) => p.id == _gradePart).firstOrNull;
+
+    void save() {
+      final isNew = _chapter == _newId;
+      if ((isNew && _newName.text.trim().isEmpty) || (_hw && _hwName.text.trim().isEmpty)) {
+        setState(() => _showErrors = true);
+        return;
+      }
+      Navigator.pop(
+        context,
+        ClassLogInput(
+          chapterId: isNew ? null : _chapter,
+          newChapter: isNew ? _newName.text.trim() : null,
+          topics: _picked.toList(),
+          newTopics: [for (final t in _newTopics.text.split(',')) t.trim()]..removeWhere((t) => t.isEmpty),
+          finished: _finished,
+          note: _note.text,
+          homework: _hw ? _hwName.text.trim() : null,
+          dueAt: _hw ? (_due ?? next ?? week) : null,
+          gradePartId: _hw ? _gradePart : null,
+          actualEnd: o != null && o.timed && _end != null ? _end : null,
+        ),
+      );
+    }
+
+    return MiniForm(
+      title: titleText,
+      primaryLabel: 'บันทึก',
+      onPrimary: save,
+      secondaryLabel: widget.justDone ? 'แค่ทำแล้ว ไม่บันทึก' : 'ข้าม',
+      children: [
+        // ---- บท = หัวตัวใหญ่ แตะเพื่อเปลี่ยน ----
+        if (_chapters.isEmpty) ...[
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: c.amberBg, borderRadius: BorderRadius.circular(10)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('วิชานี้ยังไม่มีรายการบท', style: TextStyle(fontWeight: FontWeight.w600, color: c.amberText)),
+              const SizedBox(height: 4),
+              Text('ใส่บทตาม course outline ก่อน จะได้เลือกบทเดียวกันทุกคาบ อ้างอิงได้',
+                  style: TextStyle(fontSize: 13, color: c.amberText)),
+              const SizedBox(height: 8),
+              FilledButton.tonalIcon(
+                onPressed: _addOutline,
+                icon: const Icon(Icons.playlist_add),
+                label: const Text('ใส่รายการบท'),
               ),
-              TextButton(
+            ]),
+          ),
+          if (_chapter != _newId)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
                 onPressed: () => setState(() => _chapter = _newId),
                 child: const Text('หรือเพิ่มบทเดียวเอง'),
               ),
-            ] else
-              DropdownButtonFormField<int>(
-                initialValue: _chapter,
-                isExpanded: true,
-                decoration: const InputDecoration(labelText: 'บทที่เรียน'),
-                items: [
-                  for (final ch in _chapters)
-                    DropdownMenuItem(
-                      value: ch.chapter.id,
-                      child: Text('${ch.chapter.name} · ${chapterStatusLabel(ch.chapter.status)}',
-                          maxLines: 1, overflow: TextOverflow.ellipsis),
-                    ),
-                  const DropdownMenuItem(value: _newId, child: Text('+ เพิ่มบทเอง')),
-                ],
-                onChanged: (v) => setState(() {
-                  _chapter = v;
-                  _picked.clear();
-                }),
-              ),
-            if (_chapter == _newId)
-              TextField(
-                controller: _newName,
-                autofocus: true,
-                onChanged: (_) {
-                  if (_showErrors) setState(() {});
-                },
-                decoration: InputDecoration(
-                  labelText: 'ชื่อบทใหม่ *',
-                  hintText: 'เช่น บท 3 ฟังก์ชัน',
-                  errorText: _err(_newName, 'ใส่ชื่อบท'),
-                ),
-              ),
-
-            // ---- หัวข้อ ----
-            if (current != null && current.subtopics.isNotEmpty) ...[
-              label('หัวข้อที่เรียนคาบนี้ (แตะเลือก)'),
-              Wrap(spacing: 6, runSpacing: 6, children: [
-                for (final t in current.subtopics)
-                  FilterChip(
-                    label: Text(t.name),
-                    selected: _picked.contains(t.name),
-                    onSelected: (v) => setState(() {
-                      if (v) {
-                        _picked.add(t.name);
-                      } else {
-                        _picked.remove(t.name);
-                      }
-                    }),
-                  ),
-              ]),
-            ],
-            if (_chapter != null)
-              TextField(
-                controller: _newTopics,
-                decoration: const InputDecoration(
-                  labelText: 'หัวข้อใหม่ (ไม่ใส่ก็ได้)',
-                  hintText: 'คั่นด้วย , เช่น for loop, while loop',
-                ),
-              ),
-
-            // ---- จบบทไหม ----
-            label('ความคืบหน้า'),
-            SegmentedButton<bool>(
-              showSelectedIcon: false,
-              segments: const [
-                ButtonSegment(value: false, label: Text('เรียนถึงกลางบท')),
-                ButtonSegment(value: true, label: Text('จบบทนี้แล้ว')),
-              ],
-              selected: {_finished},
-              onSelectionChanged: (v) => setState(() => _finished = v.first),
             ),
+        ] else if (_chapter != _newId)
+          InkWell(
+            key: const Key('classlog-chapter'),
+            onTap: _pickChapter,
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              decoration: BoxDecoration(border: Border(bottom: BorderSide(color: c.line))),
+              child: Row(children: [
+                Expanded(
+                  child: Text(current?.chapter.name ?? 'เลือกบท',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: c.text)),
+                ),
+                Icon(Icons.expand_more, color: c.muted),
+              ]),
+            ),
+          ),
+        if (_chapter == _newId) ...[
+          MiniBigField(
+            controller: _newName,
+            hint: 'ชื่อบทใหม่ เช่น บท 3 ฟังก์ชัน',
+            fontSize: 18,
+            onChanged: (_) {
+              if (_showErrors) setState(() {});
+            },
+          ),
+          err(_err(_newName, 'ใส่ชื่อบท')),
+        ],
 
-            // ---- งาน / การบ้าน ----
-            const SizedBox(height: 12),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: FilterChip(
-                avatar: Icon(_hw ? Icons.star : Icons.star_border, color: _hw ? c.warn : c.muted),
+        // ---- หัวข้อ = ป้าย ----
+        if (current != null && current.subtopics.isNotEmpty) ...[
+          const MiniLabel('หัวข้อที่เรียนคาบนี้'),
+          Wrap(spacing: 6, runSpacing: 6, children: [
+            for (final t in current.subtopics)
+              ChoiceChip(
                 showCheckmark: false,
-                label: const Text('อาจารย์สั่งงาน / การบ้าน'),
-                selected: _hw,
+                visualDensity: VisualDensity.compact,
+                label: Text(t.name),
+                selected: _picked.contains(t.name),
                 onSelected: (v) => setState(() {
-                  _hw = v;
-                  _due ??= next ?? week;
+                  if (v) {
+                    _picked.add(t.name);
+                  } else {
+                    _picked.remove(t.name);
+                  }
                 }),
               ),
-            ),
-            if (_hw) ...[
-              TextField(
-                controller: _hwName,
-                onChanged: (_) {
-                  if (_showErrors) setState(() {});
-                },
-                decoration: InputDecoration(
-                  labelText: 'งานอะไร *',
-                  hintText: 'เช่น การบ้านบท 2 ข้อ 1–10',
-                  errorText: _err(_hwName, 'ใส่ชื่องาน หรือกดดาวออกถ้าไม่มีงาน'),
-                ),
-              ),
-              label('กำหนดส่ง'),
-              Wrap(spacing: 6, runSpacing: 6, children: [
-                if (next != null)
-                  ChoiceChip(
-                    label: Text('คาบหน้า · ${thaiShortDate(next)}'),
-                    selected: _due == next,
-                    onSelected: (_) => setState(() => _due = next),
-                  ),
-                ChoiceChip(
-                  label: Text('อาทิตย์หน้า · ${thaiShortDate(week)}'),
-                  selected: _due == week,
-                  onSelected: (_) => setState(() => _due = week),
-                ),
-                ActionChip(avatar: const Icon(Icons.event, size: 18), label: const Text('เลือกวัน'), onPressed: _pickDate),
-                ActionChip(
-                    avatar: const Icon(Icons.schedule, size: 18),
-                    label: Text(_due == null ? 'เวลา' : _hm(_due!)),
-                    onPressed: _pickTime),
-              ]),
-              if (_due != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 6),
-                  child: Text('ส่ง ${dueText(_due!)}', style: TextStyle(fontSize: 13, color: c.text)),
-                ),
-              if (widget.parts.isNotEmpty && widget.existing?.homework == null)
-                DropdownButtonFormField<int>(
-                  initialValue: _gradePart ?? 0,
-                  decoration: const InputDecoration(labelText: 'นับเป็นคะแนนเก็บ'),
-                  items: [
-                    const DropdownMenuItem(value: 0, child: Text('ไม่นับ')),
-                    for (final p in widget.parts) DropdownMenuItem(value: p.id, child: Text('ชิ้นใหม่ในส่วน "${p.name}"')),
-                  ],
-                  onChanged: (v) => setState(() => _gradePart = (v == null || v == 0) ? null : v),
-                ),
-              if (widget.existing?.taskActivityId != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 6),
-                  child: Text('มีงาน "ส่ง" ในปฏิทินแล้ว · ย้ายวันส่งได้ที่ปฏิทิน',
-                      style: TextStyle(fontSize: 12, color: c.muted)),
-                ),
-            ],
+          ]),
+        ],
+        const SizedBox(height: 12),
+        MiniSegments<bool>(
+          value: _finished,
+          items: const [(false, 'เรียนถึงกลางบท'), (true, 'จบบทนี้แล้ว')],
+          onChanged: (v) => setState(() => _finished = v),
+        ),
+        const SizedBox(height: 6),
+        if (_chapter != null)
+          MiniRow(
+            icon: Icons.add,
+            label: 'หัวข้อใหม่',
+            value: MiniInlineField(controller: _newTopics, hint: 'คั่นด้วย ,', width: 180),
+          ),
 
-            TextField(
-              controller: _note,
-              maxLines: 2,
-              decoration: const InputDecoration(labelText: 'โน้ต (ไม่ใส่ก็ได้)'),
+        // ---- งาน / การบ้าน ----
+        MiniSwitchRow(
+          icon: _hw ? Icons.star : Icons.star_border,
+          label: 'อาจารย์สั่งงาน',
+          value: _hw,
+          onChanged: (v) => setState(() {
+            _hw = v;
+            _due ??= next ?? week;
+          }),
+        ),
+        if (_hw) ...[
+          MiniRow(
+            icon: Icons.assignment_outlined,
+            label: 'งานอะไร',
+            value: MiniInlineField(
+              controller: _hwName,
+              hint: 'เช่น บท 2 ข้อ 1–10',
+              width: 200,
+              onChanged: (_) {
+                if (_showErrors) setState(() {});
+              },
             ),
-            const SizedBox(height: 8),
-            // ---- เวลาเลิกจริง (คาบในปฏิทินที่ทำแล้ว) ----
-            if (o != null && o.timed && o.endAt != null && (widget.justDone || o.status == OccurrenceStatus.done)) ...[
-              const SizedBox(height: 10),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: ActionChip(
-                  avatar: const Icon(Icons.schedule, size: 18),
-                  label: Text('เลิก ${_hm(_end!)}${_end == o.endAt ? ' (ตามตาราง)' : ''}'),
-                  onPressed: _pickEnd,
-                ),
-              ),
-            ],
-            const SizedBox(height: 8),
-            Text(
-              _hw ? 'บทนี้จะเป็นขอบเขตของรอบติว · งานลงปฏิทินวันส่งให้' : 'บทนี้จะเป็นขอบเขตของรอบติว',
-              style: TextStyle(fontSize: 12, color: c.muted),
+          ),
+          err(_err(_hwName, 'ใส่ชื่องาน หรือปิดสวิตช์ถ้าไม่มีงาน')),
+          MiniRow(
+            icon: Icons.event_available,
+            label: 'ส่ง',
+            valueText: _due == null ? '—' : dueText(_due!),
+            onTap: () => _pickDue(next, week),
+          ),
+          if (widget.parts.isNotEmpty && widget.existing?.homework == null)
+            MiniRow(
+              icon: Icons.grade_outlined,
+              label: 'นับเป็นคะแนนเก็บ',
+              valueText: part == null ? 'ไม่นับ' : part.name,
+              onTap: () async {
+                final v = await showMiniChoice<int>(context, title: 'นับเป็นคะแนนเก็บ', current: _gradePart ?? 0, items: [
+                  miniChoice(0, 'ไม่นับ'),
+                  for (final p in widget.parts) miniChoice(p.id, p.name, detail: 'ชิ้นใหม่'),
+                ]);
+                if (v != null && mounted) setState(() => _gradePart = v == 0 ? null : v);
+              },
             ),
-          ]);
-    void save() {
-            final isNew = _chapter == _newId;
-            if ((isNew && _newName.text.trim().isEmpty) || (_hw && _hwName.text.trim().isEmpty)) {
-              setState(() => _showErrors = true);
-              return;
-            }
-            Navigator.pop(
-              context,
-              ClassLogInput(
-                chapterId: isNew ? null : _chapter,
-                newChapter: isNew ? _newName.text.trim() : null,
-                topics: _picked.toList(),
-                newTopics: [for (final t in _newTopics.text.split(',')) t.trim()]..removeWhere((t) => t.isEmpty),
-                finished: _finished,
-                note: _note.text,
-                homework: _hw ? _hwName.text.trim() : null,
-                dueAt: _hw ? (_due ?? next ?? week) : null,
-                gradePartId: _hw ? _gradePart : null,
-                actualEnd: o != null && o.timed && _end != null ? _end : null,
-              ),
-            );
-    }
-
-    final skip = TextButton(
-        onPressed: () => Navigator.pop(context), child: Text(widget.justDone ? 'แค่ทำแล้ว ไม่บันทึก' : 'ข้าม'));
-    final ok = FilledButton(onPressed: save, child: const Text('บันทึก'));
-    if (widget.sheet) {
-      return Padding(
-        padding: EdgeInsets.fromLTRB(20, 0, 20, 16 + MediaQuery.viewInsetsOf(context).bottom),
-        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Text(titleText, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: c.text)),
-          const SizedBox(height: 8),
-          Flexible(child: SingleChildScrollView(child: fields)),
-          const SizedBox(height: 12),
-          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Flexible(child: skip), ok]),
-        ]),
-      );
-    }
-    return AlertDialog(
-      title: Text(titleText),
-      content: SizedBox(width: 460, child: SingleChildScrollView(child: fields)),
-      actions: [skip, ok],
+          if (widget.existing?.taskActivityId != null)
+            const MiniLabel('มีงาน "ส่ง" ในปฏิทินแล้ว · ย้ายวันส่งได้ที่ปฏิทิน'),
+        ],
+        MiniRow(
+          icon: Icons.edit_note,
+          label: 'โน้ต',
+          value: MiniInlineField(controller: _note, hint: 'ไม่ใส่ก็ได้', width: 200),
+          last: !(o != null && o.timed && o.endAt != null && (widget.justDone || o.status == OccurrenceStatus.done)),
+        ),
+        // ---- เวลาเลิกจริง (คาบในปฏิทินที่ทำแล้ว) ----
+        if (o != null && o.timed && o.endAt != null && (widget.justDone || o.status == OccurrenceStatus.done))
+          MiniRow(
+            icon: Icons.schedule,
+            label: 'เลิกจริง',
+            valueText: '${_hm(_end!)}${_end == o.endAt ? ' (ตามตาราง)' : ''}',
+            onTap: _pickEnd,
+            last: true,
+          ),
+      ],
     );
   }
 }
