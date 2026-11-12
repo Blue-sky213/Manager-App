@@ -68,3 +68,42 @@ StreakInfo streakOf(Map<DateTime, List<Occurrence>> byDay, DateTime today) {
   }
   return StreakInfo(current: current, best: best, completeDays: complete);
 }
+
+/// % ทำตามแผนของชุดงาน · null = ไม่มีงาน
+double? percentDone(Iterable<Occurrence> items) {
+  final (done, total) = dayProgress(items);
+  return total == 0 ? null : done * 100 / total;
+}
+
+/// กลุ่มของงานสำหรับแถบ "แยกตามกิจกรรม": เรียน · ติว · ชื่อหมวด · อื่น ๆ
+String activityGroup(Occurrence o, Map<int, String> categoryNames) => switch (o.kind) {
+      ActivityKind.classSession => 'เรียน',
+      ActivityKind.tutor => 'ติว',
+      _ => categoryNames[o.categoryId] ?? 'อื่น ๆ',
+    };
+
+/// % ต่อกลุ่ม: (กลุ่ม, % ช่วงนี้, % ช่วงก่อน) เรียงตามจำนวนงานมากก่อน
+List<(String, double, double?)> groupPercents(
+  List<Occurrence> now,
+  List<Occurrence> before,
+  String Function(Occurrence) groupOf,
+) {
+  final g = <String, List<Occurrence>>{};
+  for (final o in now) {
+    (g[groupOf(o)] ??= []).add(o);
+  }
+  final b = <String, List<Occurrence>>{};
+  for (final o in before) {
+    (b[groupOf(o)] ??= []).add(o);
+  }
+  final keys = g.keys.where((k) => percentDone(g[k]!) != null).toList()
+    ..sort((x, y) => g[y]!.length.compareTo(g[x]!.length));
+  return [for (final k in keys) (k, percentDone(g[k]!)!, b[k] == null ? null : percentDone(b[k]!))];
+}
+
+/// ข้อความตามระดับ (ตกลงไว้: ≥ 80 ชม · 50–79 กลาง · < 50 ปลอบ)
+String levelMessage(double p) => p >= 80
+    ? 'ทำได้ดีมาก รักษาจังหวะนี้ไว้'
+    : p >= 50
+        ? 'ไปได้ดี ค่อย ๆ เพิ่มทีละนิด'
+        : 'ช่วงนี้หนักหน่อย พักให้พอแล้วค่อยเริ่มใหม่';

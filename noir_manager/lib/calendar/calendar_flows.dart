@@ -437,6 +437,6 @@ Future<void> celebrateIfDayComplete(BuildContext context, CalendarRepository rep
   if (!context.mounted) return;
   final when = dayOnly(day) == today ? 'วันนี้' : thaiShortDate(day);
   ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
-    content: Text('ครบทุกงาน$when${streak > 1 ? ' · สตรีค $streak วัน' : ''}'),
+    content: Text('ครบทุกงาน$when${streak > 1 ? ' · Streak $streak วัน' : ''}'),
   ));
 }

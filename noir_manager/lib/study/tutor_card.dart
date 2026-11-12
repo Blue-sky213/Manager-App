@@ -126,6 +126,7 @@ class _TutorCardState extends State<TutorCard> with CalendarListener<TutorCard> 
       avoidDays: classDays,
       subjectColors: colors,
       subjectNames: names,
+      subjectId: widget.subject.id,
       note: preview != null
           ? 'อ่านล่วงหน้า: ${preview.chapter.name} (ก่อนเข้าเรียน)'
           : plan.chapter == null
@@ -134,6 +135,7 @@ class _TutorCardState extends State<TutorCard> with CalendarListener<TutorCard> 
                   '${plan.review.isEmpty ? '' : ' + ทวน ${plan.review.length} หัวข้อ'}',
     );
     if (picked == null) return;
+    if (picked.minutes != _minutes) await _setMinutes(picked.minutes);
     final learn = studyCategoryId(await repo.categories());
     await repo.addActivity(NewActivity(
       name: '${preview != null ? 'อ่านล่วงหน้า' : 'ติว'} · ${widget.subject.name}',
@@ -169,17 +171,7 @@ class _TutorCardState extends State<TutorCard> with CalendarListener<TutorCard> 
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(children: [
-              Expanded(
-                child: Text('รอบติวสัปดาห์นี้ · ${thaiShortDate(_monday)} – ${thaiShortDate(sunday)}',
-                    style: title),
-              ),
-              FilledButton.tonalIcon(
-                onPressed: _findTime,
-                icon: const Icon(Icons.event_available_outlined),
-                label: Text(q.remaining == 0 ? 'ติวเพิ่ม' : 'หาเวลาติว'),
-              ),
-            ]),
+            Text('สัปดาห์นี้ · ${thaiShortDate(_monday)} – ${thaiShortDate(sunday)}', style: title),
             const SizedBox(height: 8),
             // เป้า · เรียน · ติว
             Wrap(spacing: 8, runSpacing: 8, children: [
@@ -244,30 +236,21 @@ class _TutorCardState extends State<TutorCard> with CalendarListener<TutorCard> 
               ),
             const SizedBox(height: 12),
 
-            // ความยาวรอบติว
-            Row(children: [
-              Text('ความยาวรอบ', style: TextStyle(color: c.muted, fontSize: 13)),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Wrap(spacing: 6, runSpacing: 6, children: [
-                  for (final m in tutorLengths)
-                    ChoiceChip(
-                      label: Text(durationText(m)),
-                      selected: _minutes == m,
-                      onSelected: (_) => _setMinutes(m),
-                    ),
-                ]),
-              ),
-            ]),
             const SizedBox(height: 12),
-
+            // ปุ่มหลักปุ่มเดียว · ความยาวรอบเลือกในหน้าจอง
+            FilledButton.icon(
+              onPressed: _findTime,
+              icon: const Icon(Icons.event_available_outlined),
+              label: Text(q.remaining == 0 ? 'จองเวลาติวเพิ่ม' : 'จองเวลาติว'),
+            ),
+            const SizedBox(height: 14),
             // เนื้อหารอบถัดไป
             Text(
               plan.chapter == null
                   ? (plan.review.isEmpty
                       ? 'รอบถัดไป: ติวครบทุกบทแล้ว ไม่มีหัวข้อที่ต้องทวน'
                       : 'รอบถัดไป: ทวนอย่างเดียว')
-                  : 'รอบถัดไป: ${plan.chapter!.name} · ${chapterKindLabel(plan.chapter!.kind)}'
+                  : 'รอบถัดไป · ${durationText(_minutes)}: ${plan.chapter!.name} · ${chapterKindLabel(plan.chapter!.kind)}'
                       '${_chapterRounds == 0 ? '' : ' · ติวมาแล้ว $_chapterRounds รอบ'}',
               style: title,
             ),

@@ -5,7 +5,7 @@ library;
 /// ช่วงเวลาที่มีงานแล้ว
 class Busy {
   const Busy(this.start, this.end, this.title,
-      {this.subjectId, this.importance = 2, this.tutor = false});
+      {this.subjectId, this.importance = 2, this.tutor = false, this.classSession = false, this.locked = false});
   final int start;
   final int end;
   final String title;
@@ -14,6 +14,13 @@ class Busy {
   final int? subjectId;
   final int importance;
   final bool tutor;
+  final bool classSession;
+
+  /// 🔒 มีคำมั่น / เริ่มไปแล้ว → จองทับไม่ได้
+  final bool locked;
+
+  /// ⇄ แทนได้: งานทั่วไปที่ไม่ใช่เรียน / ติว / ล็อก และไม่ได้ตั้งสำคัญมาก (เช่น วิ่ง, Live)
+  bool get replaceable => !tutor && !classSession && !locked && importance < 3;
 }
 
 /// ช่วงว่าง 1 ช่วงในวันนั้น

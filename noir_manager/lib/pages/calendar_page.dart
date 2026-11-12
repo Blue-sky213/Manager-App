@@ -10,6 +10,7 @@ import '../calendar/stickers.dart' show DaySticker, Sticker, stickersByDay;
 import '../calendar/calendar_ui.dart';
 import '../calendar/clash_page.dart';
 import '../calendar/day_agenda.dart';
+import '../calendar/notebook_view.dart';
 import '../calendar/week_views.dart';
 import '../data/study_repository.dart';
 import '../data/study_scope.dart';
@@ -19,7 +20,7 @@ import '../utils/thai_date.dart';
 import '../widgets/mini_dropdown.dart';
 
 /// มุมมองปฏิทิน 4 แบบ
-enum CalView { day, week, month, year }
+enum CalView { day, week, month, notebook, year }
 
 /// เลื่อนไป/กลับ [step] เดือน แต่คงวันที่ไว้ (31 ม.ค. + 1 เดือน → 28/29 ก.พ.)
 DateTime addMonths(DateTime d, int step) {
@@ -76,7 +77,7 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
   /// วันที่ต้องโหลด ตามมุมมองตอนนี้
   List<DateTime> get _visibleDays => switch (_view) {
         CalView.week => _weekDays,
-        CalView.month => monthGridDays(_selected),
+        CalView.month || CalView.notebook => monthGridDays(_selected),
         _ => const [],
       };
 
@@ -158,7 +159,7 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
           day: switch (_view) {
             CalView.day => _selected.add(Duration(days: dir)),
             CalView.week => _selected.add(Duration(days: 7 * dir)),
-            CalView.month => addMonths(_selected, dir),
+            CalView.month || CalView.notebook => addMonths(_selected, dir),
             CalView.year => addMonths(_selected, 12 * dir),
           },
         );
@@ -171,6 +172,7 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
         final sun = _monday.add(const Duration(days: 6));
         return '${thaiShortDate(_monday)} – ${thaiShortDate(sun)}';
       case CalView.month:
+      case CalView.notebook:
         return thaiMonthYear(_selected);
       case CalView.year:
         if (_pickYear) {
@@ -191,6 +193,7 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
       case CalView.week:
         _go(view: CalView.month);
       case CalView.month:
+      case CalView.notebook:
         _go(view: CalView.year);
       case CalView.year:
         setState(() => _pickYear = !_pickYear);
@@ -200,7 +203,7 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
   (String, String) get _stepTips => switch (_view) {
         CalView.day => ('วันก่อน', 'วันถัดไป'),
         CalView.week => ('สัปดาห์ก่อน', 'สัปดาห์ถัดไป'),
-        CalView.month => ('เดือนก่อน', 'เดือนถัดไป'),
+        CalView.month || CalView.notebook => ('เดือนก่อน', 'เดือนถัดไป'),
         CalView.year => ('ปีก่อน', 'ปีถัดไป'),
       };
 
@@ -228,6 +231,7 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
                   (CalView.day, 'วัน'),
                   (CalView.week, 'สัปดาห์'),
                   (CalView.month, 'เดือน'),
+                  (CalView.notebook, 'สมุด'),
                   (CalView.year, 'ปี'),
                 ],
                 onChanged: (v) => _go(view: v),
@@ -286,6 +290,24 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
                     const SizedBox(height: 16),
                     _agenda(today),
                   ],
+            // สมุด: ดูอย่างเดียว · สติกเกอร์ใหญ่ · แผนเดือนหน้า
+            CalView.notebook => [
+                _navRow(),
+                const SizedBox(height: 28),
+                Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 980),
+                    child: NotebookMonth(
+                      month: _selected,
+                      days: monthGridDays(_selected),
+                      byDay: _byDay,
+                      stickers: stickersByDay,
+                      holidays: _holidays,
+                      onTapDay: (d) => showNotebookDay(context, d, _byDay[d] ?? const [], stickersByDay[d] ?? const []),
+                    ),
+                  ),
+                ),
+              ],
             CalView.year => [
                 _navRow(),
                 const SizedBox(height: 8),
