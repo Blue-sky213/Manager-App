@@ -446,6 +446,28 @@ class Occurrence {
   /// "ครั้งที่ n/N" · null = งานครั้งเดียว หรือยังไม่ได้คำนวณ
   final SessionCount? session;
 
+  /// สำเนาที่เปลี่ยนสถานะ (ใช้ตอนเพิ่งกดทำแล้ว ก่อนโหลดใหม่)
+  Occurrence copyWithStatus(OccurrenceStatus st) => Occurrence(
+        id: id,
+        activityId: activityId,
+        title: title,
+        categoryId: categoryId,
+        importance: importance,
+        repeats: repeats,
+        day: day,
+        startAt: startAt,
+        endAt: endAt,
+        status: st,
+        reason: reason,
+        movedFromId: movedFromId,
+        subjectId: subjectId,
+        actualStart: actualStart,
+        actualEnd: actualEnd,
+        kind: kind,
+        rootDay: rootDay,
+        session: session,
+      );
+
   /// สำเนาที่ใส่เลขครั้งแล้ว (repository เติมให้หลังอ่านจาก DB)
   Occurrence withSession(SessionCount? s) => Occurrence(
         id: id,

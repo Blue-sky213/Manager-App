@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../calendar/calendar_models.dart';
 import '../calendar/calendar_repository.dart';
+import '../calendar/calendar_ui.dart' show pickMinute;
 import '../data/study_models.dart';
 import '../data/study_repository.dart';
 import '../data/study_scope.dart';
@@ -23,6 +24,7 @@ class ClassLogInput {
     this.homework,
     this.dueAt,
     this.gradePartId,
+    this.actualEnd,
   });
   final int? chapterId;
   final String? newChapter; // ไม่ null = สร้างบทใหม่ชื่อนี้
@@ -33,6 +35,7 @@ class ClassLogInput {
   final String? homework; // null = ไม่มีงาน
   final DateTime? dueAt;
   final int? gradePartId; // นับงานนี้เป็นชิ้นคะแนนในส่วนไหน (null = ไม่นับ)
+  final DateTime? actualEnd; // เวลาเลิกจริง (แผ่น "ทำแล้ว") · null = ไม่บันทึก
 }
 
 /// บทที่น่าจะเรียนในคาบนี้: บทที่กำลังเรียนอยู่ → บทแรกที่ยังไม่เริ่ม
@@ -60,29 +63,51 @@ String dueText(DateTime due, {DateTime? now}) {
 
 String _hm(DateTime d) => '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
 
+/// ตั้งค่า: กด "ทำแล้ว" ที่คาบเรียนแล้วเปิดแผ่นบันทึกไหม ('off' = ไม่ต้องถาม)
+const askClassLogKey = 'ask_class_log';
+
 /// กล่อง "คาบนี้เรียนถึงไหน" · คืน true ถ้าบันทึก
+/// [occurrence] = คาบในปฏิทิน (มีช่องเวลาเลิกจริง) · [justDone] = เพิ่งกด "ทำแล้ว" → หัวเป็น ✓ ปุ่ม "แค่ทำแล้ว"
+/// จอแคบ (มือถือ) เปิดเป็นแผ่นจากด้านล่าง · จอกว้างเป็นกล่องกลางจอ
 Future<bool> showClassLogDialog(BuildContext context,
-    {required int subjectId, required DateTime day, int? occurrenceId, ClassLog? existing}) async {
+    {required int subjectId,
+    required DateTime day,
+    int? occurrenceId,
+    ClassLog? existing,
+    Occurrence? occurrence,
+    bool justDone = false}) async {
   final repo = StudyScope.of(context);
   final cal = CalendarScope.of(context);
   final chapters = await repo.chapters(subjectId);
   final parts = await repo.gradeParts(subjectId);
   final next = await nextClassAfter(cal, subjectId, day);
   if (!context.mounted) return false;
-  final input = await showDialog<ClassLogInput>(
-    context: context,
-    builder: (_) => _ClassLogDialog(
-      subjectId: subjectId,
-      day: day,
-      chapters: chapters,
-      parts: parts,
-      nextClass: next,
-      existing: existing,
-    ),
-  );
+  final sheet = MediaQuery.sizeOf(context).width < 600;
+  Widget body(bool asSheet) => _ClassLogDialog(
+        subjectId: subjectId,
+        day: day,
+        chapters: chapters,
+        parts: parts,
+        nextClass: next,
+        existing: existing,
+        occurrence: occurrence,
+        justDone: justDone,
+        sheet: asSheet,
+      );
+  final input = sheet
+      ? await showModalBottomSheet<ClassLogInput>(
+          context: context,
+          isScrollControlled: true,
+          useSafeArea: true,
+          showDragHandle: true,
+          builder: (_) => body(true),
+        )
+      : await showDialog<ClassLogInput>(context: context, builder: (_) => body(false));
   if (input == null) return false;
+  final occ = occurrence;
+  if (input.actualEnd != null && occ != null) await cal.setActualTimes(occ.id, end: input.actualEnd);
   await saveClassLog(repo, subjectId, day, input,
-      calendar: cal, occurrenceId: occurrenceId ?? existing?.occurrenceId, existing: existing);
+      calendar: cal, occurrenceId: occurrenceId ?? occ?.id ?? existing?.occurrenceId, existing: existing);
   return true;
 }
 
@@ -152,8 +177,14 @@ class _ClassLogDialog extends StatefulWidget {
     required this.parts,
     this.nextClass,
     this.existing,
+    this.occurrence,
+    this.justDone = false,
+    this.sheet = false,
   });
 
+  final Occurrence? occurrence;
+  final bool justDone;
+  final bool sheet;
   final int subjectId;
   final DateTime day;
   final List<ChapterWithTopics> chapters;
@@ -180,6 +211,16 @@ class _ClassLogDialogState extends State<_ClassLogDialog> {
   late final _hwName = TextEditingController(text: widget.existing?.homework ?? '');
   late DateTime? _due = widget.existing?.dueAt;
   int? _gradePart;
+
+  // เวลาเลิกจริง: เริ่มที่เวลาที่บันทึกไว้ / เวลาเลิกตามตาราง
+  late DateTime? _end = widget.occurrence?.actualEnd ?? widget.occurrence?.endAt;
+
+  Future<void> _pickEnd() async {
+    final o = widget.occurrence!;
+    final m = await pickMinute(context, minuteOf(_end ?? o.endAt!), title: 'เวลาเลิกจริง');
+    if (m == null || !mounted) return;
+    setState(() => _end = atMinute(o.day, m));
+  }
 
   /// กดบันทึกแล้วยังขาดช่องที่ต้องกรอก → ขึ้นแดงที่ช่องนั้น
   bool _showErrors = false;
@@ -263,12 +304,11 @@ class _ClassLogDialogState extends State<_ClassLogDialog> {
           child: Text(t, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: c.muted)),
         );
 
-    return AlertDialog(
-      title: Text('คาบ ${thaiShortDate(widget.day)} เรียนถึงไหน'),
-      content: SizedBox(
-        width: 460,
-        child: SingleChildScrollView(
-          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+    final o = widget.occurrence;
+    final titleText = widget.justDone
+        ? '✓ เรียนเสร็จ · ${o?.title.replaceFirst(RegExp(r'^เรียน · '), '') ?? thaiShortDate(widget.day)}'
+        : 'คาบ ${thaiShortDate(widget.day)} เรียนถึงไหน';
+    final fields = Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             // ---- บท ----
             if (_chapters.isEmpty) ...[
               Container(
@@ -438,17 +478,25 @@ class _ClassLogDialogState extends State<_ClassLogDialog> {
               decoration: const InputDecoration(labelText: 'โน้ต (ไม่ใส่ก็ได้)'),
             ),
             const SizedBox(height: 8),
+            // ---- เวลาเลิกจริง (คาบในปฏิทินที่ทำแล้ว) ----
+            if (o != null && o.timed && o.endAt != null && (widget.justDone || o.status == OccurrenceStatus.done)) ...[
+              const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: ActionChip(
+                  avatar: const Icon(Icons.schedule, size: 18),
+                  label: Text('เลิก ${_hm(_end!)}${_end == o.endAt ? ' (ตามตาราง)' : ''}'),
+                  onPressed: _pickEnd,
+                ),
+              ),
+            ],
+            const SizedBox(height: 8),
             Text(
-              _hw ? 'บทนี้จะเป็นบทที่รอบติวหยิบไปติวต่อ · งานลงปฏิทินวันส่งให้' : 'บทนี้จะเป็นบทที่รอบติวหยิบไปติวต่อ',
+              _hw ? 'บทนี้จะเป็นขอบเขตของรอบติว · งานลงปฏิทินวันส่งให้' : 'บทนี้จะเป็นขอบเขตของรอบติว',
               style: TextStyle(fontSize: 12, color: c.muted),
             ),
-          ]),
-        ),
-      ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('ข้าม')),
-        FilledButton(
-          onPressed: () {
+          ]);
+    void save() {
             final isNew = _chapter == _newId;
             if ((isNew && _newName.text.trim().isEmpty) || (_hw && _hwName.text.trim().isEmpty)) {
               setState(() => _showErrors = true);
@@ -466,12 +514,30 @@ class _ClassLogDialogState extends State<_ClassLogDialog> {
                 homework: _hw ? _hwName.text.trim() : null,
                 dueAt: _hw ? (_due ?? next ?? week) : null,
                 gradePartId: _hw ? _gradePart : null,
+                actualEnd: o != null && o.timed && _end != null ? _end : null,
               ),
             );
-          },
-          child: const Text('บันทึก'),
-        ),
-      ],
+    }
+
+    final skip = TextButton(
+        onPressed: () => Navigator.pop(context), child: Text(widget.justDone ? 'แค่ทำแล้ว ไม่บันทึก' : 'ข้าม'));
+    final ok = FilledButton(onPressed: save, child: const Text('บันทึก'));
+    if (widget.sheet) {
+      return Padding(
+        padding: EdgeInsets.fromLTRB(20, 0, 20, 16 + MediaQuery.viewInsetsOf(context).bottom),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Text(titleText, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: c.text)),
+          const SizedBox(height: 8),
+          Flexible(child: SingleChildScrollView(child: fields)),
+          const SizedBox(height: 12),
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [skip, ok]),
+        ]),
+      );
+    }
+    return AlertDialog(
+      title: Text(titleText),
+      content: SizedBox(width: 460, child: SingleChildScrollView(child: fields)),
+      actions: [skip, ok],
     );
   }
 }

@@ -428,7 +428,7 @@ class _StudyPageState extends State<StudyPage> {
     ));
   }
 
-  Widget _yearPicker(BuildContext context, Subject? subject) {
+  Widget _yearPicker(BuildContext context, Subject? subject, {VoidCallback? onPicked, VoidCallback? onYear}) {
     final c = context.noir;
     int yearOf(Subject s) => s.planYear ?? 0;
     final years = {for (final s in _subjects) yearOf(s)}.toList()
@@ -452,12 +452,18 @@ class _StudyPageState extends State<StudyPage> {
                 for (final y in years)
                   (y, '${y == 0 ? 'ยังไม่จัดปี' : 'ปี $y'} · ${_subjects.where((s) => yearOf(s) == y).length} วิชา'),
               ],
-              onChanged: (y) => setState(() => _yearView = y),
+              onChanged: (y) {
+                setState(() => _yearView = y);
+                onYear?.call();
+              },
             ),
           ActionChip(
             avatar: const Icon(Icons.add, size: 18),
             label: const Text('เพิ่มวิชา'),
-            onPressed: _addSubject,
+            onPressed: () {
+              onPicked?.call();
+              _addSubject();
+            },
           ),
         ]),
         const SizedBox(height: 10),
@@ -485,6 +491,7 @@ class _StudyPageState extends State<StudyPage> {
                         onSelected: (_) {
                           _subjectId = s.id;
                           _yearView = year;
+                          onPicked?.call();
                           _reload();
                         },
                       ),
@@ -494,6 +501,50 @@ class _StudyPageState extends State<StudyPage> {
             ]),
           ),
       ],
+    );
+  }
+
+  /// มือถือ: ปุ่มชื่อวิชา → แผ่นล่างรายชื่อวิชา (ปี · เทอม) เหมือนชิปบนจอกว้าง
+  Widget _subjectPickerButton(BuildContext context, Subject? subject) {
+    final c = context.noir;
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: TextButton(
+        key: const ValueKey('subject-picker'),
+        style: TextButton.styleFrom(padding: EdgeInsets.zero, foregroundColor: c.text),
+        onPressed: () => showModalBottomSheet<void>(
+          context: context,
+          isScrollControlled: true,
+          useSafeArea: true,
+          showDragHandle: true,
+          builder: (ctx) => StatefulBuilder(
+            builder: (ctx, setSheet) => DraggableScrollableSheet(
+              expand: false,
+              initialChildSize: 0.7,
+              builder: (ctx, scroll) => ListView(
+                controller: scroll,
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                children: [
+                  // ใช้ชิปชุดเดิม: เลือกแล้วปิดแผ่น
+                  _yearPicker(ctx, subject, onPicked: () => Navigator.pop(ctx), onYear: () => setSheet(() {})),
+                ],
+              ),
+            ),
+          ),
+        ),
+        // ชื่อวิชาอยู่ในหัววิชาแล้ว → ปุ่มนี้บอกแค่ปี + จำนวนวิชา
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.swap_horiz, size: 18, color: c.muted),
+          const SizedBox(width: 6),
+          Text(
+              subject?.planYear == null
+                  ? 'เปลี่ยนวิชา · ${_subjects.length} วิชา'
+                  : 'เปลี่ยนวิชา · ปี ${subject!.planYear} · '
+                      '${_subjects.where((s) => s.planYear == subject.planYear).length} วิชา',
+              style: TextStyle(fontSize: 14, color: c.muted)),
+          Icon(Icons.expand_more, size: 18, color: c.muted),
+        ]),
+      ),
     );
   }
 
@@ -855,7 +906,8 @@ class _StudyPageState extends State<StudyPage> {
     final flags = topics.where((t) => t.examFlag).length;
     Widget tile(String label, String value, String sub, {VoidCallback? onTap}) => Material(
           color: c.surface,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: BorderSide(color: c.line)),
+          // minimal: ไม่มีขอบ แยกชั้นด้วยพื้นสี
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
             onTap: onTap,
@@ -1270,16 +1322,29 @@ class _StudyPageState extends State<StudyPage> {
           showSelectedIcon: false,
           onSelectionChanged: (v) => _setMapView(v.first),
           ),
-          OutlinedButton.icon(
-            onPressed: _openWeek,
-            icon: const Icon(Icons.calendar_view_week_outlined),
-            label: const Text('ตารางเรียนทั้งสัปดาห์'),
-          ),
-          OutlinedButton.icon(
-            onPressed: _openGpa,
-            icon: const Icon(Icons.school_outlined),
-            label: const Text('เกรดและหน่วยกิต'),
-          ),
+          // มือถือ: ปุ่มรองย้ายเข้า ⋯ (หน้าเดียว ปุ่มหลักเดียว)
+          if (MediaQuery.sizeOf(context).width < 600)
+            PopupMenuButton<String>(
+              tooltip: 'เพิ่มเติม',
+              icon: const Icon(Icons.more_horiz),
+              onSelected: (v) => v == 'week' ? _openWeek() : _openGpa(),
+              itemBuilder: (_) => const [
+                PopupMenuItem(value: 'week', child: Text('ตารางเรียนทั้งสัปดาห์')),
+                PopupMenuItem(value: 'gpa', child: Text('เกรดและหน่วยกิต')),
+              ],
+            )
+          else ...[
+            OutlinedButton.icon(
+              onPressed: _openWeek,
+              icon: const Icon(Icons.calendar_view_week_outlined),
+              label: const Text('ตารางเรียนทั้งสัปดาห์'),
+            ),
+            OutlinedButton.icon(
+              onPressed: _openGpa,
+              icon: const Icon(Icons.school_outlined),
+              label: const Text('เกรดและหน่วยกิต'),
+            ),
+          ],
         ],
       );
 
@@ -1579,7 +1644,11 @@ class _StudyPageState extends State<StudyPage> {
       final list = ListView(
         padding: const EdgeInsets.fromLTRB(24, 28, 24, 32),
         children: [
-          if (!wide) ...[
+          // มือถือ: ปุ่มเดียว "ชื่อวิชา ▾" (รายชื่อเปิดเป็นแผ่นล่าง) แทนชิปวิชาทั้งปีที่กินทั้งจอ
+          if (size.maxWidth < 600) ...[
+            _subjectPickerButton(context, subject),
+            const SizedBox(height: 8),
+          ] else if (!wide) ...[
             _yearPicker(context, subject),
             const SizedBox(height: 12),
           ],

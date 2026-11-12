@@ -170,7 +170,7 @@ class _OccurrenceRow extends StatelessWidget {
     final (rawBg, fg) = occurrenceColors(c, o, category?.colorKey);
     // รอบติว = พื้นจาง + กรอบ · คาบเรียน/สอบ = พื้นทึบ
     final tutor = o.kind == ActivityKind.tutor;
-    final bg = tutor ? rawBg.withValues(alpha: 0.35) : rawBg;
+    final (bg, shape) = occurrenceLook(c, o, rawBg, fg, clash: clash);
     final faded = !o.active;
     final status = _statusText(o);
     final icon = _statusIcon(o.status);
@@ -212,12 +212,7 @@ class _OccurrenceRow extends StatelessWidget {
               child: Material(
                 color: bg,
                 // Material ห้ามใส่ทั้ง borderRadius และ shape → ใช้ shape อย่างเดียว
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  side: clash
-                      ? BorderSide(color: c.bad, width: 2)
-                      : (tutor ? BorderSide(color: fg.withValues(alpha: 0.6), width: 1.5) : BorderSide.none),
-                ),
+                shape: shape,
                 child: InkWell(
                   borderRadius: BorderRadius.circular(8),
                   onTap: onTap,
@@ -232,6 +227,12 @@ class _OccurrenceRow extends StatelessWidget {
                             children: [
                               Row(children: [
                                 ?lockBadge(o, fg),
+                                // ✎ = รอบติว (คาบเรียนไม่มี)
+                                if (tutor)
+                                  Padding(
+                                    padding: const EdgeInsets.only(right: 4),
+                                    child: Icon(Icons.edit_outlined, size: 15, color: fg, semanticLabel: 'ติว'),
+                                  ),
                                 Flexible(
                                   child: Text(
                                     markedTitle(o),
