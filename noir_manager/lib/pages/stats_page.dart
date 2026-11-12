@@ -9,6 +9,7 @@ import '../data/study_scope.dart';
 import '../study/tutor_plan.dart';
 import '../theme/noir_colors.dart';
 import '../utils/thai_date.dart';
+import '../widgets/mini_segments.dart';
 import '../widgets/page_scaffold.dart';
 
 /// หน้า "สถิติ": วงกลมภาพรวม · กราฟรายวัน 4 สัปดาห์ · แถบ % แยกกิจกรรม / วิชา · Streak · เหรียญ
@@ -25,10 +26,10 @@ enum _Range { week, month, m3, m6, m9, m12 }
 const _rangeLabel = {
   _Range.week: 'สัปดาห์',
   _Range.month: 'เดือน',
-  _Range.m3: '3 เดือน',
-  _Range.m6: '6 เดือน',
-  _Range.m9: '9 เดือน',
-  _Range.m12: '12 เดือน',
+  _Range.m3: '3 ด.',
+  _Range.m6: '6 ด.',
+  _Range.m9: '9 ด.',
+  _Range.m12: '1 ปี',
 };
 
 class _StatsPageState extends State<StatsPage> with CalendarListener<StatsPage> {
@@ -136,14 +137,14 @@ class _StatsPageState extends State<StatsPage> with CalendarListener<StatsPage> 
       children: [
         Align(
           alignment: Alignment.centerLeft,
-          child: Wrap(spacing: 6, runSpacing: 6, children: [
-            for (final r in _Range.values)
-              ChoiceChip(
-                label: Text(_rangeLabel[r]!),
-                selected: _rangeSel == r,
-                onSelected: (_) => setState(() => _rangeSel = r),
-              ),
-          ]),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: MiniSegments<_Range>(
+              value: _rangeSel,
+              items: [for (final r in _Range.values) (r, _rangeLabel[r]!)],
+              onChanged: (r) => setState(() => _rangeSel = r),
+            ),
+          ),
         ),
         const SizedBox(height: 12),
         // ---- วงกลมภาพรวม ----
