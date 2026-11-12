@@ -575,6 +575,7 @@ class _WeekGrid extends StatelessWidget {
       final pxH = ((box.maxHeight - head) / hours).clamp(26.0, 60.0);
       final narrow = box.maxWidth < 600;
       final colW = (box.maxWidth - 34) / 7;
+      final selIdx = selectedStart == null ? -1 : week.indexWhere((d) => d.day == selectedDay);
       double y(int m) => (m - axisFrom) / 60 * pxH;
 
       Widget column(SlotDay d) {
@@ -674,14 +675,14 @@ class _WeekGrid extends StatelessWidget {
                 ),
               ),
           ]),
-          if (selectedStart != null && week.indexWhere((d) => d.day == selectedDay) case final i when i >= 0)
+          if (selIdx >= 0)
             Positioned(
               key: const ValueKey('slot-selected-pos'),
-              left: 34 + i * colW + 2.5,
+              left: 34 + selIdx * colW + 2.5,
               width: colW - 5,
               top: y(selectedStart!),
               height: y(selectedStart! + len) - y(selectedStart!),
-              child: _selectionBox(context, week[i], colW - 5, pxH, axisFrom),
+              child: _selectionBox(context, week[selIdx], colW - 5, pxH, axisFrom),
             ),
           ]),
         ]),
