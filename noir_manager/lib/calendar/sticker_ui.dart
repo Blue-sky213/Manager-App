@@ -220,15 +220,17 @@ class _StickerSettingsState extends State<StickerSettings> with CalendarListener
     await repo.addStickerPack(name.trim());
   }
 
-  /// เพิ่มทีละชิ้น: อีโมจิ หรือรูปของตัวเอง · ไม่ระบุชุด → ลง "สติกเกอร์ของฉัน" (สร้างให้ถ้ายังไม่มี)
+  /// เพิ่มสติกเกอร์: อีโมจิ 1 ตัว หรือรูปของตัวเอง **กี่รูปก็ได้** (ชื่อ = ชื่อไฟล์) · เห็นตัวอย่างก่อนเพิ่ม
+  /// ไม่ระบุชุด → ลง "สติกเกอร์ของฉัน" (สร้างให้ถ้ายังไม่มี)
   Future<void> _addSticker([StickerPack? pack]) async {
     final repo = calendar!;
     final emoji = TextEditingController();
     final name = TextEditingController();
-    String? image; // รูปที่เลือก (ยังไม่ย่อ)
+    final images = <String>[]; // รูปที่เลือก (ยังไม่ย่อ)
+    final picked = <String>{}; // รูปที่ติ๊กไว้ (แตะเพื่อเลือก / ไม่เลือก)
     var showErr = false;
     String? emojiErr() {
-      if (image != null) return null;
+      if (picked.isNotEmpty) return null;
       final t = emoji.text.trim();
       if (t.isEmpty) return showErr ? 'ใส่อีโมจิ 1 ตัว หรือเลือกรูป' : null;
       return t.characters.length == 1 ? null : 'ใส่ได้ 1 ตัว';
@@ -237,73 +239,107 @@ class _StickerSettingsState extends State<StickerSettings> with CalendarListener
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setLocal) => AlertDialog(
-          title: Text(pack == null ? 'เพิ่มสติกเกอร์ 1 ชิ้น' : 'เพิ่มสติกเกอร์ในชุด "${pack.name}"'),
-          content: SizedBox(
-            width: 380,
-            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Expanded(
-                  child: TextField(
-                    controller: emoji,
-                    enabled: image == null,
-                    style: const TextStyle(fontSize: 28),
-                    onChanged: (_) => setLocal(() {}),
-                    decoration: InputDecoration(
-                      labelText: 'อีโมจิ',
-                      hintText: '🐱',
-                      helperText: 'Windows กด Win + .',
-                      errorText: emojiErr(),
+        builder: (ctx, setLocal) {
+          final c = ctx.noir;
+          final n = picked.length;
+          return AlertDialog(
+            title: Text(pack == null ? 'เพิ่มสติกเกอร์' : 'เพิ่มลงชุด "${pack.name}"'),
+            content: SizedBox(
+              width: 420,
+              child: SingleChildScrollView(
+                child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        final more = await pickImages(many: true);
+                        if (more.isEmpty) return;
+                        setLocal(() {
+                          for (final f in more) {
+                            if (!images.contains(f)) images.add(f);
+                            picked.add(f);
+                          }
+                        });
+                      },
+                      icon: const Icon(Icons.photo_library_outlined),
+                      label: Text(images.isEmpty ? 'เลือกรูป (เลือกได้หลายรูป)' : 'เลือกรูปเพิ่ม'),
                     ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Column(children: [
-                  if (image != null)
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.file(File(image!), width: 56, height: 56, fit: BoxFit.contain),
+                  if (images.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Text('แตะรูปเพื่อเลือก / ไม่เลือก · ชื่อ = ชื่อไฟล์ (แก้ทีหลังได้)',
+                        style: TextStyle(fontSize: 12, color: c.muted)),
+                    const SizedBox(height: 8),
+                    Wrap(spacing: 8, runSpacing: 8, children: [
+                      for (final f in images)
+                        InkWell(
+                          borderRadius: BorderRadius.circular(10),
+                          onTap: () => setLocal(() => picked.contains(f) ? picked.remove(f) : picked.add(f)),
+                          child: Container(
+                            width: 64,
+                            height: 64,
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: c.surface2,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: picked.contains(f) ? c.accent : Colors.transparent, width: 2),
+                            ),
+                            child: Stack(children: [
+                              Center(child: Image.file(File(f), fit: BoxFit.contain)),
+                              if (picked.contains(f))
+                                Positioned(
+                                  right: 0,
+                                  top: 0,
+                                  child: Icon(Icons.check_circle, size: 16, color: c.accent),
+                                ),
+                            ]),
+                          ),
+                        ),
+                    ]),
+                  ],
+                  if (picked.isEmpty) ...[
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: emoji,
+                      style: const TextStyle(fontSize: 28),
+                      onChanged: (_) => setLocal(() {}),
+                      decoration: InputDecoration(
+                        labelText: 'หรือใส่อีโมจิ',
+                        hintText: '🐱',
+                        helperText: 'Windows กด Win + .',
+                        errorText: emojiErr(),
+                      ),
                     ),
-                  TextButton.icon(
-                    onPressed: () async {
-                      final picked = await pickImages();
-                      if (picked.isEmpty) return;
-                      setLocal(() {
-                        image = picked.first;
-                        if (name.text.trim().isEmpty) name.text = stickerNameFromFile(picked.first);
-                      });
-                    },
-                    icon: const Icon(Icons.image_outlined),
-                    label: Text(image == null ? 'เลือกรูป' : 'เปลี่ยนรูป'),
-                  ),
+                    TextField(
+                      controller: name,
+                      onChanged: (_) => setLocal(() {}),
+                      decoration: InputDecoration(
+                        labelText: 'ชื่อ *',
+                        hintText: 'เช่น อยากนอน',
+                        errorText: showErr && name.text.trim().isEmpty ? 'ใส่ชื่อ' : null,
+                      ),
+                    ),
+                  ],
                 ]),
-              ]),
-              TextField(
-                controller: name,
-                onChanged: (_) => setLocal(() {}),
-                decoration: InputDecoration(
-                  labelText: 'ชื่อ *',
-                  hintText: 'เช่น อยากนอน',
-                  errorText: showErr && name.text.trim().isEmpty ? 'ใส่ชื่อ' : null,
-                ),
               ),
-            ]),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('ยกเลิก')),
-            FilledButton(
-              onPressed: () {
-                showErr = true;
-                if (emojiErr() != null || (image == null && emoji.text.trim().isEmpty) || name.text.trim().isEmpty) {
-                  setLocal(() {});
-                  return;
-                }
-                Navigator.pop(ctx, true);
-              },
-              child: const Text('เพิ่ม'),
             ),
-          ],
-        ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('ยกเลิก')),
+              FilledButton(
+                onPressed: () {
+                  showErr = true;
+                  if (picked.isEmpty &&
+                      (emojiErr() != null || emoji.text.trim().isEmpty || name.text.trim().isEmpty)) {
+                    setLocal(() {});
+                    return;
+                  }
+                  Navigator.pop(ctx, true);
+                },
+                child: Text(n > 0 ? 'เพิ่ม $n ชิ้น' : 'เพิ่ม'),
+              ),
+            ],
+          );
+        },
       ),
     );
     if (ok != true) return;
@@ -312,8 +348,14 @@ class _StickerSettingsState extends State<StickerSettings> with CalendarListener
       final mine = _packs.where((p) => !p.builtin && p.name == myStickerPackName).firstOrNull;
       packId = mine?.id ?? await repo.addStickerPack(myStickerPackName);
     }
-    final saved = image == null ? null : await saveStickerImage(image!, await stickerFolder());
-    await repo.addSticker(packId, name.text.trim(), emoji: saved == null ? emoji.text.trim() : null, imagePath: saved);
+    if (picked.isEmpty) {
+      await repo.addSticker(packId, name.text.trim(), emoji: emoji.text.trim());
+      return;
+    }
+    final dir = await stickerFolder();
+    for (final f in images.where(picked.contains)) {
+      await repo.addSticker(packId, stickerNameFromFile(f), imagePath: await saveStickerImage(f, dir));
+    }
   }
 
   /// ชุดจากรูป: เลือกหลายรูป → ตั้งชื่อชุด → ทุกรูปเป็นสติกเกอร์ (ชื่อ = ชื่อไฟล์)
@@ -459,7 +501,7 @@ class _StickerSettingsState extends State<StickerSettings> with CalendarListener
     final c = context.noir;
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Wrap(spacing: 8, runSpacing: 8, children: [
-        OutlinedButton.icon(onPressed: _addSticker, icon: const Icon(Icons.add_reaction_outlined), label: const Text('เพิ่มทีละชิ้น')),
+        OutlinedButton.icon(onPressed: _addSticker, icon: const Icon(Icons.add_reaction_outlined), label: const Text('เพิ่มสติกเกอร์')),
         OutlinedButton.icon(onPressed: _addPack, icon: const Icon(Icons.create_new_folder_outlined), label: const Text('ชุดใหม่')),
         OutlinedButton.icon(
             onPressed: _packFromImages, icon: const Icon(Icons.photo_library_outlined), label: const Text('ชุดจากรูป')),

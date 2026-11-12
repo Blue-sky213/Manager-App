@@ -14,6 +14,8 @@ import '../study/mastery.dart' show GradingMode;
 import '../study/tutor_plan.dart' show defaultTutorPass, tutorPassKey;
 import '../data/study_scope.dart';
 import '../theme/noir_colors.dart';
+import '../data/demo_year.dart' show demoMode;
+import '../shell/window_mode.dart';
 import '../widgets/device_preview.dart';
 import '../widgets/mini_dropdown.dart';
 
@@ -256,6 +258,38 @@ class _SettingsPageState extends State<SettingsPage> {
                     ]),
                     const SizedBox(height: 14),
                     section('สติกเกอร์อารมณ์', [const StickerSettings()]),
+                    const SizedBox(height: 14),
+                    if (supportsFullscreen) ...[
+                      section('หน้าต่าง', [
+                        ValueListenableBuilder(
+                          valueListenable: fullscreen,
+                          builder: (context, on, _) => SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            value: on,
+                            onChanged: (v) {
+                              setFullscreen(v);
+                              repo.setSetting(fullscreenKey, v ? 'on' : 'off');
+                            },
+                            title: const Text('เต็มจอไร้ขอบ (F11)'),
+                            subtitle: const Text('ไม่มีแถบชื่อหน้าต่าง · Esc / F11 = กลับหน้าต่างปกติ · จำไว้ตอนเปิดครั้งถัดไป'),
+                          ),
+                        ),
+                      ]),
+                      const SizedBox(height: 14),
+                    ],
+                    section('ข้อมูลตัวอย่าง (ทดสอบ)', [
+                      ValueListenableBuilder(
+                        valueListenable: demoMode,
+                        builder: (context, on, _) => SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          value: on,
+                          onChanged: (v) => demoMode.value = v,
+                          title: const Text('ใช้ข้อมูลตัวอย่าง 1 ปี'),
+                          subtitle: const Text(
+                              'เหมือนใช้แอปมาแล้ว 1 ปี · อยู่ในหน่วยความจำเท่านั้น ไม่เขียนลงไฟล์ ไม่แตะข้อมูลจริง · ปิด / ปิดแอป = หายเอง'),
+                        ),
+                      ),
+                    ]),
                     const SizedBox(height: 14),
                     // บนคอมเท่านั้น: ดูหน้าตาแอปบน iPhone / iPad / Android โดยไม่ต้องมีเครื่อง
                     if (const {TargetPlatform.windows, TargetPlatform.linux, TargetPlatform.macOS}

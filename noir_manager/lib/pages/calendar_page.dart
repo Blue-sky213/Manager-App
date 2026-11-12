@@ -5,8 +5,7 @@ import '../calendar/calendar_flows.dart';
 import '../calendar/terms_page.dart';
 import '../calendar/calendar_listener.dart';
 import '../calendar/calendar_models.dart';
-import '../calendar/sticker_ui.dart' show StickerGlyph;
-import '../calendar/stickers.dart' show DaySticker, Sticker, stickersByDay;
+import '../calendar/stickers.dart' show DaySticker, stickersByDay;
 import '../calendar/calendar_ui.dart';
 import '../calendar/clash_page.dart';
 import '../calendar/day_agenda.dart';
@@ -20,7 +19,7 @@ import '../utils/thai_date.dart';
 import '../widgets/mini_dropdown.dart';
 
 /// มุมมองปฏิทิน 4 แบบ
-enum CalView { day, week, month, notebook, year }
+enum CalView { day, week, month, year }
 
 /// เลื่อนไป/กลับ [step] เดือน แต่คงวันที่ไว้ (31 ม.ค. + 1 เดือน → 28/29 ก.พ.)
 DateTime addMonths(DateTime d, int step) {
@@ -77,7 +76,7 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
   /// วันที่ต้องโหลด ตามมุมมองตอนนี้
   List<DateTime> get _visibleDays => switch (_view) {
         CalView.week => _weekDays,
-        CalView.month || CalView.notebook => monthGridDays(_selected),
+        CalView.month => monthGridDays(_selected),
         _ => const [],
       };
 
@@ -159,7 +158,7 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
           day: switch (_view) {
             CalView.day => _selected.add(Duration(days: dir)),
             CalView.week => _selected.add(Duration(days: 7 * dir)),
-            CalView.month || CalView.notebook => addMonths(_selected, dir),
+            CalView.month => addMonths(_selected, dir),
             CalView.year => addMonths(_selected, 12 * dir),
           },
         );
@@ -172,7 +171,6 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
         final sun = _monday.add(const Duration(days: 6));
         return '${thaiShortDate(_monday)} – ${thaiShortDate(sun)}';
       case CalView.month:
-      case CalView.notebook:
         return thaiMonthYear(_selected);
       case CalView.year:
         if (_pickYear) {
@@ -193,7 +191,6 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
       case CalView.week:
         _go(view: CalView.month);
       case CalView.month:
-      case CalView.notebook:
         _go(view: CalView.year);
       case CalView.year:
         setState(() => _pickYear = !_pickYear);
@@ -203,7 +200,7 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
   (String, String) get _stepTips => switch (_view) {
         CalView.day => ('วันก่อน', 'วันถัดไป'),
         CalView.week => ('สัปดาห์ก่อน', 'สัปดาห์ถัดไป'),
-        CalView.month || CalView.notebook => ('เดือนก่อน', 'เดือนถัดไป'),
+        CalView.month => ('เดือนก่อน', 'เดือนถัดไป'),
         CalView.year => ('ปีก่อน', 'ปีถัดไป'),
       };
 
@@ -231,7 +228,6 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
                   (CalView.day, 'วัน'),
                   (CalView.week, 'สัปดาห์'),
                   (CalView.month, 'เดือน'),
-                  (CalView.notebook, 'สมุด'),
                   (CalView.year, 'ปี'),
                 ],
                 onChanged: (v) => _go(view: v),
@@ -265,49 +261,27 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
           ...switch (_view) {
             CalView.day => [_navRow(), const SizedBox(height: 8), _agenda(today)],
             CalView.week => _weekBody(today, box.maxWidth),
+            // เดือน = หน้าสมุด (สติกเกอร์ใหญ่ · 🎓n ✎n · ⭐ 📝) · แตะวัน = รายการงานของวันนั้น + เพิ่มงาน
             CalView.month => wide
                 ? [
+                    _navRow(),
+                    const SizedBox(height: 24),
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        SizedBox(
-                          width: 360,
-                          child: Column(children: [_navRow(), _monthGrid(today)]),
-                        ),
+                        Expanded(flex: 3, child: _notebook()),
                         const SizedBox(width: 24),
-                        Expanded(child: _agenda(today)),
+                        Expanded(flex: 2, child: _agenda(today)),
                       ],
                     ),
                   ]
                 : [
                     _navRow(),
-                    Center(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 420),
-                        child: _monthGrid(today),
-                      ),
-                    ),
+                    const SizedBox(height: 24),
+                    _notebook(),
                     const SizedBox(height: 16),
                     _agenda(today),
                   ],
-            // สมุด: ดูอย่างเดียว · สติกเกอร์ใหญ่ · แผนเดือนหน้า
-            CalView.notebook => [
-                _navRow(),
-                const SizedBox(height: 28),
-                Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 980),
-                    child: NotebookMonth(
-                      month: _selected,
-                      days: monthGridDays(_selected),
-                      byDay: _byDay,
-                      stickers: stickersByDay,
-                      holidays: _holidays,
-                      onTapDay: (d) => showNotebookDay(context, d, _byDay[d] ?? const [], stickersByDay[d] ?? const []),
-                    ),
-                  ),
-                ),
-              ],
             CalView.year => [
                 _navRow(),
                 const SizedBox(height: 8),
@@ -329,8 +303,46 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
     });
   }
 
-  /// ◀ ชื่อช่วง ▶ (แตะชื่อ = ซูมออก)
-  Widget _navRow() => Row(
+  Widget _notebook() => NotebookMonth(
+        month: _selected,
+        days: monthGridDays(_selected),
+        byDay: _byDay,
+        stickers: stickersByDay,
+        holidays: _holidays,
+        selected: _selected,
+        onTapDay: (d) => _go(day: d),
+      );
+
+  /// ◀ ชื่อช่วง ▶ (แตะชื่อ = ซูมออก) · มุมมองเดือน: ลูกศรบอกชื่อเดือนก่อน / ถัดไป
+  Widget _navRow() {
+    if (_view == CalView.month) {
+      final prev = addMonths(_selected, -1), next = addMonths(_selected, 1);
+      return Row(children: [
+        TextButton.icon(
+          onPressed: () => _step(-1),
+          icon: const Icon(Icons.chevron_left),
+          label: Text(thaiMonthsShort[prev.month - 1]),
+        ),
+        Expanded(
+          child: TextButton(
+            onPressed: _zoomOut,
+            style: TextButton.styleFrom(foregroundColor: context.noir.text),
+            child: Text(_title, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w600)),
+          ),
+        ),
+        TextButton(
+          onPressed: () => _step(1),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Text(thaiMonthsShort[next.month - 1]),
+            const Icon(Icons.chevron_right),
+          ]),
+        ),
+      ]);
+    }
+    return _navRowBasic();
+  }
+
+  Widget _navRowBasic() => Row(
         children: [
           IconButton(
             tooltip: _stepTips.$1,
@@ -525,55 +537,6 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
     ];
   }
 
-  // ---------- เดือน (มินิมอล) ----------
-
-  Widget _monthGrid(DateTime today) {
-    final c = context.noir;
-    final days = monthGridDays(_selected);
-    return Column(
-      children: [
-        Row(
-          children: [
-            for (final w in thaiWeekdayShort)
-              Expanded(
-                child: Text(w,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 12, color: c.muted)),
-              ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        for (var r = 0; r < days.length ~/ 7; r++)
-          Row(
-            children: [
-              for (final d in days.sublist(r * 7, r * 7 + 7))
-                Expanded(
-                  child: _MiniDay(
-                    day: d,
-                    selected: d == _selected,
-                    isToday: d == today,
-                    dimmed: d.month != _selected.month,
-                    dots: _dots(d),
-                    marks: {for (final o in _byDay[d] ?? const <Occurrence>[]) ?markOf(o)},
-                    sticker: stickersByDay[d]?.first,
-                    onTap: () => _go(day: d),
-                  ),
-                ),
-            ],
-          ),
-      ],
-    );
-  }
-
-  /// สีของงานในวันนั้น (ไม่นับที่ยกเลิก/เลื่อนออก)
-  List<Color> _dots(DateTime d) {
-    final c = context.noir;
-    return [
-      for (final o in _byDay[d] ?? const <Occurrence>[])
-        if (o.active) categoryColors(c, _categories[o.categoryId]?.colorKey).$2,
-    ];
-  }
-
   // ---------- ปี ----------
 
   Widget _decadeGrid(DateTime today) {
@@ -649,97 +612,4 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
                 ),
           ),
       ]);
-}
-
-/// ช่องวันแบบมินิมอล (ตารางเดือน): ตัวเลขในวงกลม + จุดสีเล็ก ๆ
-class _MiniDay extends StatelessWidget {
-  const _MiniDay({
-    required this.day,
-    required this.selected,
-    required this.isToday,
-    required this.dimmed,
-    required this.dots,
-    this.marks = const {},
-    this.sticker,
-    required this.onTap,
-  });
-
-  final DateTime day;
-  final bool selected;
-  final bool isToday;
-  final bool dimmed;
-  final List<Color> dots;
-
-  /// วันสอบ / วันส่งงาน → สัญลักษณ์แทนจุด เห็นได้ทันทีในตารางเดือน
-  final Set<DayMark> marks;
-
-  /// สติกเกอร์อารมณ์ของวันนั้น (ตัวแรกที่แปะ)
-  final Sticker? sticker;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.noir;
-    return InkWell(
-      borderRadius: BorderRadius.circular(22),
-      onTap: onTap,
-      child: SizedBox(
-        height: 48,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 32,
-              height: 32,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: selected ? c.accent : null,
-                border: isToday && !selected ? Border.all(color: c.accent) : null,
-              ),
-              child: Text(
-                '${day.day}',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: isToday || selected ? FontWeight.w600 : FontWeight.w400,
-                  color: selected ? c.onAccent : (dimmed ? c.muted.withValues(alpha: 0.5) : c.text),
-                ),
-              ),
-            ),
-            const SizedBox(height: 2),
-            if (marks.isNotEmpty || sticker != null)
-              SizedBox(
-                height: 12,
-                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  if (sticker != null) StickerGlyph(sticker!, size: 12),
-                  if (marks.contains(DayMark.exam))
-                    Icon(Icons.edit_note, size: 12, color: c.bad, semanticLabel: 'วันสอบ'),
-                  if (marks.contains(DayMark.homework))
-                    Icon(Icons.star, size: 11, color: c.warn, semanticLabel: 'วันส่งงาน'),
-                ]),
-              )
-            else
-            SizedBox(
-              height: 4,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  for (final color in dots.take(3))
-                    Container(
-                      width: 4,
-                      height: 4,
-                      margin: const EdgeInsets.symmetric(horizontal: 1),
-                      decoration: BoxDecoration(
-                        color: dimmed ? color.withValues(alpha: 0.4) : color,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }

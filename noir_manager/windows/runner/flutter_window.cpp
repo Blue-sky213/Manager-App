@@ -1,6 +1,9 @@
 #include "flutter_window.h"
 
 #include <optional>
+#include <variant>
+
+#include <flutter/standard_method_codec.h>
 
 #include "flutter/generated_plugin_registrant.h"
 
@@ -27,6 +30,22 @@ bool FlutterWindow::OnCreate() {
   RegisterPlugins(flutter_controller_->engine());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
+  // Dart เรียก setFullscreen(true/false) ผ่านช่องนี้
+  window_channel_ = std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+      flutter_controller_->engine()->messenger(), "noir/window",
+      &flutter::StandardMethodCodec::GetInstance());
+  window_channel_->SetMethodCallHandler(
+      [this](const flutter::MethodCall<flutter::EncodableValue>& call,
+             std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
+        if (call.method_name() == "setFullscreen") {
+          const auto* on = std::get_if<bool>(call.arguments());
+          SetFullscreen(on != nullptr && *on);
+          result->Success(flutter::EncodableValue(fullscreen_));
+        } else {
+          result->NotImplemented();
+        }
+      });
+
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
     this->Show();
   });
@@ -39,7 +58,34 @@ bool FlutterWindow::OnCreate() {
   return true;
 }
 
+void FlutterWindow::SetFullscreen(bool on) {
+  HWND hwnd = GetHandle();
+  if (hwnd == nullptr || on == fullscreen_) {
+    return;
+  }
+  if (on) {
+    // ตัดแถบชื่อ + ขอบ แล้วขยายเต็มจอภาพที่หน้าต่างอยู่
+    saved_style_ = GetWindowLong(hwnd, GWL_STYLE);
+    GetWindowRect(hwnd, &saved_rect_);
+    MONITORINFO mi = {sizeof(mi)};
+    GetMonitorInfo(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), &mi);
+    SetWindowLong(hwnd, GWL_STYLE, saved_style_ & ~(WS_CAPTION | WS_THICKFRAME));
+    SetWindowPos(hwnd, HWND_TOP, mi.rcMonitor.left, mi.rcMonitor.top,
+                 mi.rcMonitor.right - mi.rcMonitor.left,
+                 mi.rcMonitor.bottom - mi.rcMonitor.top,
+                 SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+  } else {
+    SetWindowLong(hwnd, GWL_STYLE, saved_style_);
+    SetWindowPos(hwnd, nullptr, saved_rect_.left, saved_rect_.top,
+                 saved_rect_.right - saved_rect_.left,
+                 saved_rect_.bottom - saved_rect_.top,
+                 SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+  }
+  fullscreen_ = on;
+}
+
 void FlutterWindow::OnDestroy() {
+  window_channel_ = nullptr;
   if (flutter_controller_) {
     flutter_controller_ = nullptr;
   }
