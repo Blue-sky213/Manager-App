@@ -192,8 +192,8 @@ void main() {
     await tester.tap(find.text('แก้ไขงาน'));
     await tester.pumpAndSettle();
 
-    expect(find.text('เวลาจบ'), findsOneWidget);
-    expect(find.text('00:00'), findsWidgets); // 20:00 + 4 ชม.
+    expect(find.byKey(const Key('activity-form')), findsOneWidget);
+    expect(find.textContaining('20:00–00:00'), findsWidgets); // 20:00 + 4 ชม.
     await tester.enterText(find.byKey(const Key('activity-name')), 'Minecraft');
     await tester.tap(find.widgetWithText(FilledButton, 'บันทึก'));
     await tester.pumpAndSettle();
@@ -208,8 +208,10 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('เพิ่มงาน').first);
     await tester.pumpAndSettle();
-    // จอเตี้ย 640: ปุ่มอยู่ใต้ขอบ ต้องเลื่อนฟอร์มลงก่อน (ไม่งั้นแตะพลาด)
-    await tester.ensureVisible(find.text('เลือกวันเอง'));
+    // ทำซ้ำ = แถวเดียว แตะแล้วเปิดแผ่นตัวเลือก
+    await tester.ensureVisible(find.byKey(const Key('row-repeat')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('row-repeat')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('เลือกวันเอง'));
     await tester.pumpAndSettle();
@@ -709,7 +711,7 @@ void main() {
     expect(find.text('🔒 งานนี้เริ่มไปแล้ว'), findsOneWidget);
     await tester.tap(find.text('ไม่แก้'));
     await tester.pumpAndSettle();
-    expect(find.text('เวลาจบ'), findsNothing);
+    expect(find.byKey(const Key('activity-form')), findsNothing);
 
     // ตั้งคำมั่น
     await tester.longPress(find.text('อ่านหนังสือเช้า'));
@@ -729,10 +731,10 @@ void main() {
     expect(find.textContaining('อย่างงั้นหรอ?'), findsOneWidget);
     await tester.tap(find.text('แก้ครั้งนี้'));
     await tester.pumpAndSettle();
-    expect(find.text('เวลาจบ'), findsOneWidget);
+    expect(find.byKey(const Key('activity-form')), findsOneWidget);
 
     // กรอกผลไม่ถูกล็อก
-    Navigator.of(tester.element(find.text('เวลาจบ'))).pop();
+    Navigator.of(tester.element(find.byKey(const Key('activity-form')))).pop();
     await tester.pumpAndSettle();
     await tester.tap(find.text('อ่านหนังสือเช้า'));
     await tester.pumpAndSettle();

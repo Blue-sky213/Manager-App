@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../study/subject_colors.dart';
 import '../theme/noir_colors.dart';
 import '../utils/thai_date.dart';
+import '../widgets/mini_segments.dart';
 import 'calendar_models.dart';
 import 'lock_flow.dart' show showLockBadge;
 
@@ -147,10 +148,8 @@ Future<NewActivity?> showActivityDialog(
   bool editing = false,
   Future<int> Function(String name, NewActivity values)? onSavePreset,
   Future<void> Function(int presetId)? onDeletePreset,
-}) =>
-    showDialog<NewActivity>(
-      context: context,
-      builder: (_) => _ActivityDialog(
+}) {
+  Widget body(bool sheet) => _ActivityDialog(
         day: day,
         categories: categories,
         presets: presets,
@@ -158,8 +157,19 @@ Future<NewActivity?> showActivityDialog(
         editing: editing,
         onSavePreset: onSavePreset,
         onDeletePreset: onDeletePreset,
-      ),
-    );
+        sheet: sheet,
+      );
+  // มือถือ = แผ่นจากด้านล่าง · คอม = กล่องกลางจอ
+  return MediaQuery.sizeOf(context).width < 600
+      ? showModalBottomSheet<NewActivity>(
+          context: context,
+          isScrollControlled: true,
+          useSafeArea: true,
+          showDragHandle: true,
+          builder: (_) => body(true),
+        )
+      : showDialog<NewActivity>(context: context, builder: (_) => Dialog(child: body(false)));
+}
 
 class _ActivityDialog extends StatefulWidget {
   const _ActivityDialog({
@@ -170,8 +180,10 @@ class _ActivityDialog extends StatefulWidget {
     required this.editing,
     required this.onSavePreset,
     required this.onDeletePreset,
+    this.sheet = false,
   });
 
+  final bool sheet;
   final DateTime day;
   final List<ActivityCategory> categories;
   final List<Preset> presets;
@@ -335,281 +347,393 @@ class _ActivityDialogState extends State<_ActivityDialog> {
     });
   }
 
+  // ---------- แผ่นตัวเลือกย่อย (แตะแถวแล้วเปิด) ----------
+
+  /// เปิดแผ่นจากด้านล่าง · [build] ได้ฟังก์ชัน set ที่อัปเดตทั้งแผ่นและฟอร์ม
+  Future<void> _sheet(String title, Widget Function(BuildContext ctx, void Function(VoidCallback) set) build) =>
+      showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        showDragHandle: true,
+        builder: (ctx) => StatefulBuilder(builder: (ctx, setLocal) {
+          void set(VoidCallback f) {
+            setState(f);
+            setLocal(() {});
+          }
+
+          final c = ctx.noir;
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Row(children: [
+                Expanded(child: Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: c.text))),
+                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('เสร็จ')),
+              ]),
+              const SizedBox(height: 8),
+              Flexible(child: SingleChildScrollView(child: build(ctx, set))),
+            ]),
+          );
+        }),
+      );
+
+  Future<void> _editTime() => _sheet('เวลา', (ctx, set) {
+        final c = ctx.noir;
+        Widget box(String label, int m, VoidCallback onTap) => Expanded(
+              child: Material(
+                color: c.surface2,
+                borderRadius: BorderRadius.circular(12),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: _timed ? onTap : null,
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(label, style: TextStyle(fontSize: 12, color: c.muted)),
+                      Text(fmtMinute(m),
+                          style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600, color: _timed ? c.text : c.muted)),
+                    ]),
+                  ),
+                ),
+              ),
+            );
+        return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Row(children: [
+            box('เริ่ม', _start, () async {
+              final m = await pickMinute(ctx, _start, title: 'เวลาเริ่มกิจกรรม');
+              if (m != null) set(() => _start = m);
+            }),
+            const SizedBox(width: 10),
+            box('จบ', (_start + _duration) % (24 * 60), () async {
+              final m = await pickMinute(ctx, (_start + _duration) % (24 * 60),
+                  title: 'เวลาจบกิจกรรม (เริ่ม ${fmtMinute(_start)})');
+              if (m != null) set(() => _duration = durationBetween(_start, m));
+            }),
+          ]),
+          const SizedBox(height: 12),
+          Text('ความยาว · ${durationLabel(_start, _duration)}', style: TextStyle(fontSize: 12, color: c.muted)),
+          const SizedBox(height: 6),
+          MiniSegments<int>(
+            value: _duration,
+            items: const [(30, '30 น.'), (60, '1 ชม.'), (90, '1.5'), (120, '2 ชม.'), (180, '3 ชม.')],
+            onChanged: (v) => set(() {
+              _timed = true;
+              _duration = v;
+            }),
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            value: !_timed,
+            onChanged: (v) => set(() => _timed = !v),
+            title: const Text('ไม่ล็อกเวลา'),
+            subtitle: const Text('แค่ต้องทำวันนั้น · ไม่ขึ้นในตารางเวลา'),
+          ),
+        ]);
+      });
+
+  Future<void> _editRepeat() => _sheet('ทำซ้ำ', (ctx, set) {
+        final c = ctx.noir;
+        return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          MiniSegments<RepeatKind>(
+            value: _repeat,
+            items: const [
+              (RepeatKind.none, 'ครั้งเดียว'),
+              (RepeatKind.daily, 'ทุกวัน'),
+              (RepeatKind.weekly, 'ทุกสัปดาห์'),
+              (RepeatKind.dates, 'เลือกวันเอง'),
+            ],
+            onChanged: (kind) => set(() {
+              _repeat = kind;
+              if (_repeat == RepeatKind.weekly && _weekdays.isEmpty) _weekdays = {_day.weekday};
+              if (_repeat == RepeatKind.dates && _dates.isEmpty) _dates = [ScheduledDate(_day)];
+            }),
+          ),
+          const SizedBox(height: 12),
+          if (_repeat == RepeatKind.weekly)
+            Row(children: [
+              for (var d = 1; d <= 7; d++)
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                    child: Material(
+                      color: _weekdays.contains(d) ? c.accent : c.surface2,
+                      shape: const CircleBorder(),
+                      child: InkWell(
+                        customBorder: const CircleBorder(),
+                        onTap: () => set(() {
+                          _weekdays = _weekdays.contains(d) ? ({..._weekdays}..remove(d)) : {..._weekdays, d};
+                        }),
+                        child: AspectRatio(
+                          aspectRatio: 1,
+                          child: Center(
+                            child: Text(thaiWeekdayShort[d - 1],
+                                style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    color: _weekdays.contains(d) ? c.onAccent : c.text)),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ]),
+          if (_repeat == RepeatKind.daily || _repeat == RepeatKind.weekly)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('ถึงวันที่'),
+              onTap: () async {
+                final d = await pickDay(ctx, _endDate ?? _day.add(const Duration(days: 7)));
+                if (d != null) set(() => _endDate = dayOnly(d));
+              },
+              trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                Text(_endDate == null ? 'ไม่กำหนด' : thaiShortDate(_endDate!),
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
+                if (_endDate != null)
+                  IconButton(
+                    tooltip: 'ไม่กำหนดวันสิ้นสุด',
+                    icon: const Icon(Icons.close, size: 18),
+                    onPressed: () => set(() => _endDate = null),
+                  ),
+              ]),
+            ),
+          if (_repeat == RepeatKind.dates) ...[
+            Text(_timed ? 'แตะ 🕑 = ตั้งเวลาเฉพาะวันนั้น (ไม่ตั้ง = เวลาหลัก)' : 'เลือกได้หลายวัน',
+                style: TextStyle(color: c.muted, fontSize: 12)),
+            for (var i = 0; i < _dates.length; i++)
+              Row(children: [
+                Expanded(child: Text(thaiShortDate(_dates[i].day))),
+                if (_timed)
+                  TextButton.icon(
+                    onPressed: () async {
+                      await _editDateTime(i);
+                      set(() {});
+                    },
+                    icon: const Icon(Icons.schedule, size: 18),
+                    label: Text(_dates[i].customTime
+                        ? rangeText(_dates[i].startMinute!, _dates[i].durationMin ?? _duration)
+                        : 'เวลาหลัก'),
+                  ),
+                IconButton(
+                  tooltip: 'เอาวันนี้ออก',
+                  icon: const Icon(Icons.remove_circle_outline, size: 20),
+                  onPressed: () => set(() => _dates = [..._dates]..removeAt(i)),
+                ),
+              ]),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () async {
+                  await _addDate();
+                  set(() {});
+                },
+                icon: const Icon(Icons.add),
+                label: const Text('เพิ่มวัน'),
+              ),
+            ),
+          ],
+        ]);
+      });
+
+  Future<void> _editCategory() => _sheet('หมวด', (ctx, set) {
+        return Column(children: [
+          for (final cat in widget.categories)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: CircleAvatar(radius: 7, backgroundColor: categoryColors(ctx.noir, cat.colorKey).$1),
+              title: Text(cat.name),
+              trailing: cat.id == _categoryId ? const Icon(Icons.check) : null,
+              onTap: () {
+                set(() => _categoryId = cat.id);
+                Navigator.pop(ctx);
+              },
+            ),
+        ]);
+      });
+
+  Future<void> _editImportance() => _sheet('ความสำคัญ', (ctx, set) {
+        return Column(children: [
+          for (final (v, label, hint) in const [
+            (3, 'สำคัญ', 'ห้ามพลาด · ไม่แนะนำให้จองทับ'),
+            (2, 'กลาง', 'ค่าเริ่มต้น'),
+            (1, 'น้อย', 'ย้ายได้ · หน้าจองติวทับได้ (⇄ แทนได้)'),
+          ])
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: _ImportanceDots(v),
+              title: Text(label),
+              subtitle: Text(hint),
+              trailing: v == _importance ? const Icon(Icons.check) : null,
+              onTap: () {
+                set(() => _importance = v);
+                Navigator.pop(ctx);
+              },
+            ),
+        ]);
+      });
+
   @override
   Widget build(BuildContext context) {
     final c = context.noir;
     final problem = _problem;
+    final cat = widget.categories.where((x) => x.id == _categoryId).firstOrNull;
+    void submit() {
+      if (_problem == null) Navigator.pop(context, _draft);
+    }
 
-    return AlertDialog(
-      title: Text(widget.editing ? 'แก้ไขงาน' : 'เพิ่มงาน'),
-      content: SizedBox(
-        width: 460,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ----- Preset -----
-              Row(
-                children: [
-                  const Text('Preset'),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: DropdownButton<int?>(
-                      isExpanded: true,
-                      value: _presetId,
-                      items: [
-                        const DropdownMenuItem<int?>(value: null, child: Text('ไม่ใช้')),
-                        for (final p in _presets)
-                          DropdownMenuItem<int?>(value: p.id, child: Text(p.name)),
-                      ],
-                      onChanged: _applyPreset,
-                    ),
-                  ),
-                  if (_presetId != null && widget.onDeletePreset != null)
-                    IconButton(
-                      tooltip: 'ลบ Preset นี้ (งานเดิมไม่หาย)',
-                      icon: const Icon(Icons.delete_outline),
-                      onPressed: _deletePreset,
-                    ),
-                  if (widget.onSavePreset != null)
-                    IconButton(
-                      tooltip: 'บันทึกค่าตอนนี้เป็น Preset ใหม่',
-                      icon: const Icon(Icons.bookmark_add_outlined),
-                      onPressed: _savePreset,
-                    ),
-                ],
-              ),
-              TextField(
-                key: const Key('activity-name'),
-                controller: _name,
-                autofocus: !widget.editing,
-                decoration: InputDecoration(
-                  labelText: 'ชื่องาน',
-                  hintText: _presetId == null ? 'เช่น ออกกำลังกาย' : 'เช่น RE4, Minecraft',
-                ),
-                onChanged: (_) => setState(() {}),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  const Text('หมวด'),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: DropdownButton<int>(
-                      isExpanded: true,
-                      value: _categoryId,
-                      items: [
-                        for (final cat in widget.categories)
-                          DropdownMenuItem(value: cat.id, child: Text(cat.name)),
-                      ],
-                      onChanged: (v) => setState(() => _categoryId = v),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              const Text('ความสำคัญ'),
-              const SizedBox(height: 6),
-              SegmentedButton<int>(
-                segments: const [
-                  ButtonSegment(value: 3, label: Text('สำคัญ')),
-                  ButtonSegment(value: 2, label: Text('กลาง')),
-                  ButtonSegment(value: 1, label: Text('น้อย')),
-                ],
-                selected: {_importance},
-                showSelectedIcon: false,
-                onSelectionChanged: (s) => setState(() => _importance = s.first),
-              ),
-              const SizedBox(height: 8),
+    // 1 แถว = ไอคอน · ชื่อ · ค่าปัจจุบัน (ขวา) · แตะ = เปิดตัวเลือก
+    Widget row(IconData icon, String label, Widget value, VoidCallback onTap, {Key? key}) => InkWell(
+          key: key,
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 2),
+            decoration: BoxDecoration(border: Border(bottom: BorderSide(color: c.line))),
+            child: Row(children: [
+              Icon(icon, size: 20, color: c.muted),
+              const SizedBox(width: 12),
+              Text(label, style: TextStyle(color: c.muted)),
+              const SizedBox(width: 12),
+              Expanded(child: Align(alignment: Alignment.centerRight, child: value)),
+              Icon(Icons.chevron_right, size: 20, color: c.muted),
+            ]),
+          ),
+        );
+    Text strong(String t) => Text(t,
+        maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w600, color: c.text));
 
-              // ----- เวลา -----
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('ล็อกเวลา'),
-                subtitle: Text(_timed
-                    ? 'มีเวลาเริ่ม–จบ แสดงในตารางเวลา'
-                    : 'แบบลิสต์: แค่ต้องทำวันนั้น ไม่กำหนดเวลา'),
-                value: _timed,
-                onChanged: (v) => setState(() => _timed = v),
-              ),
-              if (_timed) ...[
-                PickerTile(
-                  icon: Icons.schedule,
-                  label: 'เวลาเริ่ม',
-                  value: fmtMinute(_start),
-                  onTap: () async {
-                    final m = await pickMinute(context, _start, title: 'เวลาเริ่มกิจกรรม');
-                    if (m == null) return;
-                    // ขยับเวลาเริ่ม → เวลาจบเลื่อนตาม (ระยะเวลาเท่าเดิม)
-                    setState(() => _start = m);
-                  },
-                ),
-                PickerTile(
-                  icon: Icons.flag_outlined,
-                  label: 'เวลาจบ',
-                  value: fmtMinute(_start + _duration),
-                  onTap: () async {
-                    final m = await pickMinute(context, (_start + _duration) % (24 * 60), title: 'เวลาจบกิจกรรม (เริ่ม ${fmtMinute(_start)})');
-                    if (m == null) return;
-                    setState(() => _duration = durationBetween(_start, m));
-                  },
-                ),
-                Text('รวม ${durationLabel(_start, _duration)}',
-                    style: TextStyle(color: c.muted, fontSize: 13)),
-              ],
-              const SizedBox(height: 12),
+    final repeatText = switch (_repeat) {
+      RepeatKind.none => 'ครั้งเดียว',
+      RepeatKind.daily => _endDate == null ? 'ทุกวัน' : 'ทุกวัน ถึง ${thaiShortDate(_endDate!)}',
+      RepeatKind.weekly =>
+        'ทุก ${([..._weekdays]..sort()).map((d) => thaiWeekdayShort[d - 1]).join(' ')}${_endDate == null ? '' : ' ถึง ${thaiShortDate(_endDate!)}'}',
+      RepeatKind.dates => 'เลือกวันเอง · ${_dates.length} วัน',
+    };
 
-              // ----- ทำซ้ำ -----
-              const Text('ทำซ้ำ'),
-              const SizedBox(height: 6),
-              // ChoiceChip ห่อบรรทัดเองได้ → ไม่ล้นจอแคบ 420 px
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: [
-                  for (final (kind, label) in const [
-                    (RepeatKind.none, 'ครั้งเดียว'),
-                    (RepeatKind.daily, 'ทุกวัน'),
-                    (RepeatKind.weekly, 'ทุกสัปดาห์'),
-                    (RepeatKind.dates, 'เลือกวันเอง'),
-                  ])
-                    ChoiceChip(
-                      label: Text(label),
-                      selected: _repeat == kind,
-                      onSelected: (_) => setState(() {
-                        _repeat = kind;
-                        if (_repeat == RepeatKind.weekly && _weekdays.isEmpty) {
-                          _weekdays = {_day.weekday};
-                        }
-                        if (_repeat == RepeatKind.dates && _dates.isEmpty) {
-                          _dates = [ScheduledDate(_day)];
-                        }
-                      }),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 4),
-
-              if (_repeat != RepeatKind.dates)
-                PickerTile(
-                  icon: Icons.event,
-                  label: _repeat == RepeatKind.none ? 'วันที่' : 'เริ่มวันที่',
-                  value: thaiShortDate(_day),
-                  onTap: () async {
-                    final d = await pickDay(context, _day);
-                    if (d != null) setState(() => _day = dayOnly(d));
-                  },
-                ),
-
-              if (_repeat == RepeatKind.weekly)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: [
-                      for (var d = 1; d <= 7; d++)
-                        FilterChip(
-                          label: Text(thaiWeekdayShort[d - 1]),
-                          selected: _weekdays.contains(d),
-                          onSelected: (on) => setState(() {
-                            _weekdays = on ? {..._weekdays, d} : ({..._weekdays}..remove(d));
-                          }),
-                        ),
-                    ],
-                  ),
-                ),
-
-              if (_repeat == RepeatKind.daily || _repeat == RepeatKind.weekly)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.event_busy),
-                  title: const Text('ถึงวันที่'),
-                  onTap: () async {
-                    final d = await pickDay(context, _endDate ?? _day.add(const Duration(days: 7)));
-                    if (d != null) setState(() => _endDate = dayOnly(d));
-                  },
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(_endDate == null ? 'ไม่กำหนด' : thaiShortDate(_endDate!),
-                          style: const TextStyle(fontWeight: FontWeight.w600)),
-                      if (_endDate != null)
-                        IconButton(
-                          tooltip: 'ไม่กำหนดวันสิ้นสุด',
-                          icon: const Icon(Icons.close, size: 18),
-                          onPressed: () => setState(() => _endDate = null),
-                        ),
-                    ],
-                  ),
-                ),
-
-              if (_repeat == RepeatKind.dates) ...[
-                const SizedBox(height: 4),
-                Text(
-                  _timed
-                      ? 'แตะ 🕑 เพื่อตั้งเวลาเฉพาะวันนั้น (ไม่ตั้ง = ใช้เวลาหลักด้านบน)'
-                      : 'เลือกได้หลายวัน',
-                  style: TextStyle(color: c.muted, fontSize: 12),
-                ),
-                for (var i = 0; i < _dates.length; i++)
-                  Row(
-                    children: [
-                      Expanded(child: Text(thaiShortDate(_dates[i].day))),
-                      if (_timed)
-                        TextButton.icon(
-                          onPressed: () => _editDateTime(i),
-                          icon: const Icon(Icons.schedule, size: 18),
-                          label: Text(
-                            _dates[i].customTime
-                                ? rangeText(_dates[i].startMinute!,
-                                    _dates[i].durationMin ?? _duration)
-                                : 'เวลาหลัก',
-                          ),
-                        ),
-                      if (_dates[i].customTime)
-                        IconButton(
-                          tooltip: 'กลับไปใช้เวลาหลัก',
-                          icon: const Icon(Icons.undo, size: 18),
-                          onPressed: () => setState(() {
-                            _dates = [..._dates]..[i] = ScheduledDate(_dates[i].day);
-                          }),
-                        ),
-                      IconButton(
-                        tooltip: 'เอาวันนี้ออก',
-                        icon: const Icon(Icons.remove_circle_outline, size: 20),
-                        onPressed: () => setState(() {
-                          _dates = [..._dates]..removeAt(i);
-                        }),
-                      ),
-                    ],
-                  ),
-                TextButton.icon(
-                  onPressed: _addDate,
-                  icon: const Icon(Icons.add),
-                  label: const Text('เพิ่มวัน'),
-                ),
-              ],
-
-              if (problem != null) ...[
-                const SizedBox(height: 8),
-                Text(problem, style: TextStyle(color: c.bad, fontSize: 12)),
-              ],
-            ],
+    final form = Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Row(children: [
+        Expanded(
+          child: Text(
+            '${widget.editing ? 'แก้ไขงาน' : 'เพิ่มงาน'} · ${thaiShortDate(_day)}',
+            style: TextStyle(fontSize: 13, color: c.muted),
           ),
         ),
-      ),
-      actions: [
-        TextButton(
+        IconButton(
+          tooltip: 'ปิด',
+          visualDensity: VisualDensity.compact,
           onPressed: () => Navigator.pop(context),
-          child: const Text('ยกเลิก'),
+          icon: const Icon(Icons.close, size: 20),
         ),
+      ]),
+      // ชื่องานตัวใหญ่ ไม่มีกรอบ · Enter = เพิ่มเลย (ค่าอื่นใช้ค่าเริ่มต้น)
+      TextField(
+        key: const Key('activity-name'),
+        controller: _name,
+        autofocus: !widget.editing,
+        style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: c.text),
+        textInputAction: TextInputAction.done,
+        decoration: InputDecoration(
+          hintText: _presetId == null ? 'ชื่องาน เช่น อ่านสไลด์บท 3' : 'ชื่องาน เช่น RE4, Minecraft',
+          border: InputBorder.none,
+          enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: c.line)),
+          focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: c.accent)),
+        ),
+        onChanged: (_) => setState(() {}),
+        onSubmitted: (_) => submit(),
+      ),
+      // Preset = ป้ายเล็กแถวเดียว · แตะ = เติมค่าให้ · กดค้าง / คลิกขวา = ลบ
+      if (_presets.isNotEmpty || widget.onSavePreset != null)
+        SizedBox(
+          height: 44,
+          child: ListView(scrollDirection: Axis.horizontal, children: [
+            for (final p in _presets)
+              Padding(
+                padding: const EdgeInsets.only(right: 6, top: 6),
+                child: GestureDetector(
+                  onLongPress: widget.onDeletePreset == null
+                      ? null
+                      : () {
+                          _presetId = p.id;
+                          _deletePreset();
+                        },
+                  onSecondaryTap: widget.onDeletePreset == null
+                      ? null
+                      : () {
+                          _presetId = p.id;
+                          _deletePreset();
+                        },
+                  child: ChoiceChip(
+                    visualDensity: VisualDensity.compact,
+                    showCheckmark: false,
+                    avatar: const Icon(Icons.bolt, size: 16),
+                    label: Text(p.name),
+                    selected: _presetId == p.id,
+                    onSelected: (on) => _applyPreset(on ? p.id : null),
+                  ),
+                ),
+              ),
+            if (widget.onSavePreset != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: ActionChip(
+                  visualDensity: VisualDensity.compact,
+                  avatar: const Icon(Icons.bookmark_add_outlined, size: 16),
+                  label: const Text('บันทึก preset'),
+                  onPressed: _savePreset,
+                ),
+              ),
+          ]),
+        ),
+      const SizedBox(height: 4),
+      row(Icons.schedule, 'เวลา',
+          _timed ? strong('${rangeText(_start, _duration)} · ${durationText(_duration)}') : strong('ไม่ล็อกเวลา'),
+          _editTime,
+          key: const Key('row-time')),
+      if (_repeat != RepeatKind.dates)
+        row(Icons.event, _repeat == RepeatKind.none ? 'วันที่' : 'เริ่มวันที่', strong(thaiShortDate(_day)), () async {
+          final d = await pickDay(context, _day);
+          if (d != null) setState(() => _day = dayOnly(d));
+        }),
+      row(Icons.repeat, 'ทำซ้ำ', strong(repeatText), _editRepeat, key: const Key('row-repeat')),
+      row(
+        Icons.label_outline,
+        'หมวด',
+        Row(mainAxisSize: MainAxisSize.min, children: [
+          if (cat != null) CircleAvatar(radius: 5, backgroundColor: categoryColors(c, cat.colorKey).$1),
+          const SizedBox(width: 6),
+          Flexible(child: strong(cat?.name ?? 'ไม่มี')),
+        ]),
+        _editCategory,
+      ),
+      row(
+        Icons.priority_high,
+        'ความสำคัญ',
+        Row(mainAxisSize: MainAxisSize.min, children: [
+          _ImportanceDots(_importance),
+          const SizedBox(width: 6),
+          strong(const {3: 'สำคัญ', 2: 'กลาง', 1: 'น้อย'}[_importance]!),
+        ]),
+        _editImportance,
+      ),
+      if (problem != null && _name.text.trim().isNotEmpty) ...[
+        const SizedBox(height: 8),
+        Text(problem, style: TextStyle(color: c.bad, fontSize: 12)),
+      ],
+      const SizedBox(height: 16),
+      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('ยกเลิก')),
         FilledButton(
-          onPressed: problem == null ? () => Navigator.pop(context, _draft) : null,
+          onPressed: problem == null ? submit : null,
           child: Text(widget.editing ? 'บันทึก' : 'เพิ่มงาน'),
         ),
-      ],
+      ]),
+    ]);
+
+    return Padding(
+      key: const Key('activity-form'),
+      padding: EdgeInsets.fromLTRB(20, widget.sheet ? 0 : 16, 20, 16 + MediaQuery.viewInsetsOf(context).bottom),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520),
+        child: SingleChildScrollView(child: form),
+      ),
     );
   }
 }
@@ -1106,4 +1230,25 @@ class DashedRoundedBorder extends ShapeBorder {
     );
   }
   return (bg, RoundedRectangleBorder(borderRadius: BorderRadius.circular(radius)));
+}
+
+
+/// ความสำคัญเป็นจุด 3 ระดับ (เต็ม = สำคัญ)
+class _ImportanceDots extends StatelessWidget {
+  const _ImportanceDots(this.level);
+  final int level;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.noir;
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      for (var i = 1; i <= 3; i++)
+        Container(
+          width: 8,
+          height: 8,
+          margin: const EdgeInsets.only(right: 3),
+          decoration: BoxDecoration(shape: BoxShape.circle, color: i <= level ? c.warn : c.line2),
+        ),
+    ]);
+  }
 }
