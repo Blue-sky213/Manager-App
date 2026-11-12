@@ -82,4 +82,37 @@ void main() {
     expect(find.byType(YearHeatmap), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('จองเวลา: ลากกล่องข้ามหลายวันต่อเนื่องได้ ไม่หยุดกลางทาง', (tester) async {
+    tester.view.physicalSize = const Size(1000, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    final now = DateTime.now();
+    final nextMon = DateTime(now.year, now.month, now.day + (8 - now.weekday));
+    PickedSlot? got;
+    await tester.pumpWidget(MaterialApp(
+      home: Builder(
+        builder: (context) => TextButton(
+          onPressed: () async => got = await pickFreeSlot(context, MemoryCalendarRepository(),
+              title: 'ติว', minutes: 60, days: [nextMon], preferStart: 10 * 60),
+          child: const Text('เปิด'),
+        ),
+      ),
+    ));
+    await tester.tap(find.text('เปิด'));
+    await tester.pumpAndSettle();
+    final box = find.byKey(const ValueKey('slot-selected'));
+    expect(box, findsOneWidget);
+    final colW = (tester.getSize(find.byKey(ValueKey('slotcol-${nextMon.day}'))).width) + 3;
+    final before = tester.getCenter(box);
+    // ลากไปขวา 3 วัน แบบค่อย ๆ ขยับ (หลายจังหวะ) เหมือนเมาส์จริง
+    await tester.timedDrag(box, Offset(colW * 3, 0), const Duration(milliseconds: 600));
+    await tester.pumpAndSettle();
+    final after = tester.getCenter(box);
+    expect(after.dx - before.dx, closeTo(colW * 3, colW * 0.6));
+    await tester.tap(find.text('จองเวลานี้'));
+    await tester.pumpAndSettle();
+    expect(got, isNotNull);
+    expect(got!.day.difference(nextMon).inDays, greaterThanOrEqualTo(3));
+  });
 }
