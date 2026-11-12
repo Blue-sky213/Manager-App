@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'calendar/calendar_repository.dart';
@@ -11,6 +12,8 @@ import 'calendar/lock_flow.dart' show refreshLockState;
 import 'data/backup.dart';
 import 'pages/onboarding_page.dart';
 import 'widgets/device_preview.dart';
+import 'shell/window_mode.dart';
+import 'data/demo_year.dart' show demoMode;
 import 'theme/app_theme.dart';
 import 'theme/noir_colors.dart';
 import 'shell/app_nav.dart';
@@ -58,6 +61,30 @@ class _NoirManagerAppState extends State<NoirManagerApp> {
   Timer? _clock;
   static const _themeKey = 'theme';
 
+  bool _onKey(KeyEvent e) {
+    if (e is! KeyDownEvent || !supportsFullscreen) return false;
+    if (e.logicalKey == LogicalKeyboardKey.f11) {
+      final on = !fullscreen.value;
+      setFullscreen(on);
+      widget.studyRepository.setSetting(fullscreenKey, on ? 'on' : 'off');
+      if (on) {
+        final ctx = _nav.currentContext;
+        if (ctx != null) {
+          ScaffoldMessenger.maybeOf(ctx)?.showSnackBar(const SnackBar(
+            content: Text('เต็มจอ · กด Esc หรือ F11 เพื่อออก'),
+            duration: Duration(seconds: 2),
+          ));
+        }
+      }
+      return true;
+    }
+    if (e.logicalKey == LogicalKeyboardKey.escape && fullscreen.value) {
+      setFullscreen(false);
+      widget.studyRepository.setSetting(fullscreenKey, 'off');
+    }
+    return false;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -70,6 +97,11 @@ class _NoirManagerAppState extends State<NoirManagerApp> {
     // ธีม "ตามเวลา": เช็กทุกนาที พอข้าม 06:00 / 18:00 ก็เปลี่ยนเอง
     _clock = Timer.periodic(const Duration(minutes: 1), (_) {
       if (_themeId == autoThemeId && mounted) setState(() {});
+    });
+    // เต็มจอ: F11 สลับ · Esc ออก · จำไว้ตอนเปิดครั้งถัดไป
+    HardwareKeyboard.instance.addHandler(_onKey);
+    widget.studyRepository.getSetting(fullscreenKey).then((v) {
+      if (v == 'on') setFullscreen(true);
     });
     widget.studyRepository.getSetting(devicePreviewKey).then((v) {
       if (v == null || v.isEmpty) return;
@@ -85,6 +117,7 @@ class _NoirManagerAppState extends State<NoirManagerApp> {
 
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_onKey);
     _clock?.cancel();
     super.dispose();
   }
@@ -113,7 +146,30 @@ class _NoirManagerAppState extends State<NoirManagerApp> {
                   onBack: _back,
                   onForward: () => appForward.handle(),
                   onPointer: (p) => lastPointerDown = p,
-                  child: child!,
+                  child: ValueListenableBuilder(
+                    valueListenable: demoMode,
+                    // โหมดข้อมูลตัวอย่าง: แถบเหลืองด้านบนตลอด กดปิดได้
+                    builder: (context, demo, _) => !demo
+                        ? child!
+                        : Column(children: [
+                            Material(
+                              color: const Color(0xFF6B5205),
+                              child: SafeArea(
+                                bottom: false,
+                                child: InkWell(
+                                  onTap: () => demoMode.value = false,
+                                  child: const Padding(
+                                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                    child: Text('กำลังดูข้อมูลตัวอย่าง 1 ปี · ข้อมูลจริงไม่ถูกแตะ · แตะเพื่อปิด',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(color: Color(0xFFFFF3C4), fontSize: 13)),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            Expanded(child: child!),
+                          ]),
+                  ),
                 ),
               ),
           debugShowCheckedModeBanner: false,

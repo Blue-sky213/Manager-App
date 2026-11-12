@@ -1,4 +1,4 @@
-/// มุมมอง "สมุด": ปฏิทินเดือนแบบกระดาษ แปะสติกเกอร์ชัด ๆ · ดูอย่างเดียว (แก้ที่ วัน / วันนี้)
+/// มุมมอง "เดือน" แบบสมุด: ปฏิทินกระดาษ แปะสติกเกอร์ชัด ๆ · แตะวัน = เลือกวัน (รายการงานอยู่ใต้ตาราง)
 /// เดือนที่ผ่านมา = ดูสติกเกอร์ + วันที่ทำครบ · เดือนหน้า = ดูแผน สอบ ส่งงาน ติว
 library;
 
@@ -42,6 +42,8 @@ class NotebookDay {
   }
 }
 
+const _weekdayLong = ['จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์', 'อาทิตย์'];
+
 class NotebookMonth extends StatelessWidget {
   const NotebookMonth({
     super.key,
@@ -51,8 +53,11 @@ class NotebookMonth extends StatelessWidget {
     required this.stickers,
     required this.holidays,
     required this.onTapDay,
+    this.selected,
   });
 
+  /// วันที่เลือกอยู่ (กรอบสีเน้น)
+  final DateTime? selected;
   final DateTime month;
   final List<DateTime> days; // 42 วันของตาราง (เริ่มจันทร์)
   final Map<DateTime, List<Occurrence>> byDay;
@@ -99,8 +104,13 @@ class NotebookMonth extends StatelessWidget {
           child: Stack(clipBehavior: Clip.none, children: [
             Column(children: [
               Row(children: [
-                for (final w in thaiWeekdayShort)
-                  Expanded(child: Center(child: Text(w, style: TextStyle(fontSize: 12, color: c.muted)))),
+                // ชื่อวันเต็ม (จอแคบ = ย่อ) · เสาร์–อาทิตย์สีส้ม
+                for (final (i, w) in (box.maxWidth < 520 ? thaiWeekdayShort : _weekdayLong).indexed)
+                  Expanded(
+                    child: Center(
+                      child: Text(w, style: TextStyle(fontSize: 12, color: i >= 5 ? c.warn : c.muted)),
+                    ),
+                  ),
               ]),
               const SizedBox(height: 4),
               for (var r = 0; r < days.length ~/ 7; r++)
@@ -120,7 +130,7 @@ class NotebookMonth extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 5),
                     color: c.good.withValues(alpha: 0.35),
-                    child: Text(thaiMonthYear(month),
+                    child: Text(thaiMonthsLong[month.month - 1],
                         style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: c.text)),
                   ),
                 ),
@@ -141,7 +151,7 @@ class NotebookMonth extends StatelessWidget {
           if (holidayCount > 0) _stat(c, '🏖', 'วันหยุด', holidayCount),
         ]),
         const SizedBox(height: 6),
-        Text('สมุดเป็นหน้าดูอย่างเดียว · แตะวัน = ดูสรุปวันนั้น · แก้ไขที่มุมมอง "วัน"',
+        Text('แตะวัน = ดูงานของวันนั้นด้านล่าง · เพิ่ม / กรอกผล / แก้ไข ได้ตามปกติ',
             style: TextStyle(fontSize: 12, color: c.muted)),
       ]);
     });
@@ -174,7 +184,11 @@ class NotebookMonth extends StatelessWidget {
         margin: const EdgeInsets.all(1),
         decoration: BoxDecoration(
           color: d == today ? c.accent.withValues(alpha: 0.08) : null,
-          border: i.complete ? Border.all(color: c.good, width: 2) : Border.all(color: c.line.withValues(alpha: 0.6)),
+          border: d == selected
+              ? Border.all(color: c.accent, width: 2.5)
+              : i.complete
+                  ? Border.all(color: c.good, width: 2)
+                  : Border.all(color: c.line.withValues(alpha: 0.6)),
           borderRadius: BorderRadius.circular(6),
         ),
         child: Opacity(

@@ -233,6 +233,35 @@ class _SlotPickerState extends State<_SlotPicker> {
     _loadMonth();
   }
 
+  // ---- ลากกล่องที่เลือก: ย้ายเวลา / วัน · ลากขีดล่าง = เปลี่ยนความยาว · ปล่อยตรงที่ห้ามทับ = เด้งกลับ ----
+  (DateTime?, int?, int)? _beforeDrag;
+
+  void _dragStart() => _beforeDrag = (_day, _start, _len);
+
+  void _dragMove(SlotDay d, int start) {
+    setState(() {
+      _day = d.day;
+      _start = start.clamp(0, 24 * 60 - _len);
+    });
+  }
+
+  void _dragResize(int len) => setState(() => _len = len.clamp(15, 240));
+
+  void _dragEnd() {
+    final d = _week.where((x) => x.day == _day).firstOrNull;
+    if (d == null || _start == null || _blocked(d, _start!, _len)) {
+      final b = _beforeDrag;
+      if (b != null) {
+        setState(() {
+          _day = b.$1;
+          _start = b.$2;
+          _len = b.$3;
+        });
+      }
+    }
+    _beforeDrag = null;
+  }
+
   void _tap(SlotDay d, int minute) {
     final s = fitStart(d.bookable, minute, _len);
     if (s == null) return;
@@ -247,7 +276,7 @@ class _SlotPickerState extends State<_SlotPicker> {
     final c = context.noir;
     final selDay = _week.where((d) => d.day == _day).firstOrNull ?? _monthDays[_day];
     final hits = selDay == null || _start == null ? const <Busy>[] : clashesAt(selDay.busy, _start!, _len);
-    final blocked = hits.any((b) => !b.replaceable);
+    final blocked = selDay != null && _start != null && _blocked(selDay, _start!, _len);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
@@ -339,6 +368,10 @@ class _SlotPickerState extends State<_SlotPicker> {
                       subjectColors: widget.subjectColors,
                       subjectId: widget.subjectId,
                       onTap: _tap,
+                      onDragStart: _dragStart,
+                      onDragMove: _dragMove,
+                      onDragResize: _dragResize,
+                      onDragEnd: _dragEnd,
                       axisFrom: (widget.lifeBase.map((l) => l.wakeMinute).reduce((a, b) => a < b ? a : b) ~/ 60) * 60,
                     ),
         ),
@@ -353,9 +386,9 @@ class _SlotPickerState extends State<_SlotPicker> {
           children: [
             Text(
               _day == null || _start == null
-                  ? 'แตะช่องสีเขียวเพื่อเลือกเวลา'
+                  ? 'แตะช่องสีเขียวเพื่อเลือกเวลา · ลากกล่องเพื่อย้าย'
                   : blocked
-                      ? '⚠ ชนกับ ${hits.where((b) => !b.replaceable).map((b) => b.title).join(', ')}'
+                      ? '⚠ วางตรงนี้ไม่ได้ ${hits.where((b) => !b.replaceable).map((b) => b.title).join(', ')}'
                       : hits.isEmpty
                           ? '${thaiShortDate(_day!)} ${rangeText(_start!, _len)}'
                           : '${thaiShortDate(_day!)} ${rangeText(_start!, _len)} · ทับ ${hits.map((b) => b.title).join(', ')} (ย้ายได้ที่ปฏิทิน)',
@@ -373,6 +406,10 @@ class _SlotPickerState extends State<_SlotPicker> {
     );
   }
 }
+
+/// วางไม่ได้: นอกช่วงที่จองได้ของวัน หรือทับงานที่ห้ามทับ (เรียน / ติว / ล็อก)
+bool _blocked(SlotDay d, int start, int len) =>
+    start < d.from || start + len > d.to || clashesAt(d.busy, start, len).any((b) => !b.replaceable);
 
 /// สีพื้นของช่วงว่าง / ไม่ว่าง (ใช้ทั้งตารางและคำอธิบาย)
 Color _freeColor(NoirColors c) => c.greenBg;
@@ -462,7 +499,17 @@ class _WeekGrid extends StatelessWidget {
     required this.subjectId,
     required this.onTap,
     required this.axisFrom,
+    required this.onDragStart,
+    required this.onDragMove,
+    required this.onDragResize,
+    required this.onDragEnd,
   });
+
+  final VoidCallback onDragStart;
+  final void Function(SlotDay day, int start) onDragMove;
+  final ValueChanged<int> onDragResize;
+  final VoidCallback onDragEnd;
+  static final _rowKey = GlobalKey();
 
   /// เวลาบนสุดของตาราง (ตื่นเร็วสุดของสัปดาห์ ปัดลงเป็นชั่วโมง)
   final int axisFrom;
@@ -541,23 +588,7 @@ class _WeekGrid extends StatelessWidget {
                     right: 1,
                     top: y(selectedStart!),
                     height: y(selectedStart! + len) - y(selectedStart!),
-                    child: IgnorePointer(
-                      child: DecoratedBox(
-                        key: const ValueKey('slot-selected'),
-                        decoration: ShapeDecoration(
-                          color: c.surface.withValues(alpha: 0.9),
-                          shape: DashedRoundedBorder(color: c.accent, radius: 5, width: 2),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(2),
-                          child: Text(
-                            w < 60 ? fmtMinute(selectedStart!) : rangeText(selectedStart!, len),
-                            maxLines: 2,
-                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: c.accent),
-                          ),
-                        ),
-                      ),
-                    ),
+                    child: _selectionBox(context, d, w, pxH, axisFrom),
                   ),
               ]),
             ),
@@ -585,7 +616,7 @@ class _WeekGrid extends StatelessWidget {
                 ),
             ]),
           ),
-          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(key: _rowKey, crossAxisAlignment: CrossAxisAlignment.start, children: [
             SizedBox(
               width: 34,
               height: hours * pxH,
@@ -611,6 +642,81 @@ class _WeekGrid extends StatelessWidget {
         ]),
       );
     });
+  }
+
+  /// กล่องที่เลือก: ลากทั้งกล่อง = ย้าย (ข้ามวันได้) · ลากขีดล่าง = ยืด / หด · สีแดง = วางตรงนี้ไม่ได้
+  Widget _selectionBox(BuildContext context, SlotDay d, double w, double pxH, int axisFrom) {
+    final c = context.noir;
+    final bad = _blocked(d, selectedStart!, len);
+    final color = bad ? c.bad : c.accent;
+    var grab = 0;
+    int snap(double m) => ((m / 15).round() * 15);
+    (int, double)? at(Offset global) {
+      final box = _rowKey.currentContext?.findRenderObject() as RenderBox?;
+      if (box == null) return null;
+      final p = box.globalToLocal(global);
+      final colW = (box.size.width - 34) / 7;
+      return (((p.dx - 34) / colW).floor().clamp(0, 6), axisFrom + p.dy / pxH * 60);
+    }
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.move,
+      child: GestureDetector(
+        key: const ValueKey('slot-selected'),
+        onPanStart: (e) {
+          grab = (e.localPosition.dy / pxH * 60).round();
+          onDragStart();
+        },
+        onPanUpdate: (e) {
+          final hit = at(e.globalPosition);
+          if (hit != null) onDragMove(week[hit.$1], snap(hit.$2 - grab));
+        },
+        onPanEnd: (_) => onDragEnd(),
+        child: DecoratedBox(
+          decoration: ShapeDecoration(
+            color: (bad ? c.bad : c.surface).withValues(alpha: bad ? 0.25 : 0.9),
+            shape: DashedRoundedBorder(color: color, radius: 5, width: 2),
+          ),
+          child: Stack(children: [
+            Padding(
+              padding: const EdgeInsets.all(2),
+              child: Text(
+                w < 60 ? fmtMinute(selectedStart!) : rangeText(selectedStart!, len),
+                maxLines: 2,
+                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: color),
+              ),
+            ),
+            // ขีดล่าง: ลากขึ้นลงเพื่อเปลี่ยนความยาวรอบ
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: 12,
+              child: MouseRegion(
+                cursor: SystemMouseCursors.resizeUpDown,
+                child: GestureDetector(
+                  key: const ValueKey('slot-resize'),
+                  behavior: HitTestBehavior.opaque,
+                  onVerticalDragStart: (_) => onDragStart(),
+                  onVerticalDragUpdate: (e) {
+                    final hit = at(e.globalPosition);
+                    if (hit != null) onDragResize(snap(hit.$2 - selectedStart!));
+                  },
+                  onVerticalDragEnd: (_) => onDragEnd(),
+                  child: Center(
+                    child: Container(
+                      width: 22,
+                      height: 4,
+                      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2)),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ]),
+        ),
+      ),
+    );
   }
 
   Color _colorOf(NoirColors c, Busy b) {

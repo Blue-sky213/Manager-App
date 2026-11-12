@@ -19,22 +19,26 @@ class StatsPage extends StatefulWidget {
   State<StatsPage> createState() => _StatsPageState();
 }
 
-/// เหรียญ 1 อัน · [done] = ได้แล้ว (ยังไม่ได้ = จาง)
-class _Badge {
-  const _Badge(this.mark, this.title, this.detail, {this.done = true});
-  final String mark;
-  final String title;
-  final String detail;
-  final bool done;
-}
+/// ช่วงที่ดู
+enum _Range { week, month, m3, m6, m9, m12 }
+
+const _rangeLabel = {
+  _Range.week: 'สัปดาห์',
+  _Range.month: 'เดือน',
+  _Range.m3: '3 เดือน',
+  _Range.m6: '6 เดือน',
+  _Range.m9: '9 เดือน',
+  _Range.m12: '12 เดือน',
+};
 
 class _StatsPageState extends State<StatsPage> with CalendarListener<StatsPage> {
-  bool _month = false;
+  _Range _rangeSel = _Range.week;
   Map<DateTime, List<Occurrence>> _days = {};
   Map<int, String> _catNames = {};
   Map<int, String> _subjectNames = {};
   StreakInfo? _streak;
-  List<_Badge> _badges = [];
+  List<MedalTrack> _medals = [];
+  bool _loaded = false;
 
   DateTime get _today => dayOnly(DateTime.now());
 
@@ -43,41 +47,39 @@ class _StatsPageState extends State<StatsPage> with CalendarListener<StatsPage> 
     final repo = calendar!;
     final study = StudyScope.of(context);
     final today = _today;
-    // 63 วันย้อนหลัง: กราฟ 28 วัน + ช่วงก่อนหน้าไว้เทียบค่าเฉลี่ย + Streak
+    // 1 ปีย้อนหลัง (+ เผื่อเทียบช่วงก่อน) · ใช้ทั้งกราฟ · Streak · เหรียญ
     final days = <DateTime, List<Occurrence>>{};
-    for (var i = 0; i < 63; i++) {
+    for (var i = 0; i < 372; i++) {
       final d = DateTime(today.year, today.month, today.day - i);
       days[d] = await repo.occurrencesOn(d);
     }
     final cats = {for (final c in await repo.categories()) c.id: c.name};
     final subjects = await study.subjects();
-    final pass = int.tryParse(await study.getSetting(tutorPassKey) ?? '') ?? defaultTutorPass;
-    final streak = streakOf(days, today);
-    final badges = <_Badge>[];
-    if (streak.completeDays.isNotEmpty) {
-      badges.add(_Badge('✓', 'ครบทั้งวัน', thaiShortDate(streak.completeDays.first)));
-    }
-    for (final goal in [7, 30]) {
-      badges.add(_Badge('$goal', 'Streak $goal วัน',
-          streak.best >= goal ? 'ทำได้แล้ว' : 'อีก ${goal - streak.current} วัน',
-          done: streak.best >= goal));
-    }
+    var understood = 0;
     for (final s in subjects) {
-      final logs = await study.classLogs(s.id);
-      if (logs.isEmpty) continue;
-      final finished = logs.where((l) => l.finished).length;
-      if (finished > 0) badges.add(_Badge('บท', 'จบ $finished บท', s.name));
-      final scope = tutorScope(await study.chapters(s.id), logs);
-      if (scopePassed(scope, pass)) badges.add(_Badge('$pass', 'ทวนผ่าน $pass%', s.name));
+      final topics = [for (final ch in await study.chapters(s.id)) ...ch.subtopics];
+      if (topics.isNotEmpty && topics.every((t) => (t.latestScore ?? 0) >= 80)) understood++;
     }
+    final streak = streakOf(days, today);
     if (!mounted) return;
     setState(() {
       _days = days;
       _catNames = cats;
       _subjectNames = {for (final s in subjects) s.id: s.name};
       _streak = streak;
-      _badges = badges;
+      _medals = medalTracks(days, today, understoodSubjects: understood);
+      _loaded = true;
     });
+  }
+
+  /// % รายเดือนในช่วง (เดือนแรกนับเฉพาะวันที่อยู่ในช่วง)
+  List<(DateTime, double?)> _monthly(DateTime from, DateTime to) {
+    final out = <(DateTime, double?)>[];
+    for (var m = DateTime(from.year, from.month); !m.isAfter(to); m = DateTime(m.year, m.month + 1)) {
+      final end = DateTime(m.year, m.month + 1, 0);
+      out.add((m, percentDone(_range(m.isBefore(from) ? from : m, end.isAfter(to) ? to : end))));
+    }
+    return out;
   }
 
   /// งานในช่วง [from, to] (รวมทั้งสองวัน)
@@ -86,17 +88,33 @@ class _StatsPageState extends State<StatsPage> with CalendarListener<StatsPage> 
           if (!e.key.isBefore(from) && !e.key.isAfter(to)) ...e.value,
       ];
 
+  DateTime _from(DateTime today) => switch (_rangeSel) {
+        _Range.week => mondayOf(today),
+        _Range.month => today.subtract(const Duration(days: 29)),
+        _Range.m3 => today.subtract(const Duration(days: 90)),
+        _Range.m6 => today.subtract(const Duration(days: 181)),
+        _Range.m9 => today.subtract(const Duration(days: 272)),
+        _Range.m12 => today.subtract(const Duration(days: 364)),
+      };
+
   @override
   Widget build(BuildContext context) {
     final c = context.noir;
     final today = _today;
     // ช่วงนี้ vs ช่วงก่อน (สัปดาห์: จันทร์นี้ → วันนี้ · เดือน: 28 วันล่าสุด)
-    final from = _month ? today.subtract(const Duration(days: 27)) : mondayOf(today);
+    if (!_loaded) {
+      return const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator()));
+    }
+    final from = _from(today);
+    final len = today.difference(from).inDays + 1;
+    final long = len > 40;
     final now = _range(from, today);
     final prevTo = from.subtract(const Duration(days: 1));
-    final before = _range(prevTo.subtract(const Duration(days: 27)), prevTo);
+    final prevFrom = prevTo.subtract(Duration(days: _rangeSel == _Range.week ? 6 : len - 1));
+    final before = _range(prevFrom, prevTo);
     final p = percentDone(now);
-    final pPrev = percentDone(_range(from.subtract(Duration(days: _month ? 28 : 7)), prevTo));
+    // ช่วงก่อนไม่มีข้อมูลครบ (12 เดือน) → ไม่เทียบ
+    final pPrev = _rangeSel == _Range.m12 ? null : percentDone(before);
     final (done, total) = dayProgress(now);
     final groups = groupPercents(now, before, (o) => activityGroup(o, _catNames));
     final bySubject = groupPercents(
@@ -118,15 +136,14 @@ class _StatsPageState extends State<StatsPage> with CalendarListener<StatsPage> 
       children: [
         Align(
           alignment: Alignment.centerLeft,
-          child: SegmentedButton<bool>(
-            showSelectedIcon: false,
-            segments: const [
-              ButtonSegment(value: false, label: Text('สัปดาห์นี้')),
-              ButtonSegment(value: true, label: Text('28 วัน')),
-            ],
-            selected: {_month},
-            onSelectionChanged: (v) => setState(() => _month = v.first),
-          ),
+          child: Wrap(spacing: 6, runSpacing: 6, children: [
+            for (final r in _Range.values)
+              ChoiceChip(
+                label: Text(_rangeLabel[r]!),
+                selected: _rangeSel == r,
+                onSelected: (_) => setState(() => _rangeSel = r),
+              ),
+          ]),
         ),
         const SizedBox(height: 12),
         // ---- วงกลมภาพรวม ----
@@ -162,7 +179,7 @@ class _StatsPageState extends State<StatsPage> with CalendarListener<StatsPage> 
               Text('ทำแล้ว $done / $total งาน', style: TextStyle(fontSize: 13, color: c.muted)),
               if (p != null && pPrev != null)
                 Text(
-                  '${p >= pPrev ? '▲' : '▼'} ${(p - pPrev).abs().round()}% จาก${_month ? ' 28 วันก่อน' : 'สัปดาห์ก่อน'}',
+                  '${p >= pPrev ? '▲' : '▼'} ${(p - pPrev).abs().round()}% จากช่วงก่อนหน้า',
                   style: TextStyle(fontSize: 13, color: p >= pPrev ? c.good : c.warn),
                 ),
               const SizedBox(height: 4),
@@ -172,20 +189,35 @@ class _StatsPageState extends State<StatsPage> with CalendarListener<StatsPage> 
           ),
         ])),
         const SizedBox(height: 12),
-        // ---- กราฟรวมรายวัน ----
-        card(Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Text('ทำตามแผนรายวัน', style: TextStyle(fontWeight: FontWeight.w600, color: c.text)),
-          label('28 วัน · แท่งเขียว = ครบทั้งวัน · เส้น = เฉลี่ย 7 วัน'),
-          const SizedBox(height: 10),
-          SizedBox(height: 120, child: CustomPaint(painter: _TrendPainter(series, c))),
-          const SizedBox(height: 4),
-          Row(children: [
-            label(thaiShortDate(today.subtract(const Duration(days: 27)))),
-            const Spacer(),
-            label('วันนี้'),
-          ]),
-        ])),
-        const SizedBox(height: 12),
+        // ---- กราฟรวม: ช่วงสั้น = รายวัน 28 วัน · ช่วงยาว = รายเดือน + ตารางสีรายวัน ----
+        if (!long)
+          card(Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Text('ทำตามแผนรายวัน', style: TextStyle(fontWeight: FontWeight.w600, color: c.text)),
+            label('28 วัน · แท่งเขียว = ครบทั้งวัน · เส้น = เฉลี่ย 7 วัน'),
+            const SizedBox(height: 10),
+            SizedBox(height: 120, child: CustomPaint(painter: _TrendPainter(series, c))),
+            const SizedBox(height: 4),
+            Row(children: [
+              label(thaiShortDate(today.subtract(const Duration(days: 27)))),
+              const Spacer(),
+              label('วันนี้'),
+            ]),
+          ]))
+        else ...[
+          card(Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Text('ทำตามแผนรายเดือน', style: TextStyle(fontWeight: FontWeight.w600, color: c.text)),
+            label('ฟ้า ≥ 80% · เหลือง 50–79% · ส้ม < 50%'),
+            const SizedBox(height: 10),
+            _MonthBars(months: _monthly(from, today)),
+          ])),
+          const SizedBox(height: 12),
+          card(Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Text('ทุกวันในช่วงนี้ · % ทำตามแผน', style: TextStyle(fontWeight: FontWeight.w600, color: c.text)),
+            label('เลื่อนข้างดูย้อนหลัง · แตะช่อง = ดูวันนั้น'),
+            const SizedBox(height: 10),
+            YearHeatmap(from: from, to: today, days: _days),
+          ])),
+        ],
         // ---- แยกตามกิจกรรม / วิชา ----
         card(_Bars(title: 'แยกตามกิจกรรม', rows: groups, hint: '┃ = เฉลี่ยช่วงก่อน')),
         if (bySubject.isNotEmpty) ...[
@@ -193,36 +225,12 @@ class _StatsPageState extends State<StatsPage> with CalendarListener<StatsPage> 
           card(_Bars(title: 'แยกตามวิชา (เรียน + ติว)', rows: bySubject)),
         ],
         const SizedBox(height: 12),
-        // ---- เหรียญ ----
+        // ---- เหรียญ 3 ขั้น ----
         card(Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Text('เหรียญ', style: TextStyle(fontWeight: FontWeight.w600, color: c.text)),
+          label('ทองแดง → เงิน → ทอง · ต้องทำต่อเนื่องจริงถึงได้'),
           const SizedBox(height: 10),
-          Wrap(spacing: 14, runSpacing: 12, children: [
-            for (final b in _badges)
-              Opacity(
-                opacity: b.done ? 1 : 0.4,
-                child: SizedBox(
-                  width: 84,
-                  child: Column(children: [
-                    CircleAvatar(
-                      radius: 22,
-                      backgroundColor: b.done ? c.greenBg : c.surface2,
-                      foregroundColor: b.done ? c.greenText : c.muted,
-                      child: Text(b.mark, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(b.title,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 12, color: c.text, fontWeight: FontWeight.w600)),
-                    Text(b.detail,
-                        textAlign: TextAlign.center,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontSize: 11, color: c.muted)),
-                  ]),
-                ),
-              ),
-          ]),
+          for (final m in _medals) _MedalRow(m),
         ])),
       ],
     );
@@ -340,4 +348,210 @@ class _TrendPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_TrendPainter old) => true;
+}
+
+/// แท่งรายเดือน (สีตามระดับ) + ชื่อเดือนย่อ
+class _MonthBars extends StatelessWidget {
+  const _MonthBars({required this.months});
+  final List<(DateTime, double?)> months;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.noir;
+    return SizedBox(
+      height: 150,
+      child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+        for (final (m, p) in months)
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 3),
+              child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
+                Text(p == null ? '' : '${p.round()}', style: TextStyle(fontSize: 10, color: c.muted)),
+                const SizedBox(height: 2),
+                Container(
+                  height: 100 * (p ?? 0) / 100,
+                  decoration: BoxDecoration(color: _levelColor(c, p), borderRadius: BorderRadius.circular(4)),
+                ),
+                const SizedBox(height: 4),
+                Text(thaiMonthsShort[m.month - 1],
+                    maxLines: 1, overflow: TextOverflow.clip, style: TextStyle(fontSize: 10, color: c.muted)),
+              ]),
+            ),
+          ),
+      ]),
+    );
+  }
+}
+
+/// ตารางสีรายวัน (คอลัมน์ = สัปดาห์ · แถว = จันทร์ → อาทิตย์) · ชื่อเดือนด้านบน · วันในสัปดาห์ด้านซ้าย (ไม่เลื่อนตาม)
+/// เปิดมาที่ช่วงล่าสุด · แตะช่อง = แถบบอกวันนั้นทำไปกี่งาน
+class YearHeatmap extends StatelessWidget {
+  const YearHeatmap({super.key, required this.from, required this.to, required this.days});
+  final DateTime from;
+  final DateTime to;
+  final Map<DateTime, List<Occurrence>> days;
+
+  static const _cell = 13.0;
+  static const _gap = 3.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.noir;
+    final start = mondayOf(from);
+    final weeks = to.difference(start).inDays ~/ 7 + 1;
+    Color colorOf(double? p) => p == null
+        ? c.surface2
+        : p >= 100
+            ? c.good
+            : p >= 80
+                ? Color.alphaBlend(c.good.withValues(alpha: 0.6), c.surface)
+                : p >= 50
+                    ? Color.alphaBlend(c.good.withValues(alpha: 0.32), c.surface)
+                    : Color.alphaBlend(c.good.withValues(alpha: 0.12), c.surface);
+
+    final labels = Column(children: [
+      const SizedBox(height: 16),
+      for (final (i, w) in const ['จ', '', 'พ', '', 'ศ', '', 'อา'].indexed)
+        SizedBox(
+          height: _cell + (i < 6 ? _gap : 0),
+          width: 22,
+          child: Text(w, style: TextStyle(fontSize: 10, color: c.muted)),
+        ),
+    ]);
+
+    String? monthAt(int w) {
+      final d = start.add(Duration(days: w * 7));
+      final prev = start.add(Duration(days: (w - 1) * 7));
+      return w == 0 || d.month != prev.month ? thaiMonthsShort[d.month - 1] : null;
+    }
+
+    final grid = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      SizedBox(
+        height: 16,
+        child: Stack(clipBehavior: Clip.none, children: [
+          for (var w = 0; w < weeks; w++)
+            if (monthAt(w) case final m?)
+              Positioned(
+                left: w * (_cell + _gap),
+                child: Text(m, style: TextStyle(fontSize: 10, color: c.muted)),
+              ),
+          SizedBox(width: weeks * (_cell + _gap)),
+        ]),
+      ),
+      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        for (var w = 0; w < weeks; w++)
+          Padding(
+            padding: const EdgeInsets.only(right: _gap),
+            child: Column(children: [
+              for (var i = 0; i < 7; i++)
+                Builder(builder: (context) {
+                  final d = start.add(Duration(days: w * 7 + i));
+                  final inRange = !d.isBefore(from) && !d.isAfter(to);
+                  final items = days[d] ?? const <Occurrence>[];
+                  final (done, total) = dayProgress(items);
+                  return Padding(
+                    padding: EdgeInsets.only(bottom: i < 6 ? _gap : 0),
+                    child: GestureDetector(
+                      onTap: !inRange
+                          ? null
+                          : () => ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
+                                content: Text(total == 0
+                                    ? '${thaiShortDate(d)} · ไม่มีงาน'
+                                    : '${thaiShortDate(d)} · ทำแล้ว $done/$total'),
+                                duration: const Duration(seconds: 2),
+                              )),
+                      child: Container(
+                        width: _cell,
+                        height: _cell,
+                        decoration: BoxDecoration(
+                          color: inRange ? colorOf(percentDone(items)) : Colors.transparent,
+                          borderRadius: BorderRadius.circular(3),
+                          border: d == to ? Border.all(color: c.text, width: 1.5) : null,
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+            ]),
+          ),
+      ]),
+    ]);
+
+    Widget key(Color col) => Container(
+        width: 11, height: 11, margin: const EdgeInsets.symmetric(horizontal: 2),
+        decoration: BoxDecoration(color: col, borderRadius: BorderRadius.circular(2)));
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        labels,
+        Expanded(child: SingleChildScrollView(scrollDirection: Axis.horizontal, reverse: true, child: grid)),
+      ]),
+      const SizedBox(height: 8),
+      Wrap(crossAxisAlignment: WrapCrossAlignment.center, spacing: 4, runSpacing: 4, children: [
+        Text('ไม่มีงาน', style: TextStyle(fontSize: 11, color: c.muted)),
+        key(colorOf(null)),
+        const SizedBox(width: 8),
+        Text('น้อย', style: TextStyle(fontSize: 11, color: c.muted)),
+        key(colorOf(30)),
+        key(colorOf(60)),
+        key(colorOf(85)),
+        key(colorOf(100)),
+        Text('ครบ · กรอบ = วันนี้', style: TextStyle(fontSize: 11, color: c.muted)),
+      ]),
+    ]);
+  }
+}
+
+/// เหรียญ 1 แถว: วงขั้น (ทองแดง / เงิน / ทอง) · แถบไปขั้นถัดไป
+class _MedalRow extends StatelessWidget {
+  const _MedalRow(this.m);
+  final MedalTrack m;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.noir;
+    const tiers = ['—', 'ทองแดง', 'เงิน', 'ทอง'];
+    const colors = [null, Color(0xFFC98A5A), Color(0xFFB8C0C8), Color(0xFFE3B52C)];
+    final next = m.next;
+    final col = colors[m.level];
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 7),
+      child: Row(children: [
+        CircleAvatar(
+          radius: 20,
+          backgroundColor: col ?? c.surface2,
+          foregroundColor: col == null ? c.muted : const Color(0xFF1B1B1B),
+          child: Text(const ['—', 'ทด', 'เงิน', 'ทอง'][m.level],
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Expanded(
+                child: Text('${m.name}${m.level > 0 ? ' · ${tiers[m.level]}' : ''}',
+                    style: TextStyle(fontWeight: FontWeight.w600, color: c.text)),
+              ),
+              Text(next == null ? 'ครบทุกขั้น' : '${next.$1} / ${next.$2} ${m.unit}',
+                  style: TextStyle(fontSize: 12, color: c.muted)),
+            ]),
+            const SizedBox(height: 4),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: LinearProgressIndicator(
+                value: next == null ? 1 : (next.$1 / next.$2).clamp(0, 1).toDouble(),
+                minHeight: 6,
+                backgroundColor: c.surface2,
+                color: next == null ? colors[3] : c.accent,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              next == null ? m.desc : '${m.desc} · ขั้นถัดไป ${tiers[m.level + 1]}',
+              style: TextStyle(fontSize: 11, color: c.muted),
+            ),
+          ]),
+        ),
+      ]),
+    );
+  }
 }

@@ -7,6 +7,7 @@ import 'package:noir_manager/calendar/free_slots.dart';
 import 'package:noir_manager/calendar/memory_calendar_repository.dart';
 import 'package:noir_manager/calendar/slot_picker.dart';
 import 'package:noir_manager/data/memory_study_repository.dart';
+import 'package:noir_manager/pages/stats_page.dart';
 
 void main() {
   test('จองเวลา: แตะแล้วขยับให้พอดีช่อง · ช่องสั้นเกิน / งานล็อก = เลือกไม่ได้ · งานแทนได้ = ทับได้', () {
@@ -29,7 +30,7 @@ void main() {
     expect([freeLevel(0), freeLevel(2), freeLevel(5), freeLevel(9)], [0, 1, 2, 3]);
   });
 
-  testWidgets('ปฏิทิน → สมุด: ดูอย่างเดียว · คำอธิบาย · สรุปเดือน · แตะวัน = สรุปวัน', (tester) async {
+  testWidgets('ปฏิทิน → เดือน (แบบสมุด): คำอธิบาย · สรุปเดือน · แตะวัน = งานของวันนั้นด้านล่าง', (tester) async {
     tester.view.physicalSize = const Size(1280, 1600);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -50,13 +51,15 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('สัปดาห์').first);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('สมุด').last);
+    await tester.tap(find.text('เดือน').last);
     await tester.pumpAndSettle();
+    expect(find.text('สมุด'), findsNothing); // รวมเข้าเดือนแล้ว
     expect(find.text('ทำครบทั้งวัน'), findsOneWidget);
     expect(find.text('⭐ ส่งงาน 1'), findsOneWidget);
     await tester.tap(find.byKey(ValueKey('nb-${now.month}-${now.day}')));
     await tester.pumpAndSettle();
-    expect(find.text('⭐ ส่ง: การบ้านบท 2'), findsOneWidget);
+    expect(find.textContaining('ส่ง: การบ้านบท 2'), findsWidgets);
+    expect(find.text('เพิ่มงาน'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -72,8 +75,11 @@ void main() {
     expect(find.text('ทำตามแผนรายวัน'), findsOneWidget);
     expect(find.text('แยกตามกิจกรรม'), findsOneWidget);
     expect(find.textContaining('Streak'), findsWidgets);
-    await tester.tap(find.text('28 วัน'));
+    expect(find.text('เหรียญ'), findsOneWidget);
+    await tester.tap(find.text('12 เดือน'));
     await tester.pumpAndSettle();
+    expect(find.text('ทำตามแผนรายเดือน'), findsOneWidget);
+    expect(find.byType(YearHeatmap), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }
