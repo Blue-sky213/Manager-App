@@ -8,6 +8,8 @@ import 'package:noir_manager/calendar/memory_calendar_repository.dart';
 import 'package:noir_manager/calendar/slot_picker.dart';
 import 'package:noir_manager/data/memory_study_repository.dart';
 import 'package:noir_manager/pages/stats_page.dart';
+import 'package:noir_manager/theme/app_theme.dart';
+import 'package:noir_manager/theme/noir_colors.dart';
 
 void main() {
   test('จองเวลา: แตะแล้วขยับให้พอดีช่อง · ช่องสั้นเกิน / งานล็อก = เลือกไม่ได้ · งานแทนได้ = ทับได้', () {
@@ -91,6 +93,7 @@ void main() {
     final nextMon = DateTime(now.year, now.month, now.day + (8 - now.weekday));
     PickedSlot? got;
     await tester.pumpWidget(MaterialApp(
+      theme: AppTheme.of(themeChoices.first),
       home: Builder(
         builder: (context) => TextButton(
           onPressed: () async => got = await pickFreeSlot(context, MemoryCalendarRepository(),
