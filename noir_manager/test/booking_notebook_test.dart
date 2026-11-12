@@ -76,7 +76,7 @@ void main() {
     expect(find.text('แยกตามกิจกรรม'), findsOneWidget);
     expect(find.textContaining('Streak'), findsWidgets);
     expect(find.text('เหรียญ'), findsOneWidget);
-    await tester.tap(find.text('12 เดือน'));
+    await tester.tap(find.text('1 ปี'));
     await tester.pumpAndSettle();
     expect(find.text('ทำตามแผนรายเดือน'), findsOneWidget);
     expect(find.byType(YearHeatmap), findsOneWidget);

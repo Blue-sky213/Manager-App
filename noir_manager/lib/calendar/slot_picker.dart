@@ -12,6 +12,7 @@ import 'calendar_repository.dart';
 import 'calendar_ui.dart';
 import 'free_slots.dart';
 import 'lock_flow.dart' show showLockBadge;
+import '../widgets/mini_segments.dart';
 
 /// ผลที่เลือก: วัน · นาทีเริ่ม · ความยาว
 typedef PickedSlot = ({DateTime day, int start, int minutes});
@@ -217,6 +218,19 @@ class _SlotPickerState extends State<_SlotPicker> {
     return out;
   }
 
+  /// ติววิชานี้ในสัปดาห์ที่ดูอยู่: (นาทีรวม ไม่นับเวลาพักหลังติว, จำนวนรอบ)
+  (int, int) _tutorWeek() {
+    var mins = 0, rounds = 0;
+    for (final d in _week) {
+      for (final b in d.busy) {
+        if (!b.tutor || (widget.subjectId != null && b.subjectId != widget.subjectId)) continue;
+        mins += (b.end - b.start - widget.bufferAfter).clamp(0, 24 * 60);
+        rounds++;
+      }
+    }
+    return (mins, rounds);
+  }
+
   void _shiftWeek(int dir) {
     setState(() {
       _monday = DateTime(_monday.year, _monday.month, _monday.day + 7 * dir);
@@ -262,6 +276,9 @@ class _SlotPickerState extends State<_SlotPicker> {
     _beforeDrag = null;
   }
 
+  /// เปลี่ยนความยาว · ช่องไม่พอ = กล่องแดง (ไม่ขยับเวลาให้เอง)
+  void _setLen(int len) => setState(() => _len = len.clamp(15, 240));
+
   void _tap(SlotDay d, int minute) {
     final s = fitStart(d.bookable, minute, _len);
     if (s == null) return;
@@ -292,44 +309,59 @@ class _SlotPickerState extends State<_SlotPicker> {
         ]),
         if (widget.note != null) Text(widget.note!, style: TextStyle(fontSize: 13, color: c.muted)),
         const SizedBox(height: 8),
-        // ความยาวรอบ: เปลี่ยนแล้วช่องที่สั้นเกินจะเลือกไม่ได้ทันที
-        Wrap(spacing: 6, runSpacing: 6, children: [
-          for (final m in const [30, 45, 60, 90, 120])
-            ChoiceChip(
-              label: Text(durationText(m)),
-              selected: _len == m,
-              onSelected: (_) => setState(() {
-                _len = m;
-                if (selDay != null && _start != null) _start = fitStart(selDay.bookable, _start!, m);
-              }),
-            ),
-        ]),
-        const SizedBox(height: 8),
+        // ความยาวรอบ (− / + ทีละ 15 นาที · ลากยืดกล่องแล้วตัวเลขเปลี่ยนตาม) + สัปดาห์ | เดือน ในแถวเดียว
         Row(children: [
-          SegmentedButton<bool>(
-            style: const ButtonStyle(visualDensity: VisualDensity.compact),
-            showSelectedIcon: false,
-            segments: const [
-              ButtonSegment(value: false, label: Text('สัปดาห์')),
-              ButtonSegment(value: true, label: Text('เดือน')),
-            ],
-            selected: {_monthView},
-            onSelectionChanged: (v) {
-              setState(() => _monthView = v.first);
-              if (v.first && _monthDays.isEmpty) _loadMonth();
-            },
+          Container(
+            decoration: BoxDecoration(color: c.surface, borderRadius: BorderRadius.circular(10)),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              IconButton(
+                tooltip: 'สั้นลง 15 นาที',
+                visualDensity: VisualDensity.compact,
+                onPressed: _len <= 15 ? null : () => _setLen(_len - 15),
+                icon: const Icon(Icons.remove, size: 18),
+              ),
+              SizedBox(
+                width: 92,
+                child: Text(durationText(_len),
+                    key: const ValueKey('slot-len'),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontWeight: FontWeight.w600, color: c.text)),
+              ),
+              IconButton(
+                tooltip: 'ยาวขึ้น 15 นาที',
+                visualDensity: VisualDensity.compact,
+                onPressed: _len >= 240 ? null : () => _setLen(_len + 15),
+                icon: const Icon(Icons.add, size: 18),
+              ),
+            ]),
           ),
-          const Spacer(),
+          const SizedBox(width: 10),
+          Expanded(
+            child: MiniSegments<bool>(
+              value: _monthView,
+              items: const [(false, 'สัปดาห์'), (true, 'เดือน')],
+              onChanged: (v) {
+                setState(() => _monthView = v);
+                if (v && _monthDays.isEmpty) _loadMonth();
+              },
+            ),
+          ),
+        ]),
+        const SizedBox(height: 4),
+        Row(children: [
           IconButton(
             tooltip: _monthView ? 'เดือนก่อน' : 'สัปดาห์ก่อน',
             onPressed: () => _monthView ? _shiftMonth(-1) : _shiftWeek(-1),
             icon: const Icon(Icons.chevron_left),
           ),
-          Text(
-            _monthView
-                ? thaiMonthYear(_month)
-                : '${thaiShortDate(_monday)} – ${thaiShortDate(_monday.add(const Duration(days: 6)))}',
-            style: TextStyle(fontSize: 13, color: c.text),
+          Expanded(
+            child: Text(
+              _monthView
+                  ? thaiMonthYear(_month)
+                  : '${thaiShortDate(_monday)} – ${thaiShortDate(_monday.add(const Duration(days: 6)))}',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, color: c.text),
+            ),
           ),
           IconButton(
             tooltip: _monthView ? 'เดือนถัดไป' : 'สัปดาห์ถัดไป',
@@ -384,13 +416,19 @@ class _SlotPickerState extends State<_SlotPicker> {
           spacing: 12,
           runSpacing: 8,
           children: [
+            if (_tutorWeek() case (final mins, final rounds) when !_monthView)
+              Text(
+                'ติวสัปดาห์นี้ ${mins == 0 ? '0 ชม.' : durationText(mins)} ($rounds รอบ)'
+                '${_day == null ? '' : ' → รวมรอบนี้ ${durationText(mins + _len)}'}',
+                style: TextStyle(fontSize: 12, color: c.muted),
+              ),
             Text(
               _day == null || _start == null
                   ? 'แตะช่องสีเขียวเพื่อเลือกเวลา · ลากกล่องเพื่อย้าย'
                   : blocked
                       ? '⚠ วางตรงนี้ไม่ได้ ${hits.where((b) => !b.replaceable).map((b) => b.title).join(', ')}'
                       : hits.isEmpty
-                          ? '${thaiShortDate(_day!)} ${rangeText(_start!, _len)}'
+                          ? '${thaiShortDate(_day!)} ${rangeText(_start!, _len)} · ${durationText(_len)}'
                           : '${thaiShortDate(_day!)} ${rangeText(_start!, _len)} · ทับ ${hits.map((b) => b.title).join(', ')} (ย้ายได้ที่ปฏิทิน)',
               style: TextStyle(fontWeight: FontWeight.w600, color: blocked ? c.bad : c.text),
             ),
@@ -681,8 +719,10 @@ class _WeekGrid extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.all(2),
               child: Text(
-                w < 60 ? fmtMinute(selectedStart!) : rangeText(selectedStart!, len),
-                maxLines: 2,
+                w < 60
+                    ? '${fmtMinute(selectedStart!)}\n${durationText(len)}'
+                    : '${rangeText(selectedStart!, len)}\n${durationText(len)}',
+                maxLines: 3,
                 style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: color),
               ),
             ),
