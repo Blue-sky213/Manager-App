@@ -75,7 +75,7 @@ class MiniForm extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.noir;
     final sheet = context.dependOnInheritedWidgetOfExactType<_SheetFlag>()?.sheet ?? false;
-    final danger = Theme.of(context).colorScheme.error;
+    final red = Theme.of(context).colorScheme.error;
     final body = Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Row(children: [
         Expanded(
@@ -92,7 +92,7 @@ class MiniForm extends StatelessWidget {
                 PopupMenuItem(
                   value: i,
                   height: 40,
-                  child: Text(menu[i].label, style: menu[i].danger ? TextStyle(color: danger) : null),
+                  child: Text(menu[i].label, style: menu[i].danger ? TextStyle(color: red) : null),
                 ),
             ],
           ),
