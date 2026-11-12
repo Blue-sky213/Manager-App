@@ -530,7 +530,7 @@ class _ClassLogDialogState extends State<_ClassLogDialog> {
           const SizedBox(height: 8),
           Flexible(child: SingleChildScrollView(child: fields)),
           const SizedBox(height: 12),
-          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [skip, ok]),
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Flexible(child: skip), ok]),
         ]),
       );
     }
