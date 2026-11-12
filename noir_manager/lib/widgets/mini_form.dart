@@ -106,8 +106,15 @@ class MiniForm extends StatelessWidget {
       ...children,
       if (primaryLabel != null) ...[
         const SizedBox(height: 16),
+        // ปุ่มรองยาว (เช่น "แค่ทำแล้ว ไม่บันทึก") ต้องหดได้บนจอแคบ
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          TextButton(onPressed: onSecondary ?? () => Navigator.pop(context), child: Text(secondaryLabel)),
+          Flexible(
+            child: TextButton(
+              onPressed: onSecondary ?? () => Navigator.pop(context),
+              child: Text(secondaryLabel, maxLines: 2, overflow: TextOverflow.ellipsis),
+            ),
+          ),
+          const SizedBox(width: 8),
           FilledButton(
             key: const Key('mini-form-primary'),
             style: danger

@@ -81,7 +81,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('รายวิชา'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('บทเรียน'));
+    await tester.tap(find.text('บทเรียน').first);
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('grading-switch')), findsOneWidget);
     expect(find.byTooltip('ตั้งค่าโหมด Advanced'), findsNothing);

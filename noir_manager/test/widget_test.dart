@@ -546,7 +546,7 @@ void main() {
     await openLinks();
     expect(find.text('ต้องเรียนก่อนวิชานี้'), findsOneWidget);
     final m1 = find.ancestor(
-        of: find.descendant(of: find.byType(AlertDialog), matching: find.text('คณิตศาสตร์วิศวกรรม 1')),
+        of: find.descendant(of: find.byKey(const Key('mini-form')), matching: find.text('คณิตศาสตร์วิศวกรรม 1')),
         matching: find.byType(CheckboxListTile));
     expect(tester.widget<CheckboxListTile>(m1).value, isTrue);
 
