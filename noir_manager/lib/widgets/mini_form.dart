@@ -103,7 +103,12 @@ class MiniForm extends StatelessWidget {
           icon: const Icon(Icons.close, size: 20),
         ),
       ]),
-      ...children,
+      // เนื้อหาเลื่อนได้ · หัวและปุ่มล่างอยู่กับที่ (ปุ่มไม่หลุดจอ)
+      Flexible(
+        child: SingleChildScrollView(
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: children),
+        ),
+      ),
       if (primaryLabel != null) ...[
         const SizedBox(height: 16),
         // ปุ่มรองยาว (เช่น "แค่ทำแล้ว ไม่บันทึก") ต้องหดได้บนจอแคบ
@@ -131,7 +136,7 @@ class MiniForm extends StatelessWidget {
       padding: EdgeInsets.fromLTRB(20, sheet ? 0 : 12, 20, 16 + MediaQuery.viewInsetsOf(context).bottom),
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: maxWidth),
-        child: SingleChildScrollView(child: body),
+        child: body,
       ),
     );
   }
