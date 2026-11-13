@@ -345,18 +345,27 @@ Future<void> createStickerV16(DatabaseExecutor db) async {
 /// - สติกเกอร์ในวัน: ตำแหน่ง (x, y 0–1) · ไฮไลต์ · แปะอัตโนมัติ (missed / late)
 /// - เช็กอินเช้า: นอนจริง · ตื่น · พลัง 1–5 (ไว้วิเคราะห์ย้อนหลัง)
 Future<void> createRound7V17(DatabaseExecutor db) async {
-  await addColumnIfMissing(db, 'category', 'default_importance', 'INTEGER');
-  await addColumnIfMissing(db, 'category', 'default_minutes', 'INTEGER');
-  await addColumnIfMissing(db, 'category', 'replaceable', 'INTEGER NOT NULL DEFAULT 1');
-  await addColumnIfMissing(db, 'category', 'lock_on_start', 'INTEGER NOT NULL DEFAULT 0');
-  await addColumnIfMissing(db, 'category', 'stats_group', 'TEXT');
-  await addColumnIfMissing(db, 'category', 'hidden', 'INTEGER NOT NULL DEFAULT 0');
-  await addColumnIfMissing(db, 'activity', 'flexible', 'INTEGER NOT NULL DEFAULT 0');
-  await addColumnIfMissing(db, 'occurrence', 'free_start', 'TEXT');
-  await addColumnIfMissing(db, 'occurrence', 'free_end', 'TEXT');
-  // ตาราง day_sticker มาจาก v16 (เทสบางตัวสร้าง schema ไม่ครบ → ข้าม)
-  final hasSticker = (await db.rawQuery("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'day_sticker'")).isNotEmpty;
-  if (hasSticker) {
+  // เทสบางตัวสร้าง schema ไม่ครบ → เพิ่มเฉพาะตารางที่มี
+  Future<bool> has(String t) async =>
+      (await db.rawQuery("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?", [t])).isNotEmpty;
+  if (await has('category')) {
+    await addColumnIfMissing(db, 'category', 'default_importance', 'INTEGER');
+    await addColumnIfMissing(db, 'category', 'default_minutes', 'INTEGER');
+    await addColumnIfMissing(db, 'category', 'replaceable', 'INTEGER NOT NULL DEFAULT 1');
+    await addColumnIfMissing(db, 'category', 'lock_on_start', 'INTEGER NOT NULL DEFAULT 0');
+    await addColumnIfMissing(db, 'category', 'stats_group', 'TEXT');
+    await addColumnIfMissing(db, 'category', 'hidden', 'INTEGER NOT NULL DEFAULT 0');
+    // ไอคอนเริ่มต้นของหมวดที่มีอยู่ (ถ้ายังไม่มี) · ผู้ใช้เปลี่ยนได้
+    for (final (name, icon) in const [('เรียน', '🎓'), ('ออกกำลังกาย', '💪'), ('สตรีม', '🎮'), ('งาน', '💼'), ('อื่น ๆ', '📌')]) {
+      await db.execute("UPDATE category SET icon = ? WHERE name = ? AND (icon IS NULL OR icon = '')", [icon, name]);
+    }
+  }
+  if (await has('activity')) await addColumnIfMissing(db, 'activity', 'flexible', 'INTEGER NOT NULL DEFAULT 0');
+  if (await has('occurrence')) {
+    await addColumnIfMissing(db, 'occurrence', 'free_start', 'TEXT');
+    await addColumnIfMissing(db, 'occurrence', 'free_end', 'TEXT');
+  }
+  if (await has('day_sticker')) {
     await addColumnIfMissing(db, 'day_sticker', 'x', 'REAL');
     await addColumnIfMissing(db, 'day_sticker', 'y', 'REAL');
     await addColumnIfMissing(db, 'day_sticker', 'highlight', 'INTEGER NOT NULL DEFAULT 0');
@@ -370,10 +379,6 @@ Future<void> createRound7V17(DatabaseExecutor db) async {
       energy     INTEGER,
       miss_reason TEXT
     )''');
-  // ไอคอนเริ่มต้นของหมวดที่มีอยู่ (ถ้ายังไม่มี) · ผู้ใช้เปลี่ยนได้
-  for (final (name, icon) in const [('เรียน', '🎓'), ('ออกกำลังกาย', '💪'), ('สตรีม', '🎮'), ('งาน', '💼'), ('อื่น ๆ', '📌')]) {
-    await db.execute("UPDATE category SET icon = ? WHERE name = ? AND (icon IS NULL OR icon = '')", [icon, name]);
-  }
 }
 
 /// ตารางตั้งค่าแบบ key → value เช่น grading_mode → ez / advanced

@@ -719,8 +719,8 @@ class SqliteCalendarRepository extends CalendarRepository {
         'day_sticker',
         {
           if (note != null || clearNote) 'note': clearNote ? null : note,
-          if (x != null) 'x': x,
-          if (y != null) 'y': y,
+          'x': ?x,
+          'y': ?y,
         },
         where: 'id = ?',
         whereArgs: [dayStickerId]);
