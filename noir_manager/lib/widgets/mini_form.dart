@@ -440,7 +440,7 @@ Future<T?> showSubPanel<T>(BuildContext context, WidgetBuilder builder, {double 
     barrierLabel: 'ปิด',
     barrierColor: Colors.black.withValues(alpha: 0.15),
     transitionDuration: const Duration(milliseconds: 150),
-    pageBuilder: (ctx, _, __) {
+    pageBuilder: (ctx, _, _) {
       final size = MediaQuery.sizeOf(ctx);
       // ฟอร์มหลักกว้างราว 560 อยู่กลางจอ → แผ่นนี้วางชิดขอบขวาของฟอร์ม (ไม่ล้นจอ)
       final left = math.max(16.0, math.min(size.width / 2 + 292, size.width - width - 16));

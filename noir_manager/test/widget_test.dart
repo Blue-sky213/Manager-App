@@ -8,7 +8,6 @@ import 'package:noir_manager/data/memory_study_repository.dart';
 import 'package:noir_manager/calendar/calendar_models.dart';
 import 'package:noir_manager/calendar/calendar_repository.dart';
 import 'package:noir_manager/calendar/memory_calendar_repository.dart';
-import 'package:noir_manager/pages/calendar_page.dart' show addMonths, monthGridDays;
 import 'package:noir_manager/utils/thai_date.dart';
 
 /// เปิดแอปด้วยข้อมูลใน RAM (ไม่แตะไฟล์ฐานข้อมูลจริง)
