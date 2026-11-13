@@ -119,6 +119,22 @@ class MemoryCalendarRepository extends CalendarRepository {
   }
 
   @override
+  Future<void> updatePreset(int presetId, String name, NewActivity? v) async {
+    final i = _presets.indexWhere((p) => p.id == presetId);
+    if (i < 0) return;
+    final old = _presets[i];
+    _presets[i] = Preset(
+      id: presetId,
+      name: name,
+      categoryId: v == null ? old.categoryId : v.categoryId,
+      importance: v == null ? old.importance : v.importance,
+      startMinute: v == null ? old.startMinute : (v.timed ? v.startMinute : null),
+      durationMin: v == null ? old.durationMin : (v.timed ? v.durationMin : null),
+    );
+    notifyListeners();
+  }
+
+  @override
   Future<void> deletePreset(int presetId) async {
     _presets.removeWhere((p) => p.id == presetId);
     for (final e in _activities.entries.toList()) {

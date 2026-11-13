@@ -113,6 +113,7 @@ Future<NewActivity?> _openForm(
     initial: initial,
     editing: editing,
     onSavePreset: repo.addPreset,
+    onUpdatePreset: repo.updatePreset,
     onDeletePreset: repo.deletePreset,
   );
 }

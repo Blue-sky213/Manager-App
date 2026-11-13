@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../study/subject_colors.dart';
 import '../theme/noir_colors.dart';
 import '../utils/thai_date.dart';
+import '../widgets/dialogs.dart' show showContextMenuAt, ctxItem;
 import '../widgets/mini_form.dart';
 import '../widgets/mini_segments.dart';
 import 'calendar_models.dart';
@@ -149,6 +150,7 @@ Future<NewActivity?> showActivityDialog(
   bool editing = false,
   Future<int> Function(String name, NewActivity values)? onSavePreset,
   Future<void> Function(int presetId)? onDeletePreset,
+  Future<void> Function(int presetId, String name, NewActivity? values)? onUpdatePreset,
 }) {
   Widget body(bool sheet) => _ActivityDialog(
         day: day,
@@ -158,6 +160,7 @@ Future<NewActivity?> showActivityDialog(
         editing: editing,
         onSavePreset: onSavePreset,
         onDeletePreset: onDeletePreset,
+        onUpdatePreset: onUpdatePreset,
         sheet: sheet,
       );
   // มือถือ = แผ่นจากด้านล่าง · คอม = กล่องกลางจอ
@@ -181,6 +184,7 @@ class _ActivityDialog extends StatefulWidget {
     required this.editing,
     required this.onSavePreset,
     required this.onDeletePreset,
+    this.onUpdatePreset,
     this.sheet = false,
   });
 
@@ -192,6 +196,7 @@ class _ActivityDialog extends StatefulWidget {
   final bool editing;
   final Future<int> Function(String name, NewActivity values)? onSavePreset;
   final Future<void> Function(int presetId)? onDeletePreset;
+  final Future<void> Function(int presetId, String name, NewActivity? values)? onUpdatePreset;
 
   @override
   State<_ActivityDialog> createState() => _ActivityDialogState();
@@ -269,29 +274,75 @@ class _ActivityDialogState extends State<_ActivityDialog> {
     });
   }
 
+  /// ชื่อ Preset ห้ามซ้ำ (ไม่สนตัวพิมพ์เล็ก/ใหญ่ · เว้นวรรคหัวท้าย) · [except] = ตัวที่กำลังแก้
+  String? _presetNameError(String name, {int? except}) {
+    final n = name.trim().toLowerCase();
+    if (n.isEmpty) return 'ใส่ชื่อ';
+    if (_presets.any((p) => p.id != except && p.name.trim().toLowerCase() == n)) return 'มีชื่อ "${name.trim()}" แล้ว · ใช้ชื่ออื่น';
+    return null;
+  }
+
+  /// กล่องตั้งชื่อ Preset (ใช้ทั้งตอนบันทึกใหม่และตอนแก้) · คืน (ชื่อ, ใช้ค่าตอนนี้ไหม)
+  Future<(String, bool)?> _askPresetName({Preset? editing}) {
+    final controller = TextEditingController(text: editing?.name ?? '');
+    var useCurrent = editing == null;
+    String? error;
+    return showMiniForm<(String, bool)>(
+      context,
+      (ctx) => StatefulBuilder(builder: (ctx, setLocal) {
+        void submit() {
+          final e = _presetNameError(controller.text, except: editing?.id);
+          if (e != null) {
+            setLocal(() => error = e);
+            return;
+          }
+          Navigator.pop(ctx, (controller.text.trim(), useCurrent));
+        }
+
+        return MiniForm(
+          title: editing == null ? 'บันทึกเป็น Preset · เก็บหมวด ความสำคัญ เวลา ไว้ใช้ซ้ำ' : 'แก้ Preset',
+          primaryLabel: 'บันทึก',
+          onPrimary: submit,
+          children: [
+            MiniBigField(
+              key: const Key('preset-name'),
+              controller: controller,
+              hint: 'ชื่อ Preset เช่น Stream, ติวเข้ม',
+              onChanged: (_) {
+                if (error != null) setLocal(() => error = null);
+              },
+              onSubmitted: (_) => submit(),
+            ),
+            if (error != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(error!, style: TextStyle(fontSize: 12, color: ctx.noir.bad)),
+              ),
+            if (editing != null)
+              MiniSwitchRow(
+                label: 'ใช้ค่าในฟอร์มตอนนี้แทน',
+                detail: 'หมวด · ความสำคัญ · เวลา',
+                value: useCurrent,
+                last: true,
+                onChanged: (v) => setLocal(() => useCurrent = v),
+              ),
+          ],
+        );
+      }),
+    );
+  }
+
   Future<void> _savePreset() async {
     final save = widget.onSavePreset;
     if (save == null) return;
-    final controller = TextEditingController();
-    final name = await showMiniForm<String>(
-      context,
-      (ctx) => MiniForm(
-        title: 'บันทึกเป็น Preset · เก็บหมวด ความสำคัญ เวลา ไว้ใช้ซ้ำ',
-        primaryLabel: 'บันทึก',
-        onPrimary: () => Navigator.pop(ctx, controller.text),
-        children: [
-          MiniBigField(controller: controller, hint: 'ชื่อ Preset เช่น Stream, ติวเข้ม', onSubmitted: (v) => Navigator.pop(ctx, v)),
-        ],
-      ),
-    );
-    final trimmed = name?.trim() ?? '';
-    if (trimmed.isEmpty) return;
-    final id = await save(trimmed, _draft);
+    final res = await _askPresetName();
+    if (res == null) return;
+    final id = await save(res.$1, _draft);
     if (!mounted) return;
     setState(() {
       _presets.add(Preset(
         id: id,
-        name: trimmed,
+        name: res.$1,
         categoryId: _categoryId,
         importance: _importance,
         startMinute: _timed ? _start : null,
@@ -301,16 +352,81 @@ class _ActivityDialogState extends State<_ActivityDialog> {
     });
   }
 
-  Future<void> _deletePreset() async {
-    final del = widget.onDeletePreset;
-    final id = _presetId;
-    if (del == null || id == null) return;
-    await del(id);
+  Future<void> _editPreset(Preset p) async {
+    final update = widget.onUpdatePreset;
+    if (update == null) return;
+    final res = await _askPresetName(editing: p);
+    if (res == null) return;
+    final (name, useCurrent) = res;
+    await update(p.id, name, useCurrent ? _draft : null);
     if (!mounted) return;
     setState(() {
-      _presets.removeWhere((p) => p.id == id);
-      _presetId = null;
+      final i = _presets.indexWhere((x) => x.id == p.id);
+      if (i < 0) return;
+      _presets[i] = Preset(
+        id: p.id,
+        name: name,
+        categoryId: useCurrent ? _categoryId : p.categoryId,
+        importance: useCurrent ? _importance : p.importance,
+        startMinute: useCurrent ? (_timed ? _start : null) : p.startMinute,
+        durationMin: useCurrent ? (_timed ? _duration : null) : p.durationMin,
+      );
     });
+  }
+
+  /// ดูข้อมูล Preset (อ่านอย่างเดียว)
+  Future<void> _viewPreset(Preset p) {
+    final cat = widget.categories.where((c) => c.id == p.categoryId).firstOrNull;
+    return showMiniForm<void>(
+      context,
+      (ctx) => MiniForm(title: 'Preset · ${p.name}', children: [
+        MiniRow(icon: Icons.label_outline, label: 'หมวด', valueText: cat?.name ?? 'ไม่มี'),
+        MiniRow(icon: Icons.priority_high, label: 'ความสำคัญ', valueText: importanceText(p.importance)),
+        MiniRow(
+          icon: Icons.schedule,
+          label: 'เวลา',
+          last: true,
+          valueText: p.startMinute == null
+              ? 'ไม่ล็อกเวลา'
+              : '${rangeText(p.startMinute!, p.durationMin ?? 60)} · ${durationText(p.durationMin ?? 60)}',
+        ),
+      ]),
+    );
+  }
+
+  Future<void> _deletePreset(Preset p) async {
+    final del = widget.onDeletePreset;
+    if (del == null) return;
+    final ok = await confirmMini(context,
+        title: 'ลบ Preset "${p.name}"?', message: 'งานที่ใช้ Preset นี้อยู่ไม่ถูกลบ', okLabel: 'ลบ', danger: true);
+    if (!ok) return;
+    await del(p.id);
+    if (!mounted) return;
+    setState(() {
+      _presets.removeWhere((x) => x.id == p.id);
+      if (_presetId == p.id) _presetId = null;
+    });
+  }
+
+  /// คลิกขวา / กดค้างที่ Preset → เมนู: ใช้ · ดูข้อมูล · แก้ไข · ลบ (ไม่ลบทันที)
+  Future<void> _presetMenu(Preset p, Offset at) async {
+    final pick = await showContextMenuAt<String>(context, at, [
+      ctxItem('use', Icons.bolt, 'ใช้ Preset นี้'),
+      ctxItem('view', Icons.info_outline, 'ดูข้อมูล'),
+      if (widget.onUpdatePreset != null) ctxItem('edit', Icons.edit_outlined, 'แก้ไข'),
+      if (widget.onDeletePreset != null) ctxItem('delete', Icons.delete_outline, 'ลบ', danger: true),
+    ]);
+    if (!mounted) return;
+    switch (pick) {
+      case 'use':
+        _applyPreset(p.id);
+      case 'view':
+        await _viewPreset(p);
+      case 'edit':
+        await _editPreset(p);
+      case 'delete':
+        await _deletePreset(p);
+    }
   }
 
   Future<void> _addDate() async {
@@ -625,7 +741,7 @@ class _ActivityDialogState extends State<_ActivityDialog> {
         onChanged: (_) => setState(() {}),
         onSubmitted: (_) => submit(),
       ),
-      // Preset = ป้ายเล็กแถวเดียว · แตะ = เติมค่าให้ · กดค้าง / คลิกขวา = ลบ
+      // Preset = ป้ายเล็กแถวเดียว · แตะ = เติมค่าให้ · กดค้าง / คลิกขวา = เมนู ใช้ · ดูข้อมูล · แก้ไข · ลบ
       if (_presets.isNotEmpty || widget.onSavePreset != null)
         SizedBox(
           height: 44,
@@ -634,18 +750,9 @@ class _ActivityDialogState extends State<_ActivityDialog> {
               Padding(
                 padding: const EdgeInsets.only(right: 6, top: 6),
                 child: GestureDetector(
-                  onLongPress: widget.onDeletePreset == null
-                      ? null
-                      : () {
-                          _presetId = p.id;
-                          _deletePreset();
-                        },
-                  onSecondaryTap: widget.onDeletePreset == null
-                      ? null
-                      : () {
-                          _presetId = p.id;
-                          _deletePreset();
-                        },
+                  key: Key('preset-${p.id}'),
+                  onLongPressStart: (d) => _presetMenu(p, d.globalPosition),
+                  onSecondaryTapDown: (d) => _presetMenu(p, d.globalPosition),
                   child: ChoiceChip(
                     visualDensity: VisualDensity.compact,
                     showCheckmark: false,

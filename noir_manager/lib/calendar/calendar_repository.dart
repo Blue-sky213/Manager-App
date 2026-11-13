@@ -30,6 +30,8 @@ abstract class CalendarRepository extends ChangeNotifier {
   /// Preset: ชุดค่าที่บันทึกไว้ เช่น Stream (สตรีม · สำคัญ · 20:00–00:00)
   Future<List<Preset>> presets();
   Future<int> addPreset(String name, NewActivity values);
+  /// แก้ชื่อ (และค่าถ้าส่ง [values]) ของ Preset เดิม · id เดิม งานที่ใช้อยู่ไม่หลุดกลุ่ม
+  Future<void> updatePreset(int presetId, String name, NewActivity? values);
   Future<void> deletePreset(int presetId);
 
   /// บันทึกเวลาเริ่ม/เลิกจริง (null = ล้างค่า)

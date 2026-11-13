@@ -270,6 +270,25 @@ class SqliteCalendarRepository extends CalendarRepository {
   }
 
   @override
+  Future<void> updatePreset(int presetId, String name, NewActivity? v) async {
+    await _db.update(
+      'preset',
+      {
+        'name': name,
+        if (v != null) ...{
+          'category_id': v.categoryId,
+          'importance': v.importance,
+          'start_minute': v.timed ? v.startMinute : null,
+          'duration_min': v.timed ? v.durationMin : null,
+        },
+      },
+      where: 'id = ?',
+      whereArgs: [presetId],
+    );
+    notifyListeners();
+  }
+
+  @override
   Future<void> deletePreset(int presetId) async {
     // งานที่ใช้ Preset นี้ไม่ถูกลบ แค่หลุดจากกลุ่ม (ON DELETE SET NULL)
     await _db.delete('preset', where: 'id = ?', whereArgs: [presetId]);
