@@ -75,6 +75,7 @@ Future<int> judgeDays(CalendarRepository repo, {DateTime? now, bool force = fals
   final lifeBase = await repo.lifeBase();
   final holidays = {for (final h in await repo.holidays()) dayKey(h.day)};
   final today = dayOnly(t);
+  final occ = await repo.occurrencesBetween(today.subtract(const Duration(days: 14)), today);
   var placed = 0;
   for (var i = 14; i >= 0; i--) {
     final d = today.subtract(Duration(days: i));
@@ -83,8 +84,7 @@ Future<int> judgeDays(CalendarRepository repo, {DateTime? now, bool force = fals
     if (!closed && t.isBefore(await cutoffOf(repo, d, lifeBase))) continue;
     final stuck = await repo.daySticker(d, d);
     if (stuck.any((s) => s.auto != null)) continue; // ตัดสินไปแล้ว
-    final items = await repo.occurrencesOn(d);
-    if (!importantPending(items)) continue;
+    if (!importantPending(occ[d] ?? await repo.occurrencesOn(d))) continue;
     await repo.stickDay(d, missed.id, highlight: true, auto: 'missed');
     placed++;
   }

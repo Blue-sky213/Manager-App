@@ -389,6 +389,60 @@ class SqliteCalendarRepository extends CalendarRepository {
   }
 
   @override
+  Future<Map<DateTime, List<Occurrence>>> occurrencesBetween(DateTime from, DateTime to) async {
+    final a = dayOnly(from), b = dayOnly(to);
+    final days = [for (var d = a; !d.isAfter(b); d = DateTime(d.year, d.month, d.day + 1)) d];
+    if (days.isEmpty) return {};
+    final ka = dayKey(a), kb = dayKey(b);
+    // 1) สร้างครั้งของงานทุกวันในช่วง ใน batch เดียว (เหมือน occurrencesOn ทีละวัน)
+    final acts = await _db.query('activity',
+        where: "repeat = 'dates' OR (start_date <= ? AND (end_date IS NULL OR end_date >= ?))", whereArgs: [kb, ka]);
+    final dateRows = await _db.query('activity_date', where: 'day >= ? AND day <= ?', whereArgs: [ka, kb]);
+    final datesOf = <int, Map<String, ScheduledDate>>{};
+    for (final d in dateRows) {
+      final k = d['day'] as String;
+      (datesOf[d['activity_id'] as int] ??= {})[k] = ScheduledDate(DateTime.parse(k),
+          startMinute: d['start_minute'] as int?, durationMin: d['duration_min'] as int?);
+    }
+    final batch = _db.batch();
+    for (final row in acts) {
+      final id = row['id'] as int;
+      final act = Activity.fromRow(row, dates: datesOf[id] ?? const {});
+      for (final day in days) {
+        if (!occursOn(act, day)) continue;
+        final key = dayKey(day);
+        final time = timeFor(act, day);
+        final start = time == null ? null : atMinute(day, time.$1);
+        batch.insert(
+          'occurrence',
+          {
+            'activity_id': act.id,
+            'origin_day': key,
+            'day': key,
+            'start_at': start?.toIso8601String(),
+            'end_at': start?.add(Duration(minutes: time!.$2)).toIso8601String(),
+            'status': OccurrenceStatus.planned.name,
+          },
+          conflictAlgorithm: ConflictAlgorithm.ignore,
+        );
+      }
+    }
+    await batch.commit(noResult: true);
+
+    // 2) อ่านทั้งช่วงครั้งเดียว แล้วแยกตามวัน (ลำดับในวันเหมือน occurrencesOn)
+    final rows = await _db.rawQuery(
+        '$_occurrenceSelect WHERE o.day >= ? AND o.day <= ? '
+        'ORDER BY o.day, o.start_at IS NULL, o.start_at, o.id',
+        [ka, kb]);
+    final all = await attachSessions(rows.map(Occurrence.fromRow).toList());
+    final out = {for (final d in days) d: <Occurrence>[]};
+    for (final o in all) {
+      out[dayOnly(o.day)]?.add(o);
+    }
+    return out;
+  }
+
+  @override
   Future<void> setActualTimes(int occurrenceId, {DateTime? start, DateTime? end}) async {
     await _db.update(
       'occurrence',

@@ -40,11 +40,7 @@ class StreakInfo {
 
 /// [lookback] วันย้อนหลังที่ดู (รวมวันนี้)
 Future<StreakInfo> loadStreak(CalendarRepository repo, DateTime today, {int lookback = 60}) async {
-  final days = <DateTime, List<Occurrence>>{};
-  for (var i = 0; i < lookback; i++) {
-    final d = DateTime(today.year, today.month, today.day - i);
-    days[d] = await repo.occurrencesOn(d);
-  }
+  final days = await repo.occurrencesBetween(DateTime(today.year, today.month, today.day - lookback + 1), today);
   return streakOf(days, dayOnly(today));
 }
 

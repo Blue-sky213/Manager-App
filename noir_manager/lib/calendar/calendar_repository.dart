@@ -60,6 +60,16 @@ abstract class CalendarRepository extends ChangeNotifier {
   /// งานทุกครั้งของวัน [day] (สร้างครั้งของงานซ้ำให้อัตโนมัติถ้ายังไม่มี)
   Future<List<Occurrence>> occurrencesOn(DateTime day);
 
+  /// งานทุกวันในช่วง [from]–[to] (รวมทั้งสองวัน) · ทุกวันมี key แม้ไม่มีงาน
+  /// SQLite ทำในรอบเดียว (เรียกทีละวัน = เขียน DB ทีละวัน → 372 วันในหน้าสถิติหน่วงมาก)
+  Future<Map<DateTime, List<Occurrence>>> occurrencesBetween(DateTime from, DateTime to) async {
+    final out = <DateTime, List<Occurrence>>{};
+    for (var d = dayOnly(from); !d.isAfter(dayOnly(to)); d = DateTime(d.year, d.month, d.day + 1)) {
+      out[d] = await occurrencesOn(d);
+    }
+    return out;
+  }
+
   /// Updates: งานที่เลื่อนแล้วแต่ยังไม่มีวันแทน
   Future<List<Occurrence>> inbox();
 

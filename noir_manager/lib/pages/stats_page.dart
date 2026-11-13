@@ -36,6 +36,9 @@ const _rangeLabel = {
 };
 
 class _StatsPageState extends State<StatsPage> with CalendarListener<StatsPage> {
+  @override
+  String? get hiddenTab => 'สถิติ';
+
   _Range _rangeSel = _Range.week;
   Map<DateTime, List<Occurrence>> _days = {};
   Map<int, String> _catNames = {};
@@ -57,11 +60,7 @@ class _StatsPageState extends State<StatsPage> with CalendarListener<StatsPage> 
     final study = StudyScope.of(context);
     final today = _today;
     // 1 ปีย้อนหลัง (+ เผื่อเทียบช่วงก่อน) · ใช้ทั้งกราฟ · Streak · เหรียญ
-    final days = <DateTime, List<Occurrence>>{};
-    for (var i = 0; i < 372; i++) {
-      final d = DateTime(today.year, today.month, today.day - i);
-      days[d] = await repo.occurrencesOn(d);
-    }
+    final days = await repo.occurrencesBetween(DateTime(today.year, today.month, today.day - 371), today);
     // หมวดที่ตั้ง "นับในสถิติเป็น" → ใช้ชื่อกลุ่มนั้นแทนชื่อหมวด (v17)
     final groupNames = {for (final (k, n) in statsGroups) k: n};
     final cats = {

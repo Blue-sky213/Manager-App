@@ -86,11 +86,7 @@ class _ClashPageState extends State<ClashPage> {
     final settings = StudyScope.of(context);
     final start = dayOnly(DateTime.now());
     final weeks = _weeks;
-    final byDay = <DateTime, List<Occurrence>>{};
-    for (var i = 0; i < weeks * 7; i++) {
-      final d = DateTime(start.year, start.month, start.day + i);
-      byDay[d] = await repo.occurrencesOn(d);
-    }
+    final byDay = await repo.occurrencesBetween(start, DateTime(start.year, start.month, start.day + weeks * 7 - 1));
     final ignored = (await settings.getSetting(_ignoredKey) ?? '')
         .split(',')
         .where((k) => k.isNotEmpty)

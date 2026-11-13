@@ -82,11 +82,8 @@ class _TutorCardState extends State<TutorCard> with CalendarListener<TutorCard> 
     final id = widget.subject.id;
     final settings = _settings!;
     // สร้างครั้งของงานในสัปดาห์นี้ให้ครบก่อน แล้วค่อยกรองเฉพาะวิชานี้
-    final week = <Occurrence>[];
-    for (var i = 0; i < 7; i++) {
-      final d = DateTime(_monday.year, _monday.month, _monday.day + i);
-      week.addAll((await calendar!.occurrencesOn(d)).where((o) => o.subjectId == id));
-    }
+    final byDay = await calendar!.occurrencesBetween(_monday, DateTime(_monday.year, _monday.month, _monday.day + 6));
+    final week = [for (final l in byDay.values) ...l.where((o) => o.subjectId == id)];
     // ความยาวรอบ: อ่านจากวิชาครั้งแรกที่เปิดวิชานี้ · หลังจากนั้นใช้ค่าที่กดเลือกล่าสุด
     final minutes = _loadedFor == id ? _minutes : widget.subject.tutorMinutes;
     final classActs = (await calendar!.activitiesForSubject(id)).where((a) => a.kind == ActivityKind.classSession);
