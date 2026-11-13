@@ -262,11 +262,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       ),
                     ]),
                     const SizedBox(height: 14),
-                    section('หมวดงาน', [const CategorySettings()]),
-                    const SizedBox(height: 14),
                     section('สติกเกอร์อารมณ์', [const StickerSettings()]),
-                    const SizedBox(height: 14),
-                    section('สติกเกอร์อัตโนมัติ', [const AutoStickerSettings()]),
                     const SizedBox(height: 14),
                     if (supportsFullscreen) ...[
                       section('หน้าต่าง', [
@@ -305,6 +301,11 @@ class _SettingsPageState extends State<SettingsPage> {
                       section('ทดลองหน้าจออุปกรณ์', [const _DevicePreviewSettings()]),
                       const SizedBox(height: 14),
                     ],
+                    // รอบ 7: หมวดสร้างเอง · สติกเกอร์อัตโนมัติ
+                    section('หมวดงาน', [const CategorySettings()]),
+                    const SizedBox(height: 14),
+                    section('สติกเกอร์อัตโนมัติ', [const AutoStickerSettings()]),
+                    const SizedBox(height: 14),
                     section('สำรองข้อมูล', [_BackupSection(backup: widget.backup)]),
                     const SizedBox(height: 14),
                     section('เกี่ยวกับ', [

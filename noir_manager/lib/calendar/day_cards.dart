@@ -265,7 +265,7 @@ class _NightCardsState extends State<NightCards> with CalendarListener<NightCard
                 const SizedBox(height: 8),
                 Align(
                   alignment: Alignment.centerRight,
-                  child: FilledButton(key: const Key('checkin-save'), onPressed: _saveCheckin, child: const Text('บันทึก')),
+                  child: FilledButton(key: const Key('checkin-save'), onPressed: _saveCheckin, child: const Text('บันทึกเช็กอิน')),
                 ),
               ]));
 

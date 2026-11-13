@@ -5,7 +5,6 @@ library;
 
 import 'calendar_models.dart';
 import 'calendar_repository.dart';
-import 'stickers.dart';
 
 const autoStickerKey = 'auto_sticker'; // on (ค่าเริ่มต้น) / off
 const missedStickerKey = 'auto_sticker_missed'; // id สติกเกอร์ "พลาดงาน"
