@@ -8,6 +8,7 @@ import '../data/study_models.dart';
 import '../data/study_scope.dart';
 import '../shell/app_nav.dart';
 import 'category_ui.dart' show createCategoryFlow;
+import 'day_judge.dart' show afterDone;
 import 'lock_flow.dart';
 import '../study/class_log.dart';
 import '../study/tutor_plan.dart';
@@ -426,6 +427,9 @@ Future<void> runOccurrenceAction(BuildContext context, CalendarRepository repo, 
       }
       // ความสำเร็จ: งานสุดท้ายของวันเสร็จ → แถบแจ้งสั้นด้านล่าง
       if (context.mounted) await celebrateIfDayComplete(context, repo, o.day);
+      // วันที่เคยถูกตัดสินว่าพลาด แล้วงานสำคัญครบตอนนี้ → สติกเกอร์ "เสร็จย้อนหลัง"
+      final late = await afterDone(repo, o.day);
+      if (late != null && context.mounted) _toast(context, 'เสร็จย้อนหลัง · ${late.replaceFirst('ทำย้อนหลัง · ', '')}');
     case 'classlog':
       final logs = await StudyScope.of(context).classLogs(o.subjectId!);
       if (!context.mounted) return;

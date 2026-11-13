@@ -20,6 +20,7 @@ import '../shell/window_mode.dart';
 import '../widgets/device_preview.dart';
 import '../widgets/mini_dropdown.dart';
 import '../calendar/category_ui.dart' show CategorySettings;
+import '../calendar/day_cards.dart' show AutoStickerSettings;
 import '../widgets/mini_form.dart';
 import '../widgets/mini_segments.dart';
 
@@ -261,8 +262,6 @@ class _SettingsPageState extends State<SettingsPage> {
                       ),
                     ]),
                     const SizedBox(height: 14),
-                    section('หมวดงาน', [const CategorySettings()]),
-                    const SizedBox(height: 14),
                     section('สติกเกอร์อารมณ์', [const StickerSettings()]),
                     const SizedBox(height: 14),
                     if (supportsFullscreen) ...[
@@ -302,6 +301,11 @@ class _SettingsPageState extends State<SettingsPage> {
                       section('ทดลองหน้าจออุปกรณ์', [const _DevicePreviewSettings()]),
                       const SizedBox(height: 14),
                     ],
+                    // รอบ 7: หมวดสร้างเอง · สติกเกอร์อัตโนมัติ
+                    section('หมวดงาน', [const CategorySettings()]),
+                    const SizedBox(height: 14),
+                    section('สติกเกอร์อัตโนมัติ', [const AutoStickerSettings()]),
+                    const SizedBox(height: 14),
                     section('สำรองข้อมูล', [_BackupSection(backup: widget.backup)]),
                     const SizedBox(height: 14),
                     section('เกี่ยวกับ', [

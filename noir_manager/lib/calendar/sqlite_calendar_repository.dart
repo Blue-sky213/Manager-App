@@ -751,6 +751,24 @@ class SqliteCalendarRepository extends CalendarRepository {
   }
 
   @override
+  Future<Checkin?> checkin(DateTime day) async {
+    final rows = await _db.query('checkin', where: 'day = ?', whereArgs: [_d(day)], limit: 1);
+    return rows.isEmpty ? null : Checkin.fromRow(rows.first);
+  }
+
+  @override
+  Future<List<Checkin>> checkins(DateTime from, DateTime to) async {
+    final rows = await _db.query('checkin', where: 'day BETWEEN ? AND ?', whereArgs: [_d(from), _d(to)], orderBy: 'day');
+    return rows.map(Checkin.fromRow).toList();
+  }
+
+  @override
+  Future<void> saveCheckin(Checkin c) async {
+    await _db.insert('checkin', c.toRow(), conflictAlgorithm: ConflictAlgorithm.replace);
+    notifyListeners();
+  }
+
+  @override
   Future<String?> getSetting(String key) async {
     final rows =
         await _db.query('setting', where: 'key = ?', whereArgs: [key], limit: 1);

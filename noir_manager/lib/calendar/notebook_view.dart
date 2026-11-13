@@ -12,6 +12,7 @@ import 'achievements.dart';
 import 'calendar_models.dart';
 import 'calendar_ui.dart';
 import 'sticker_ui.dart' show StickerGlyph;
+import 'day_judge.dart' show importantOf;
 import 'sticker_book.dart';
 import 'stickers.dart' show Sticker, DaySticker;
 
@@ -73,6 +74,7 @@ class NotebookMonth extends StatelessWidget {
     this.placed = const {},
     this.onDropSticker,
     this.dropLocked,
+    this.categories = const {},
     required this.onTapDay,
     this.onOpenDay,
     this.onOpenWeek,
@@ -100,6 +102,9 @@ class NotebookMonth extends StatelessWidget {
 
   /// วันนี้แปะไม่ได้เพราะอะไร (null = แปะได้)
   final String? Function(DateTime day)? dropLocked;
+
+  /// หมวด (ใช้ไอคอนของงานสำคัญในช่อง)
+  final Map<int, ActivityCategory> categories;
   final Map<String, String> holidays;
   final ValueChanged<DateTime> onTapDay;
 
@@ -279,6 +284,15 @@ class NotebookMonth extends StatelessWidget {
                       fontSize: 12, fontWeight: FontWeight.w600, color: d == today ? c.accent : c.text)),
             ),
             if (marks.isNotEmpty) Positioned(right: 3, top: 2, child: Text(marks, style: const TextStyle(fontSize: 10))),
+            // งานสำคัญ = ไอคอนหมวดเต็มช่อง (1 · ½ · ¼) · ครบแล้วจาง · ผ่านวันแล้วไม่ครบ = แดงจาง
+            if (importantOf(byDay[d] ?? const []) case final imp when imp.isNotEmpty)
+              Positioned.fill(
+                child: _ImportantIcons(
+                  items: imp,
+                  categories: categories,
+                  past: d.isBefore(today),
+                ),
+              ),
             // ⭐ ใหญ่กลางช่อง เอียงนิดหน่อยเหมือนแปะจริง · ชิ้นอื่นเล็กตามตำแหน่งที่วาง
             if (placed[d] case final pl? when pl.isNotEmpty)
               Positioned.fill(child: PlacedStickers(items: pl, big: big, tilt: ((d.day * 37) % 14 - 7) * math.pi / 180))
@@ -347,4 +361,73 @@ Future<void> showNotebookDay(BuildContext context, DateTime day, List<Occurrence
       ]),
     ),
   );
+}
+
+/// ไอคอนงานสำคัญในช่องวัน: 1 = เต็ม · 2 = ครึ่ง · 3–4 = ¼ · มากกว่า 4 = 3 ไอคอน + n
+/// ทำแล้ว = จาง · ผ่านวันแล้วยังไม่ทำ = แดงจาง · ยังไม่ครบ = 🔒 มุมขวาบน
+class _ImportantIcons extends StatelessWidget {
+  const _ImportantIcons({required this.items, required this.categories, required this.past});
+
+  final List<Occurrence> items;
+  final Map<int, ActivityCategory> categories;
+  final bool past;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.noir;
+    final allDone = items.every((o) => o.status == OccurrenceStatus.done);
+    final shown = items.length > 4 ? items.take(3).toList() : items;
+    final extra = items.length - shown.length;
+    final cells = <Widget>[
+      for (final o in shown) _icon(context, o),
+      if (extra > 0) Center(child: Text('+$extra', style: TextStyle(fontSize: 12, color: c.muted))),
+    ];
+    Widget grid;
+    switch (cells.length) {
+      case 1:
+        grid = cells[0];
+      case 2:
+        grid = Row(children: [Expanded(child: cells[0]), Expanded(child: cells[1])]);
+      case 3:
+        grid = Column(children: [
+          Expanded(child: Row(children: [Expanded(child: cells[0]), Expanded(child: cells[1])])),
+          Expanded(child: cells[2]),
+        ]);
+      default:
+        grid = Column(children: [
+          Expanded(child: Row(children: [Expanded(child: cells[0]), Expanded(child: cells[1])])),
+          Expanded(child: Row(children: [Expanded(child: cells[2]), Expanded(child: cells[3])])),
+        ]);
+    }
+    return Stack(children: [
+      Padding(padding: const EdgeInsets.fromLTRB(2, 16, 2, 2), child: grid),
+      if (!allDone) const Positioned(right: 3, top: 2, child: Text('🔒', style: TextStyle(fontSize: 9))),
+    ]);
+  }
+
+  Widget _icon(BuildContext context, Occurrence o) {
+    final cat = categories[o.categoryId];
+    final done = o.status == OccurrenceStatus.done;
+    final missed = past && !done;
+    return LayoutBuilder(builder: (context, box) {
+      final size = (box.biggest.shortestSide * 0.62).clamp(10.0, 44.0);
+      return Center(
+        child: Tooltip(
+          message: o.title,
+          child: Opacity(
+            opacity: done ? 0.3 : (missed ? 0.45 : 0.9),
+            child: Text(
+              cat?.icon ?? '❗',
+              style: TextStyle(
+                fontSize: size,
+                height: 1.1,
+                color: missed ? const Color(0xFFE5605F) : null,
+                shadows: missed ? const [Shadow(color: Color(0xFFE5605F), blurRadius: 6)] : null,
+              ),
+            ),
+          ),
+        ),
+      );
+    });
+  }
 }

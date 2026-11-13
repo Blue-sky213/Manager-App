@@ -929,3 +929,43 @@ List<DateTime> monthGridDays(DateTime month) {
     for (var d = start; !d.isAfter(end); d = DateTime(d.year, d.month, d.day + 1)) d,
   ];
 }
+
+// ---------- เช็กอินตอนเช้า (v17 · รอบ 7 O) ----------
+
+/// เช็กอินของเช้าวัน [day]: เมื่อคืนนอนจริงกี่โมง · ตื่นกี่โมง · พลัง 1–5 · เหตุผลที่พลาดเมื่อวาน
+class Checkin {
+  const Checkin({required this.day, this.sleptAt, this.wokeAt, this.energy, this.missReason});
+  final DateTime day;
+  final DateTime? sleptAt;
+  final DateTime? wokeAt;
+  final int? energy;
+  final String? missReason;
+
+  /// ชั่วโมงนอนจริง
+  double? get sleepHours =>
+      sleptAt == null || wokeAt == null ? null : wokeAt!.difference(sleptAt!).inMinutes / 60.0;
+
+  Checkin copyWith({DateTime? sleptAt, DateTime? wokeAt, int? energy, String? missReason}) => Checkin(
+        day: day,
+        sleptAt: sleptAt ?? this.sleptAt,
+        wokeAt: wokeAt ?? this.wokeAt,
+        energy: energy ?? this.energy,
+        missReason: missReason ?? this.missReason,
+      );
+
+  factory Checkin.fromRow(Map<String, Object?> r) => Checkin(
+        day: DateTime.parse(r['day'] as String),
+        sleptAt: r['slept_at'] == null ? null : DateTime.parse(r['slept_at'] as String),
+        wokeAt: r['woke_at'] == null ? null : DateTime.parse(r['woke_at'] as String),
+        energy: r['energy'] as int?,
+        missReason: r['miss_reason'] as String?,
+      );
+
+  Map<String, Object?> toRow() => {
+        'day': dayKey(day),
+        'slept_at': sleptAt?.toIso8601String(),
+        'woke_at': wokeAt?.toIso8601String(),
+        'energy': energy,
+        'miss_reason': missReason,
+      };
+}

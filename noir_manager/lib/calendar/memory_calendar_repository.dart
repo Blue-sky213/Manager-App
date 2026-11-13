@@ -510,6 +510,24 @@ class MemoryCalendarRepository extends CalendarRepository {
     notifyListeners();
   }
 
+  final Map<DateTime, Checkin> _checkins = {};
+
+  @override
+  Future<Checkin?> checkin(DateTime day) async => _checkins[dayOnly(day)];
+
+  @override
+  Future<List<Checkin>> checkins(DateTime from, DateTime to) async {
+    final a = dayOnly(from), b = dayOnly(to);
+    return (_checkins.values.where((c) => !c.day.isBefore(a) && !c.day.isAfter(b)).toList()
+      ..sort((x, y) => x.day.compareTo(y.day)));
+  }
+
+  @override
+  Future<void> saveCheckin(Checkin c) async {
+    _checkins[dayOnly(c.day)] = c;
+    notifyListeners();
+  }
+
   @override
   Future<String?> getSetting(String key) async => _settings[key];
 
