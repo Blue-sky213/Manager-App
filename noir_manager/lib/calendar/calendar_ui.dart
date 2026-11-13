@@ -8,6 +8,7 @@ import '../widgets/mini_form.dart';
 import '../widgets/mini_segments.dart';
 import 'calendar_models.dart';
 import 'lock_flow.dart' show showLockBadge;
+import 'tick_days.dart';
 
 // ---------- ตัวช่วยเล็ก ๆ ----------
 
@@ -151,6 +152,7 @@ Future<NewActivity?> showActivityDialog(
   Future<int> Function(String name, NewActivity values)? onSavePreset,
   Future<void> Function(int presetId)? onDeletePreset,
   Future<void> Function(int presetId, String name, NewActivity? values)? onUpdatePreset,
+  Future<Set<DateTime>> Function(List<DateTime> days, int startMinute, int durationMin)? clashDays,
 }) {
   Widget body(bool sheet) => _ActivityDialog(
         day: day,
@@ -161,6 +163,7 @@ Future<NewActivity?> showActivityDialog(
         onSavePreset: onSavePreset,
         onDeletePreset: onDeletePreset,
         onUpdatePreset: onUpdatePreset,
+        clashDays: clashDays,
         sheet: sheet,
       );
   // มือถือ = แผ่นจากด้านล่าง · คอม = กล่องกลางจอ
@@ -185,6 +188,7 @@ class _ActivityDialog extends StatefulWidget {
     required this.onSavePreset,
     required this.onDeletePreset,
     this.onUpdatePreset,
+    this.clashDays,
     this.sheet = false,
   });
 
@@ -197,6 +201,9 @@ class _ActivityDialog extends StatefulWidget {
   final Future<int> Function(String name, NewActivity values)? onSavePreset;
   final Future<void> Function(int presetId)? onDeletePreset;
   final Future<void> Function(int presetId, String name, NewActivity? values)? onUpdatePreset;
+
+  /// เช็กวันที่เวลาชน (ใช้ในตารางติ๊กวัน)
+  final Future<Set<DateTime>> Function(List<DateTime> days, int startMinute, int durationMin)? clashDays;
 
   @override
   State<_ActivityDialog> createState() => _ActivityDialogState();
@@ -429,15 +436,6 @@ class _ActivityDialogState extends State<_ActivityDialog> {
     }
   }
 
-  Future<void> _addDate() async {
-    final d = await pickDay(context, _dates.isEmpty ? _day : _dates.last.day);
-    if (d == null) return;
-    final day = dayOnly(d);
-    if (_dates.any((x) => x.day == day)) return;
-    setState(() => _dates = [..._dates, ScheduledDate(day)]
-      ..sort((a, b) => a.day.compareTo(b.day)));
-  }
-
   Future<void> _editDateTime(int i) async {
     final d = _dates[i];
     final r = await pickRange(
@@ -453,12 +451,10 @@ class _ActivityDialogState extends State<_ActivityDialog> {
 
   /// เปิดแผ่นจากด้านล่าง · [build] ได้ฟังก์ชัน set ที่อัปเดตทั้งแผ่นและฟอร์ม
   Future<void> _sheet(String title, Widget Function(BuildContext ctx, void Function(VoidCallback) set) build) =>
-      showModalBottomSheet<void>(
-        context: context,
-        isScrollControlled: true,
-        useSafeArea: true,
-        showDragHandle: true,
-        builder: (ctx) => StatefulBuilder(builder: (ctx, setLocal) {
+      // คอม = กล่องข้างฟอร์ม (เห็นทั้งคู่) · มือถือ = แผ่นล่าง
+      showSubPanel<void>(
+        context,
+        (ctx) => StatefulBuilder(builder: (ctx, setLocal) {
           void set(VoidCallback f) {
             setState(f);
             setLocal(() {});
@@ -579,32 +575,55 @@ class _ActivityDialogState extends State<_ActivityDialog> {
                   ),
                 ),
             ]),
-          if (_repeat == RepeatKind.daily || _repeat == RepeatKind.weekly)
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('ถึงวันที่'),
-              onTap: () async {
-                final d = await pickDay(ctx, _endDate ?? _day.add(const Duration(days: 7)));
+          // สิ้นสุด: ไม่มีวันจบ | ถึงวันที่ (บอกชัดเสมอ)
+          if (_repeat == RepeatKind.daily || _repeat == RepeatKind.weekly) ...[
+            const SizedBox(height: 12),
+            Text('สิ้นสุด', style: TextStyle(fontSize: 12, color: c.muted)),
+            const SizedBox(height: 6),
+            MiniSegments<bool>(
+              key: const Key('repeat-end'),
+              value: _endDate != null,
+              items: const [(false, 'ไม่มีวันจบ'), (true, 'ถึงวันที่')],
+              onChanged: (until) async {
+                if (!until) {
+                  set(() => _endDate = null);
+                  return;
+                }
+                final d = await pickDay(ctx, _endDate ?? _day.add(const Duration(days: 28)));
                 if (d != null) set(() => _endDate = dayOnly(d));
               },
-              trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                Text(_endDate == null ? 'ไม่กำหนด' : thaiShortDate(_endDate!),
-                    style: const TextStyle(fontWeight: FontWeight.w600)),
-                if (_endDate != null)
-                  IconButton(
-                    tooltip: 'ไม่กำหนดวันสิ้นสุด',
-                    icon: const Icon(Icons.close, size: 18),
-                    onPressed: () => set(() => _endDate = null),
-                  ),
-              ]),
             ),
+            if (_endDate != null)
+              MiniRow(
+                icon: Icons.event_busy,
+                label: 'ถึงวันที่',
+                valueText: thaiShortDate(_endDate!),
+                last: true,
+                onTap: () async {
+                  final d = await pickDay(ctx, _endDate!);
+                  if (d != null) set(() => _endDate = dayOnly(d));
+                },
+              ),
+          ],
           if (_repeat == RepeatKind.dates) ...[
-            Text(_timed ? 'แตะ 🕑 = ตั้งเวลาเฉพาะวันนั้น (ไม่ตั้ง = เวลาหลัก)' : 'เลือกได้หลายวัน',
-                style: TextStyle(color: c.muted, fontSize: 12)),
-            for (var i = 0; i < _dates.length; i++)
-              Row(children: [
-                Expanded(child: Text(thaiShortDate(_dates[i].day))),
-                if (_timed)
+            TickDaysCalendar(
+              initialMonth: _dates.isEmpty ? _day : _dates.first.day,
+              selected: {for (final d in _dates) dayOnly(d.day)},
+              clashDays: widget.clashDays == null || !_timed
+                  ? null
+                  : (days) => widget.clashDays!(days, _start, _duration),
+              onToggle: (d) => set(() {
+                final i = _dates.indexWhere((x) => dayOnly(x.day) == d);
+                _dates = i >= 0 ? ([..._dates]..removeAt(i)) : ([..._dates, ScheduledDate(d)]..sort((a, b) => a.day.compareTo(b.day)));
+              }),
+            ),
+            // เวลาเฉพาะบางวัน (ไม่ตั้ง = เวลาหลัก)
+            if (_timed && _dates.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Text('แตะ 🕑 = ตั้งเวลาเฉพาะวันนั้น (ไม่ตั้ง = เวลาหลัก)', style: TextStyle(color: c.muted, fontSize: 12)),
+              for (var i = 0; i < _dates.length; i++)
+                Row(children: [
+                  Expanded(child: Text(thaiShortDate(_dates[i].day))),
                   TextButton.icon(
                     onPressed: () async {
                       await _editDateTime(i);
@@ -615,23 +634,8 @@ class _ActivityDialogState extends State<_ActivityDialog> {
                         ? rangeText(_dates[i].startMinute!, _dates[i].durationMin ?? _duration)
                         : 'เวลาหลัก'),
                   ),
-                IconButton(
-                  tooltip: 'เอาวันนี้ออก',
-                  icon: const Icon(Icons.remove_circle_outline, size: 20),
-                  onPressed: () => set(() => _dates = [..._dates]..removeAt(i)),
-                ),
-              ]),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                onPressed: () async {
-                  await _addDate();
-                  set(() {});
-                },
-                icon: const Icon(Icons.add),
-                label: const Text('เพิ่มวัน'),
-              ),
-            ),
+                ]),
+            ],
           ],
         ]);
       });
@@ -704,9 +708,9 @@ class _ActivityDialogState extends State<_ActivityDialog> {
 
     final repeatText = switch (_repeat) {
       RepeatKind.none => 'ครั้งเดียว',
-      RepeatKind.daily => _endDate == null ? 'ทุกวัน' : 'ทุกวัน ถึง ${thaiShortDate(_endDate!)}',
+      RepeatKind.daily => 'ทุกวัน · ${_endDate == null ? 'ไม่มีวันจบ' : 'ถึง ${thaiShortDate(_endDate!)}'}',
       RepeatKind.weekly =>
-        'ทุก ${([..._weekdays]..sort()).map((d) => thaiWeekdayShort[d - 1]).join(' ')}${_endDate == null ? '' : ' ถึง ${thaiShortDate(_endDate!)}'}',
+        'ทุก ${([..._weekdays]..sort()).map((d) => thaiWeekdayShort[d - 1]).join(' ')} · ${_endDate == null ? 'ไม่มีวันจบ' : 'ถึง ${thaiShortDate(_endDate!)}'}',
       RepeatKind.dates => 'เลือกวันเอง · ${_dates.length} วัน',
     };
 
@@ -1040,6 +1044,56 @@ class _RescheduleDialogState extends State<_RescheduleDialog> {
 // ---------- กล่องเวลาทับ ----------
 
 enum OverlapChoice { pickAgain, allow, moveOthersToInbox }
+
+/// เลือกวันเอง: วันที่เวลาชน เลือกทีละวัน
+enum DayClashChoice { skip, allow, moveOthers }
+
+/// คำตอบของกล่องวันชน: back = กลับไปแก้ฟอร์ม · picks = ตัวเลือกของแต่ละวัน
+typedef DayClashAnswer = ({bool back, Map<DateTime, DayClashChoice> picks});
+
+/// ถามวันที่ชนทีละวันในกล่องเดียว (ค่าเริ่มต้น = ข้ามวันนั้น) · null = ยกเลิกทั้งหมด
+Future<DayClashAnswer?> askDayClashes(
+    BuildContext context, List<(DateTime, List<Occurrence>)> clashes, int totalDays) {
+  final picks = {for (final (d, _) in clashes) d: DayClashChoice.skip};
+  return showMiniForm<DayClashAnswer>(
+    context,
+    (ctx) => StatefulBuilder(builder: (ctx, setLocal) {
+      final c = ctx.noir;
+      final kept = totalDays - picks.values.where((v) => v == DayClashChoice.skip).length;
+      return MiniForm(
+        title: 'เวลาชน ${clashes.length} วัน · เลือกทีละวัน',
+        secondaryLabel: 'กลับไปแก้',
+        onSecondary: () => Navigator.pop(ctx, (back: true, picks: picks)),
+        primaryLabel: kept == 0 ? 'ข้ามทุกวัน' : 'เพิ่ม $kept วัน',
+        onPrimary: () => Navigator.pop(ctx, (back: false, picks: picks)),
+        children: [
+          for (final (d, items) in clashes) ...[
+            Padding(
+              padding: const EdgeInsets.only(top: 10, bottom: 4),
+              child: Text(
+                '${thaiShortDate(d)} · ทับ ${items.map((o) => '"${o.title}"').join(', ')}',
+                style: TextStyle(color: c.text, fontWeight: FontWeight.w600),
+              ),
+            ),
+            MiniSegments<DayClashChoice>(
+              key: ValueKey('clash-${d.month}-${d.day}'),
+              value: picks[d]!,
+              items: const [
+                (DayClashChoice.allow, 'ยอมทับ'),
+                (DayClashChoice.skip, 'ข้ามวันนี้'),
+                (DayClashChoice.moveOthers, 'ย้ายงานเดิม'),
+              ],
+              onChanged: (v) => setLocal(() => picks[d] = v),
+            ),
+          ],
+          const SizedBox(height: 10),
+          Text('ย้ายงานเดิม = งานที่ทับไปอยู่ใน Updates · วันอื่นที่ไม่ชนเพิ่มตามปกติ',
+              style: TextStyle(fontSize: 12, color: c.muted)),
+        ],
+      );
+    }),
+  );
+}
 
 Future<OverlapChoice?> askOverlap(BuildContext context, List<Occurrence> clashes) {
   final names = clashes

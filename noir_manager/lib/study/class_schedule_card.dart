@@ -286,7 +286,7 @@ Future<void> addClassSlot(BuildContext context, CalendarRepository repo, Subject
     while (d.weekday != wd) {
       d = DateTime(d.year, d.month, d.day + 1);
     }
-    if (d.isAfter(draft.to)) continue;
+    if (draft.to != null && d.isAfter(draft.to!)) continue;
     final start = atMinute(d, draft.start);
     for (final o in findOverlaps(
         await repo.occurrencesOn(d), start, start.add(Duration(minutes: draft.minutes)))) {
@@ -322,7 +322,8 @@ Future<void> addClassSlot(BuildContext context, CalendarRepository repo, Subject
   }
 }
 
-typedef _SlotDraft = ({Set<int> weekdays, int start, int minutes, DateTime from, DateTime to, ClassInfo info});
+/// [to] = null → ไม่มีคาบสุดท้าย (เรียนต่อไปเรื่อย ๆ เช่น คอร์สเรียนเอง)
+typedef _SlotDraft = ({Set<int> weekdays, int start, int minutes, DateTime from, DateTime? to, ClassInfo info});
 
 /// กล่องเพิ่มคาบเรียนประจำ: วันในสัปดาห์ · เวลาเริ่ม–เลิก · ช่วงวันที่ของเทอม
 Future<_SlotDraft?> _askSlot(BuildContext context) async {
@@ -332,7 +333,7 @@ Future<_SlotDraft?> _askSlot(BuildContext context) async {
   var start = 9 * 60;
   var minutes = 120;
   var from = dayOnly(DateTime.now());
-  var to = from.add(const Duration(days: 7 * 13 - 3)); // ~3 เดือน (13 สัปดาห์)
+  DateTime? to = from.add(const Duration(days: 7 * 13 - 3)); // ~3 เดือน (13 สัปดาห์) · null = ไม่มีกำหนด
 
   final result = await showMiniForm<_SlotDraft>(
     context,
@@ -340,7 +341,7 @@ Future<_SlotDraft?> _askSlot(BuildContext context) async {
       builder: (ctx, setLocal) => MiniForm(
         title: 'เพิ่มคาบเรียน',
         primaryLabel: 'เพิ่มคาบ',
-        onPrimary: weekdays.isEmpty || to.isBefore(from)
+        onPrimary: weekdays.isEmpty || (to != null && to!.isBefore(from))
             ? null
             : () => Navigator.pop(ctx, (
                   weekdays: weekdays,
@@ -390,16 +391,26 @@ Future<_SlotDraft?> _askSlot(BuildContext context) async {
               if (d != null) setLocal(() => from = dayOnly(d));
             },
           ),
-          MiniRow(
-            icon: Icons.event_busy,
-            label: 'คาบสุดท้าย',
-            valueText: thaiShortDate(to),
-            last: true,
-            onTap: () async {
-              final d = await pickDay(ctx, to);
-              if (d != null) setLocal(() => to = dayOnly(d));
-            },
+          const MiniLabel('คาบสุดท้าย'),
+          MiniSegments<bool>(
+            key: const Key('class-end'),
+            value: to != null,
+            items: const [(true, 'ถึงวันที่'), (false, 'ไม่มีกำหนด')],
+            onChanged: (until) => setLocal(() => to = until ? (to ?? from.add(const Duration(days: 7 * 13 - 3))) : null),
           ),
+          if (to != null)
+            MiniRow(
+              icon: Icons.event_busy,
+              label: 'คาบสุดท้าย',
+              valueText: thaiShortDate(to!),
+              last: true,
+              onTap: () async {
+                final d = await pickDay(ctx, to!);
+                if (d != null) setLocal(() => to = dayOnly(d));
+              },
+            )
+          else
+            const MiniLabel('เรียนต่อไปเรื่อย ๆ · ใส่วันจบทีหลังได้ที่แท็บเวลาเรียน'),
         ],
       ),
     ),
