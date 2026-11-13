@@ -37,6 +37,9 @@ class CalendarPage extends StatefulWidget {
 }
 
 class _CalendarPageState extends State<CalendarPage> with CalendarListener<CalendarPage> {
+  @override
+  String? get hiddenTab => 'ปฏิทิน';
+
   bool _loading = true;
   CalView _view = CalView.week;
   WeekStyle _weekStyle = WeekStyle.timeline;
@@ -96,10 +99,9 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
     await judgeDays(repo); // ผ่านวันแล้วงานสำคัญไม่ครบ → สติกเกอร์ "พลาด" (กันรันถี่ในตัว)
     final day = _selected;
     final view = _view;
-    final byDay = <DateTime, List<Occurrence>>{};
-    for (final d in _visibleDays) {
-      byDay[d] = await repo.occurrencesOn(d);
-    }
+    final vis = _visibleDays;
+    // ทั้งเดือนในรอบเดียว (เดิม 42 วัน = 42 รอบเขียน DB)
+    final byDay = vis.isEmpty ? <DateTime, List<Occurrence>>{} : await repo.occurrencesBetween(vis.first, vis.last);
     final items = byDay[day] ?? await repo.occurrencesOn(day);
     final lifeBase = await repo.lifeBase();
     final cats = await repo.categories();

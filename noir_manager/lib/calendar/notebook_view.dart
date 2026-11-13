@@ -4,6 +4,7 @@ library;
 
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart' show kDoubleTapTimeout;
 import 'package:flutter/material.dart';
 
 import '../theme/noir_colors.dart';
@@ -15,6 +16,9 @@ import 'sticker_ui.dart' show StickerGlyph;
 import 'day_judge.dart' show importantOf;
 import 'sticker_book.dart';
 import 'stickers.dart' show Sticker, DaySticker;
+
+/// คลิกล่าสุดในสมุด (วัน, เวลา) · ใช้แยกคลิกเดียว / ดับเบิลคลิก
+(DateTime, DateTime)? _lastTap;
 
 /// สรุปของ 1 วันในสมุด
 class NotebookDay {
@@ -259,8 +263,18 @@ class NotebookMonth extends StatelessWidget {
     ].join(' ');
     final cell = InkWell(
       key: ValueKey('nb-${d.month}-${d.day}'),
-      onTap: () => onTapDay(d),
-      onDoubleTap: onOpenDay == null ? null : () => onOpenDay!(d),
+      // ดับเบิลคลิกเช็กเอง: ใส่ onDoubleTap ใน InkWell ทำให้คลิกเดียวต้องรอ ~0.3 วิ (รู้สึกหน่วง)
+      onTap: () {
+        final now = DateTime.now();
+        final last = _lastTap;
+        final dbl = onOpenDay != null && last != null && last.$1 == d && now.difference(last.$2) < kDoubleTapTimeout;
+        _lastTap = dbl ? null : (d, now);
+        if (dbl) {
+          onOpenDay!(d);
+        } else {
+          onTapDay(d);
+        }
+      },
       child: Container(
         height: h,
         margin: const EdgeInsets.all(1),
