@@ -5,7 +5,7 @@ import '../calendar/calendar_flows.dart';
 import '../calendar/terms_page.dart';
 import '../calendar/calendar_listener.dart';
 import '../calendar/calendar_models.dart';
-import '../calendar/stickers.dart' show DaySticker, stickersByDay;
+import '../calendar/stickers.dart' show DaySticker, stickersByDay, holidaysByDay;
 import '../calendar/clash_page.dart';
 import '../calendar/day_agenda.dart';
 import '../calendar/notebook_view.dart';
@@ -130,6 +130,7 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
       _lifeBase = lifeBase;
       _categories = {for (final c in cats) c.id: c};
       _holidays = {for (final h in holidays) dayKey(h.day): h.name};
+      holidaysByDay = {for (final h in holidays) DateTime(h.day.year, h.day.month, h.day.day): h.name};
       _weekStyle = WeekStyle.values
           .firstWhere((w) => w.name == style, orElse: () => _weekStyle);
       _loading = false;

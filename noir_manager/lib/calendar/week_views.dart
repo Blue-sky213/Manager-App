@@ -11,7 +11,7 @@ import 'calendar_models.dart';
 import 'calendar_ui.dart';
 import 'lock_flow.dart' show showLockBadge;
 import 'sticker_ui.dart' show StickerGlyph;
-import 'stickers.dart' show stickersByDay;
+import 'stickers.dart' show stickersByDay, holidaysByDay;
 
 /// นาทีเริ่ม/จบของงานในวันนั้น (ข้ามเที่ยงคืน → ตัดที่ 24:00)
 (int, int) _span(Occurrence o) {
@@ -75,6 +75,11 @@ class _DayHeader extends StatelessWidget {
                   ),
                 ),
             ]),
+            if (holidaysByDay[day] case final h?)
+              Tooltip(
+                message: h,
+                child: Text('หยุด', key: Key('holiday-${day.day}'), style: TextStyle(fontSize: 11, color: c.amberText)),
+              ),
           ],
         ),
       ),
@@ -394,6 +399,8 @@ class WeekList extends StatelessWidget {
                             Text('${d.day}',
                                 style: TextStyle(
                                     fontSize: 18, fontWeight: FontWeight.w600, color: c.text)),
+                            if (holidaysByDay.containsKey(d))
+                              Text('หยุด', style: TextStyle(fontSize: 11, color: c.amberText)),
                             if (stickersByDay[d] case final st? when st.isNotEmpty)
                               Tooltip(
                                 message: st.map((x) => x.name).join(' · '),

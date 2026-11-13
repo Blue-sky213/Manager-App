@@ -19,6 +19,7 @@ import 'theme/noir_colors.dart';
 import 'shell/app_nav.dart';
 import 'study/subject_colors.dart';
 import 'widgets/dialogs.dart';
+import 'widgets/thai_backspace.dart';
 
 /// ตัวแอปทั้งหมด: ถือ "ธีมปัจจุบัน" (มืด/สว่าง) และส่ง repository ลงไปให้ทุกหน้า
 class NoirManagerApp extends StatefulWidget {
@@ -67,15 +68,7 @@ class _NoirManagerAppState extends State<NoirManagerApp> {
       final on = !fullscreen.value;
       setFullscreen(on);
       widget.studyRepository.setSetting(fullscreenKey, on ? 'on' : 'off');
-      if (on) {
-        final ctx = _nav.currentContext;
-        if (ctx != null) {
-          ScaffoldMessenger.maybeOf(ctx)?.showSnackBar(const SnackBar(
-            content: Text('เต็มจอ · กด Esc หรือ F11 เพื่อออก'),
-            duration: Duration(seconds: 2),
-          ));
-        }
-      }
+      // ไม่มีแถบแจ้งเตือน (นัวร์ขอ) · วิธีออกเขียนไว้ในหน้าตั้งค่า
       return true;
     }
     if (e.logicalKey == LogicalKeyboardKey.escape && fullscreen.value) {
@@ -140,8 +133,9 @@ class _NoirManagerAppState extends State<NoirManagerApp> {
           title: 'Noir Manager',
           navigatorKey: _nav,
           // ปุ่มเมาส์ 4 = ย้อนกลับ · ปุ่ม 5 = ไปหน้าที่เพิ่งย้อนมา: ปิดหน้าที่เปิดซ้อน / เมนู / กล่อง (หน้าแรกสุดไม่มีที่ให้ย้อน → ไม่ทำอะไร)
-          builder: (context, child) =>
-              DevicePreviewFrame(
+          // ThaiBackspace: ลบสระ/วรรณยุกต์ไทยทีละตัว ("กิ" → ลบ → "ก")
+          builder: (context, child) => ThaiBackspace(
+            child: DevicePreviewFrame(
                 child: MouseBack(
                   onBack: _back,
                   onForward: () => appForward.handle(),
@@ -172,6 +166,7 @@ class _NoirManagerAppState extends State<NoirManagerApp> {
                   ),
                 ),
               ),
+            ),
           debugShowCheckedModeBanner: false,
           // ภาษาไทย: ปฏิทินเลือกวัน, นาฬิกาเลือกเวลา, ปุ่ม OK/Cancel ของระบบ
           locale: const Locale('th', 'TH'),

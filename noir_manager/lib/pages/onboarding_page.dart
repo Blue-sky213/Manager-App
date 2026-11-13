@@ -89,7 +89,13 @@ class _OnboardingPageState extends State<OnboardingPage> {
   }
 
   Future<void> _pick(bool wake) async {
-    final t = await showTimePicker(context: context, initialTime: wake ? _wake : _bed);
+    // 24 ชม. เสมอ: กันเลือก "12:00" (เที่ยง) ทั้งที่ตั้งใจเที่ยงคืน
+    final t = await showTimePicker(
+      context: context,
+      initialTime: wake ? _wake : _bed,
+      builder: (ctx, child) =>
+          MediaQuery(data: MediaQuery.of(ctx).copyWith(alwaysUse24HourFormat: true), child: child!),
+    );
     if (t == null) return;
     _timeTouched = true;
     setState(() {
