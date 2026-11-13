@@ -320,6 +320,8 @@ class NotebookMonth extends StatelessWidget {
       day: d,
       onDrop: (s, x, y) => drop(d, s, x, y),
       locked: dropLocked == null ? null : () => dropLocked!(d),
+      placedCount: placed[d]?.length ?? 0,
+      glyphSize: big,
       child: cell,
     );
   }

@@ -65,6 +65,9 @@ class DaySticker {
 }
 
 /// ตัวที่โชว์ใหญ่กลางช่อง: ⭐ ที่เลือกไว้ · ไม่ได้เลือก = ชิ้นแรกที่แปะ
+/// ติดได้วันละกี่ชิ้น: ⭐ ใหญ่ 1 + เล็ก 3 = เห็นครบทุกชิ้นในช่องเดือน (เกินแล้วบางชิ้นถูกซ่อนเป็น +n)
+const maxDayStickers = 4;
+
 DaySticker? highlightOf(List<DaySticker> items) =>
     items.where((d) => d.highlight).firstOrNull ?? items.firstOrNull;
 

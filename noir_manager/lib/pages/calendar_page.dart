@@ -11,7 +11,7 @@ import '../calendar/day_agenda.dart';
 import '../calendar/day_judge.dart' show judgeDays, importantPending;
 import '../calendar/notebook_view.dart';
 import '../calendar/sticker_book.dart';
-import '../calendar/sticker_ui.dart' show DayStickerCard;
+import '../calendar/sticker_ui.dart' show DayStickerCard, stickWithLimit;
 import '../calendar/week_views.dart';
 import '../data/study_repository.dart';
 import '../data/study_scope.dart';
@@ -274,7 +274,7 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
                                     const SnackBar(content: Text('🔒 ทำงานสำคัญของวันนั้นให้ครบก่อน แล้วค่อยแปะ')));
                                 return;
                               }
-                              calendar!.stickDay(_selected, s.id);
+                              stickWithLimit(context, calendar!, _selected, s);
                             }),
                             const SizedBox(height: 12),
                             // สติกเกอร์ของวันที่เลือก: คลิกขวา = ⭐ ไฮไลต์ · โน้ต · ลอกออก
@@ -326,7 +326,7 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
         onOpenWeek: (monday) => _go(day: monday, view: CalView.week),
         placed: placedByDay,
         categories: _categories,
-        onDropSticker: !drag ? null : (d, st, x, y) => calendar!.stickDay(d, st.id, x: x, y: y),
+        onDropSticker: !drag ? null : (d, st, x, y) => stickWithLimit(context, calendar!, d, st, x: x, y: y),
         // งานสำคัญยังไม่ครบ → ยังแปะไม่ได้ (ทำครบแล้วปลดล็อก)
         dropLocked: (d) => importantPending(_byDay[d] ?? const []) ? 'ทำงานสำคัญให้ครบก่อน' : null,
       );

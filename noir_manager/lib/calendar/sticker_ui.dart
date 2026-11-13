@@ -194,7 +194,32 @@ Future<void> showStickerPicker(BuildContext context, CalendarRepository repo, Da
       );
     },
   );
-  if (picked != null) await repo.stickDay(dayOnly(day), picked.id);
+  if (picked != null && context.mounted) await stickWithLimit(context, repo, day, picked);
+}
+
+/// แปะสติกเกอร์โดยเคารพเพดาน [maxDayStickers] · ครบแล้ว = ถามว่าจะแทนชิ้นไหน (ไม่ห้ามเฉย ๆ)
+/// คืน true ถ้าแปะ/แทนแล้ว
+Future<bool> stickWithLimit(BuildContext context, CalendarRepository repo, DateTime day, Sticker s,
+    {double? x, double? y}) async {
+  final d = dayOnly(day);
+  final have = await repo.daySticker(d, d);
+  if (have.length < maxDayStickers) {
+    await repo.stickDay(d, s.id, x: x, y: y);
+    return true;
+  }
+  if (!context.mounted) return false;
+  final old = await showMiniChoice<int>(
+    context,
+    title: 'แปะครบ $maxDayStickers ชิ้นแล้ว · แทนชิ้นไหน?',
+    items: [
+      for (final h in have)
+        miniChoice(h.id, '${h.sticker.emoji ?? ''} ${h.sticker.name}${h.highlight ? ' ⭐' : ''}'.trim(), detail: h.note),
+    ],
+  );
+  if (old == null) return false;
+  await repo.swapDaySticker(old, s.id);
+  if (x != null && y != null) await repo.updateDaySticker(old, x: x, y: y);
+  return true;
 }
 
 /// ตั้งค่า → สติกเกอร์: เปิด/ซ่อนชุด · ชุดใหม่ · เพิ่มทีละชิ้น · ลบของที่สร้างเอง
