@@ -399,7 +399,7 @@ class WeekList extends StatelessWidget {
                             Text('${d.day}',
                                 style: TextStyle(
                                     fontSize: 18, fontWeight: FontWeight.w600, color: c.text)),
-                            if (holidaysByDay[d] case final h?)
+                            if (holidaysByDay.containsKey(d))
                               Text('หยุด', style: TextStyle(fontSize: 11, color: c.amberText)),
                             if (stickersByDay[d] case final st? when st.isNotEmpty)
                               Tooltip(
