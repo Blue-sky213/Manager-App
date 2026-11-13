@@ -462,12 +462,46 @@ class MemoryCalendarRepository extends CalendarRepository {
   }
 
   @override
-  Future<int> stickDay(DateTime day, int stickerId, {String? note}) async {
+  Future<int> stickDay(DateTime day, int stickerId,
+      {String? note, double? x, double? y, bool highlight = false, String? auto}) async {
     final s = _stickers.firstWhere((s) => s.id == stickerId);
     final id = _nextId++;
-    _daySticker.add(DaySticker(id: id, day: dayOnly(day), sticker: s, note: note));
+    final d = dayOnly(day);
+    if (highlight) _clearHighlight(d);
+    _daySticker.add(DaySticker(id: id, day: d, sticker: s, note: note, x: x, y: y, highlight: highlight, auto: auto));
     notifyListeners();
     return id;
+  }
+
+  void _clearHighlight(DateTime day) {
+    for (var i = 0; i < _daySticker.length; i++) {
+      if (_daySticker[i].day == day && _daySticker[i].highlight) _daySticker[i] = _daySticker[i].copyWith(highlight: false);
+    }
+  }
+
+  @override
+  Future<void> updateDaySticker(int dayStickerId, {String? note, bool clearNote = false, double? x, double? y}) async {
+    final i = _daySticker.indexWhere((d) => d.id == dayStickerId);
+    if (i < 0) return;
+    _daySticker[i] = _daySticker[i].copyWith(note: note, clearNote: clearNote, x: x, y: y);
+    notifyListeners();
+  }
+
+  @override
+  Future<void> setHighlight(int dayStickerId) async {
+    final i = _daySticker.indexWhere((d) => d.id == dayStickerId);
+    if (i < 0) return;
+    _clearHighlight(_daySticker[i].day);
+    _daySticker[i] = _daySticker[i].copyWith(highlight: true);
+    notifyListeners();
+  }
+
+  @override
+  Future<void> swapDaySticker(int dayStickerId, int stickerId, {String? auto}) async {
+    final i = _daySticker.indexWhere((d) => d.id == dayStickerId);
+    if (i < 0) return;
+    _daySticker[i] = _daySticker[i].copyWith(sticker: _stickers.firstWhere((s) => s.id == stickerId), auto: auto);
+    notifyListeners();
   }
 
   @override

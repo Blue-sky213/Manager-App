@@ -124,7 +124,17 @@ abstract class CalendarRepository extends ChangeNotifier {
 
   /// สติกเกอร์ที่แปะในช่วงวัน (รวมทั้งสองวัน) · เรียงวัน → ลำดับที่แปะ
   Future<List<DaySticker>> daySticker(DateTime from, DateTime to);
-  Future<int> stickDay(DateTime day, int stickerId, {String? note});
+  Future<int> stickDay(DateTime day, int stickerId,
+      {String? note, double? x, double? y, bool highlight = false, String? auto});
+
+  /// แก้โน้ต / ย้ายตำแหน่ง โดยไม่เปลี่ยนลำดับ (เดิมแก้โน้ต = ลอกแล้วแปะใหม่ → ลำดับสลับ)
+  Future<void> updateDaySticker(int dayStickerId, {String? note, bool clearNote = false, double? x, double? y});
+
+  /// ตั้ง ⭐ ไฮไลต์ (วันละชิ้นเดียว)
+  Future<void> setHighlight(int dayStickerId);
+
+  /// เปลี่ยนตัวสติกเกอร์ (เช่น พลาด → เสร็จย้อนหลัง) ตำแหน่ง/ลำดับเดิม
+  Future<void> swapDaySticker(int dayStickerId, int stickerId, {String? auto});
   Future<void> unstickDay(int dayStickerId);
 
   Future<String?> getSetting(String key);

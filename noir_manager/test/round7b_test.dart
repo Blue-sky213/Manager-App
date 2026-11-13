@@ -91,7 +91,80 @@ Future<void> round7Rules(CalendarRepository repo) async {
   expect((await repo.occurrencesOn(day)).firstWhere((o) => o.activityId == work).hasFree, isFalse);
 }
 
+/// สติกเกอร์ตำแหน่ง / ไฮไลต์ / แก้โน้ตไม่สลับลำดับ
+Future<void> stickerPlaceRules(CalendarRepository repo) async {
+  final packs = await repo.stickerPacks();
+  final st = packs.first.stickers;
+  final d = DateTime(2026, 11, 13);
+  final a = await repo.stickDay(d, st[0].id);
+  final b = await repo.stickDay(d, st[1].id, x: 0.2, y: 0.8);
+  final c = await repo.stickDay(d, st[2].id);
+  await repo.updateDaySticker(a, note: 'ไอเดียแล่น');
+  var list = await repo.daySticker(d, d);
+  expect(list.map((x) => x.id), [a, b, c]); // ลำดับเดิม (เดิมแก้โน้ตแล้วไปท้าย)
+  expect(list.first.note, 'ไอเดียแล่น');
+  expect(list[1].x, closeTo(0.2, 1e-9));
+  expect(list[1].y, closeTo(0.8, 1e-9));
+  await repo.setHighlight(c);
+  await repo.setHighlight(b);
+  list = await repo.daySticker(d, d);
+  expect(list.where((x) => x.highlight).map((x) => x.id), [b]); // วันละชิ้นเดียว
+  await repo.swapDaySticker(a, st[3].id, auto: 'late');
+  list = await repo.daySticker(d, d);
+  expect(list.first.sticker.id, st[3].id);
+  expect(list.first.auto, 'late');
+  expect(list.first.note, 'ไอเดียแล่น');
+}
+
 void main() {
+  test('RAM: สติกเกอร์ตำแหน่ง / ไฮไลต์', () => stickerPlaceRules(MemoryCalendarRepository()));
+
+  test('SQLite: สติกเกอร์ตำแหน่ง / ไฮไลต์', () async {
+    sqfliteFfiInit();
+    final db = await databaseFactoryFfi.openDatabase(inMemoryDatabasePath,
+        options: OpenDatabaseOptions(onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON')));
+    await createStickerV16(db);
+    await createRound7V17(db);
+    await stickerPlaceRules(SqliteCalendarRepository(db));
+    await db.close();
+  });
+
+  testWidgets('สมุดสติกเกอร์: ลากไปวางในช่องวัน → แปะตรงจุดที่วาง', (tester) async {
+    tester.view.physicalSize = const Size(1600, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    final cal = MemoryCalendarRepository();
+    await tester.pumpWidget(NoirManagerApp(studyRepository: MemoryStudyRepository.seeded(), calendarRepository: cal));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('ปฏิทิน').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('สัปดาห์').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('เดือน').last);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('sticker-book')), findsOneWidget);
+
+    final now = DateTime.now();
+    final sticker = (await cal.stickerPacks()).first.stickers.first;
+    final from = tester.getCenter(find.byKey(ValueKey('book-${sticker.id}')));
+    final cell = tester.getRect(find.byKey(ValueKey('nb-${now.month}-${now.day}')));
+    final to = Offset(cell.left + cell.width * 0.25, cell.top + cell.height * 0.7);
+    final g = await tester.startGesture(from);
+    await tester.pump(const Duration(milliseconds: 50));
+    for (var i = 1; i <= 10; i++) {
+      await g.moveTo(Offset.lerp(from, to, i / 10)!);
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(find.byKey(ValueKey('drop-hover-${now.month}-${now.day}')), findsOneWidget); // ช่องใต้เมาส์ขึ้นกรอบ
+    await g.up();
+    await tester.pumpAndSettle();
+    final stuck = await cal.daySticker(now, now);
+    expect(stuck, hasLength(1));
+    expect(stuck.single.x, closeTo(0.25, 0.05));
+    expect(stuck.single.y, closeTo(0.7, 0.05));
+    expect(tester.takeException(), isNull);
+  });
+
   test('RAM: หมวดสร้างเอง + งานยืดหยุ่น', () => round7Rules(MemoryCalendarRepository()));
 
   test('SQLite: migration v17 + กฎเหมือน RAM · รันซ้ำได้', () async {

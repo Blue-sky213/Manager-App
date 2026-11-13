@@ -676,20 +676,72 @@ class SqliteCalendarRepository extends CalendarRepository {
   @override
   Future<List<DaySticker>> daySticker(DateTime from, DateTime to) async {
     final rows = await _db.rawQuery(
-        'SELECT ds.id AS ds_id, ds.day, ds.note, s.* FROM day_sticker ds JOIN sticker s ON s.id = ds.sticker_id '
+        'SELECT ds.id AS ds_id, ds.day, ds.note, ds.x AS ds_x, ds.y AS ds_y, ds.highlight AS ds_hl, ds.auto AS ds_auto, s.* FROM day_sticker ds JOIN sticker s ON s.id = ds.sticker_id '
         'WHERE ds.day BETWEEN ? AND ? ORDER BY ds.day, ds.id',
         [_d(from), _d(to)]);
     return [
       for (final r in rows)
-        DaySticker(id: r['ds_id'] as int, day: DateTime.parse(r['day'] as String), sticker: _sticker(r), note: r['note'] as String?),
+        DaySticker(
+          id: r['ds_id'] as int,
+          day: DateTime.parse(r['day'] as String),
+          sticker: _sticker(r),
+          note: r['note'] as String?,
+          x: (r['ds_x'] as num?)?.toDouble(),
+          y: (r['ds_y'] as num?)?.toDouble(),
+          highlight: (r['ds_hl'] as int? ?? 0) == 1,
+          auto: r['ds_auto'] as String?,
+        ),
     ];
   }
 
   @override
-  Future<int> stickDay(DateTime day, int stickerId, {String? note}) async {
-    final id = await _db.insert('day_sticker', {'day': _d(day), 'sticker_id': stickerId, 'note': note});
+  Future<int> stickDay(DateTime day, int stickerId,
+      {String? note, double? x, double? y, bool highlight = false, String? auto}) async {
+    final id = await _db.transaction((t) async {
+      if (highlight) await t.update('day_sticker', {'highlight': 0}, where: 'day = ?', whereArgs: [_d(day)]);
+      return t.insert('day_sticker', {
+        'day': _d(day),
+        'sticker_id': stickerId,
+        'note': note,
+        'x': x,
+        'y': y,
+        'highlight': highlight ? 1 : 0,
+        'auto': auto,
+      });
+    });
     notifyListeners();
     return id;
+  }
+
+  @override
+  Future<void> updateDaySticker(int dayStickerId, {String? note, bool clearNote = false, double? x, double? y}) async {
+    await _db.update(
+        'day_sticker',
+        {
+          if (note != null || clearNote) 'note': clearNote ? null : note,
+          if (x != null) 'x': x,
+          if (y != null) 'y': y,
+        },
+        where: 'id = ?',
+        whereArgs: [dayStickerId]);
+    notifyListeners();
+  }
+
+  @override
+  Future<void> setHighlight(int dayStickerId) async {
+    await _db.transaction((t) async {
+      final rows = await t.query('day_sticker', columns: ['day'], where: 'id = ?', whereArgs: [dayStickerId]);
+      if (rows.isEmpty) return;
+      await t.update('day_sticker', {'highlight': 0}, where: 'day = ?', whereArgs: [rows.first['day']]);
+      await t.update('day_sticker', {'highlight': 1}, where: 'id = ?', whereArgs: [dayStickerId]);
+    });
+    notifyListeners();
+  }
+
+  @override
+  Future<void> swapDaySticker(int dayStickerId, int stickerId, {String? auto}) async {
+    await _db.update('day_sticker', {'sticker_id': stickerId, 'auto': auto}, where: 'id = ?', whereArgs: [dayStickerId]);
+    notifyListeners();
   }
 
   @override

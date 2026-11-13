@@ -12,7 +12,8 @@ import 'achievements.dart';
 import 'calendar_models.dart';
 import 'calendar_ui.dart';
 import 'sticker_ui.dart' show StickerGlyph;
-import 'stickers.dart' show Sticker;
+import 'sticker_book.dart';
+import 'stickers.dart' show Sticker, DaySticker;
 
 /// สรุปของ 1 วันในสมุด
 class NotebookDay {
@@ -69,6 +70,9 @@ class NotebookMonth extends StatelessWidget {
     required this.byDay,
     required this.stickers,
     required this.holidays,
+    this.placed = const {},
+    this.onDropSticker,
+    this.dropLocked,
     required this.onTapDay,
     this.onOpenDay,
     this.onOpenWeek,
@@ -87,6 +91,15 @@ class NotebookMonth extends StatelessWidget {
   final List<DateTime> days; // 42 วันของตาราง (เริ่มจันทร์)
   final Map<DateTime, List<Occurrence>> byDay;
   final Map<DateTime, List<Sticker>> stickers;
+
+  /// สติกเกอร์พร้อมตำแหน่ง / ⭐ (ใช้วาดแทน [stickers] ถ้ามี)
+  final Map<DateTime, List<DaySticker>> placed;
+
+  /// ลากจากสมุดสติกเกอร์มาวาง (null = ปิดการลากวาง เช่น จอมือถือ)
+  final void Function(DateTime day, Sticker s, double x, double y)? onDropSticker;
+
+  /// วันนี้แปะไม่ได้เพราะอะไร (null = แปะได้)
+  final String? Function(DateTime day)? dropLocked;
   final Map<String, String> holidays;
   final ValueChanged<DateTime> onTapDay;
 
@@ -239,7 +252,7 @@ class NotebookMonth extends StatelessWidget {
       if (i.tutors > 0) '✎${i.tutors}',
       if (i.others > 0) '💼${i.others}',
     ].join(' ');
-    return InkWell(
+    final cell = InkWell(
       key: ValueKey('nb-${d.month}-${d.day}'),
       onTap: () => onTapDay(d),
       onDoubleTap: onOpenDay == null ? null : () => onOpenDay!(d),
@@ -266,15 +279,18 @@ class NotebookMonth extends StatelessWidget {
                       fontSize: 12, fontWeight: FontWeight.w600, color: d == today ? c.accent : c.text)),
             ),
             if (marks.isNotEmpty) Positioned(right: 3, top: 2, child: Text(marks, style: const TextStyle(fontSize: 10))),
-            // สติกเกอร์ชิ้นแรกใหญ่กลางช่อง เอียงนิดหน่อยเหมือนแปะจริง · ชิ้นที่ 2 เล็กมุมขวาล่าง
-            if (st.isNotEmpty)
+            // ⭐ ใหญ่กลางช่อง เอียงนิดหน่อยเหมือนแปะจริง · ชิ้นอื่นเล็กตามตำแหน่งที่วาง
+            if (placed[d] case final pl? when pl.isNotEmpty)
+              Positioned.fill(child: PlacedStickers(items: pl, big: big, tilt: ((d.day * 37) % 14 - 7) * math.pi / 180))
+            else if (st.isNotEmpty) ...[
               Center(
                 child: Transform.rotate(
                   angle: ((d.day * 37) % 14 - 7) * math.pi / 180,
                   child: StickerGlyph(st.first, size: big),
                 ),
               ),
-            if (st.length > 1) Positioned(right: 2, bottom: 2, child: StickerGlyph(st[1], size: big * 0.42)),
+              if (st.length > 1) Positioned(right: 2, bottom: 2, child: StickerGlyph(st[1], size: big * 0.42)),
+            ],
             if (holiday != null && st.isEmpty)
               Positioned(left: 4, top: 18, right: 2, child: Text('หยุด', style: TextStyle(fontSize: 10, color: c.warn))),
             if (counts.isNotEmpty && st.length < 2)
@@ -282,6 +298,15 @@ class NotebookMonth extends StatelessWidget {
           ]),
         ),
       ),
+    );
+    final drop = onDropSticker;
+    if (drop == null || out) return cell;
+    return StickerDropCell(
+      key: ValueKey('drop-${d.month}-${d.day}'),
+      day: d,
+      onDrop: (s, x, y) => drop(d, s, x, y),
+      locked: dropLocked == null ? null : () => dropLocked!(d),
+      child: cell,
     );
   }
 }
