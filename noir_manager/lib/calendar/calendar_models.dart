@@ -279,7 +279,11 @@ class Activity {
     this.subjectId,
     this.kind = ActivityKind.todo,
     this.classInfo = ClassInfo.none,
+    this.flexible = false,
   });
+
+  /// งานยืดหยุ่น: บางวันไม่มีงานจริง → กด "วันนี้ว่าง" ได้ (v17)
+  final bool flexible;
 
   /// ผูกกับวิชาในหน้าวิชา (คาบเรียน) · null = งานทั่วไป
   final int? subjectId;
