@@ -116,6 +116,8 @@ class StickerDropCell extends StatefulWidget {
     required this.onDrop,
     this.locked,
     this.zoomBuilder,
+    this.placedCount = 0,
+    this.glyphSize = 40,
   });
 
   final DateTime day;
@@ -130,6 +132,12 @@ class StickerDropCell extends StatefulWidget {
   /// หน้าตาช่องตอนซูม (ใหญ่ขึ้น) · null = ใช้ [child]
   final WidgetBuilder? zoomBuilder;
 
+  /// แปะไว้แล้วกี่ชิ้น (ชิ้นแรก = ⭐ กลางช่อง · ครบ [maxDayStickers] = ปล่อยแล้วถามแทนชิ้นไหน)
+  final int placedCount;
+
+  /// ขนาด ⭐ ในช่องปกติ (ชิ้นเล็ก = 0.42 เท่า) · ใช้วาดเงาให้ตรงขนาดจริง
+  final double glyphSize;
+
   @override
   State<StickerDropCell> createState() => _StickerDropCellState();
 }
@@ -138,6 +146,9 @@ class _StickerDropCellState extends State<StickerDropCell> {
   bool _hover = false;
   Timer? _hold;
   OverlayEntry? _zoom;
+
+  /// เงาสติกเกอร์ตรงจุดที่จะติด (realtime ทั้งช่องปกติและช่องซูม) · null = ไม่ได้ลากอยู่บนช่องนี้
+  final ValueNotifier<(Sticker, double, double)?> _ghost = ValueNotifier(null);
 
   @override
   void initState() {
@@ -150,6 +161,7 @@ class _StickerDropCellState extends State<StickerDropCell> {
     stickerDragging.removeListener(_onDragging);
     _hold?.cancel();
     _closeZoom();
+    _ghost.dispose();
     super.dispose();
   }
 
@@ -157,6 +169,7 @@ class _StickerDropCellState extends State<StickerDropCell> {
     if (!stickerDragging.value) {
       _hold?.cancel();
       _closeZoom();
+      _ghost.value = null;
       if (mounted && _hover) setState(() => _hover = false);
     }
   }
@@ -170,6 +183,64 @@ class _StickerDropCellState extends State<StickerDropCell> {
     final p = box.globalToLocal(global);
     return ((p.dx / box.size.width).clamp(0.08, 0.92), (p.dy / box.size.height).clamp(0.12, 0.92));
   }
+
+  void _track(RenderBox? box, DragTargetDetails<Sticker> d) {
+    if (box == null || !box.hasSize) return;
+    final (x, y) = _rel(box, d.offset);
+    _ghost.value = (d.data, x, y);
+  }
+
+  /// เงาตำแหน่งที่จะติด · [scale] = ขยายเท่าช่องซูม
+  Widget _ghostLayer(double scale) => IgnorePointer(
+        child: ValueListenableBuilder(
+          valueListenable: _ghost,
+          builder: (ctx, g, _) {
+            if (g == null) return const SizedBox.shrink();
+            final c = ctx.noir;
+            final (st, gx, gy) = g;
+            final first = widget.placedCount == 0;
+            final full = widget.placedCount >= maxDayStickers;
+            // ชิ้นแรกของวันกลายเป็น ⭐ กลางช่อง → เงาไปอยู่กลางช่องให้เห็นตามจริง
+            final (x, y) = first ? (0.5, 0.55) : (gx, gy);
+            final size = (first ? widget.glyphSize : widget.glyphSize * 0.42) * scale;
+            final ring = full ? c.warn : c.accent;
+            return LayoutBuilder(builder: (ctx, box) {
+              return Stack(clipBehavior: Clip.none, children: [
+                Positioned(
+                  left: box.maxWidth * x - size / 2 - 4,
+                  top: box.maxHeight * y - size / 2 - 4,
+                  width: size + 8,
+                  height: size + 8,
+                  child: Container(
+                    key: ValueKey('ghost-${widget.day.month}-${widget.day.day}'),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: ring.withValues(alpha: 0.15),
+                      border: Border.all(color: ring, width: 2),
+                    ),
+                    child: Center(child: Opacity(opacity: 0.75, child: StickerGlyph(st, size: size))),
+                  ),
+                ),
+                if (scale > 1)
+                  Positioned(
+                    left: 8,
+                    right: 8,
+                    bottom: 6,
+                    child: Text(
+                      full
+                          ? 'ครบ $maxDayStickers ชิ้นแล้ว · ปล่อยแล้วเลือกชิ้นที่จะแทน'
+                          : first
+                              ? 'ชิ้นแรกของวัน = ⭐ กลางช่อง'
+                              : 'ปล่อยตรงไหน ติดตรงนั้น',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 11, color: full ? c.warn : c.muted),
+                    ),
+                  ),
+              ]);
+            });
+          },
+        ),
+      );
 
   void _openZoom() {
     if (!mounted || _zoom != null || widget.locked?.call() != null) return;
@@ -190,13 +261,18 @@ class _StickerDropCellState extends State<StickerDropCell> {
           width: size.width,
           height: size.height,
           child: DragTarget<Sticker>(
+            onMove: (d) => _track(ctx.findRenderObject() as RenderBox?, d),
             onAcceptWithDetails: (d) {
               final zb = ctx.findRenderObject() as RenderBox;
               final (x, y) = _rel(zb, d.offset);
+              _ghost.value = null;
               widget.onDrop(d.data, x, y);
               _closeZoom();
             },
-            onLeave: (_) => _closeZoom(),
+            onLeave: (_) {
+              _ghost.value = null;
+              _closeZoom();
+            },
             builder: (ctx, _, _) => Material(
               key: ValueKey('zoom-${widget.day.month}-${widget.day.day}'),
               elevation: 12,
@@ -210,8 +286,14 @@ class _StickerDropCellState extends State<StickerDropCell> {
                   gradient: LinearGradient(colors: [c.accent.withValues(alpha: 0.10), c.accent.withValues(alpha: 0.04)]),
                 ),
                 // ช่องเดิมขยาย 2.4 เท่า (เห็นสติกเกอร์ที่มีอยู่ เลือกที่ว่างได้)
-                child: widget.zoomBuilder?.call(ctx) ??
-                    IgnorePointer(child: FittedBox(fit: BoxFit.fill, child: SizedBox.fromSize(size: box.size, child: widget.child))),
+                child: Stack(children: [
+                  Positioned.fill(
+                    child: widget.zoomBuilder?.call(ctx) ??
+                        IgnorePointer(
+                            child: FittedBox(fit: BoxFit.fill, child: SizedBox.fromSize(size: box.size, child: widget.child))),
+                  ),
+                  Positioned.fill(child: _ghostLayer(size.width / box.size.width)),
+                ]),
               ),
             ),
           ),
@@ -231,12 +313,17 @@ class _StickerDropCellState extends State<StickerDropCell> {
         _hold = Timer(const Duration(milliseconds: 500), _openZoom);
         return widget.locked?.call() == null;
       },
+      onMove: (d) {
+        if (_zoom == null && widget.locked?.call() == null) _track(context.findRenderObject() as RenderBox?, d);
+      },
       onLeave: (_) {
         _hold?.cancel();
+        if (_zoom == null) _ghost.value = null;
         setState(() => _hover = false);
       },
       onAcceptWithDetails: (d) {
         _hold?.cancel();
+        _ghost.value = null;
         setState(() => _hover = false);
         final box = context.findRenderObject() as RenderBox;
         final (x, y) = _rel(box, d.offset);
@@ -246,6 +333,7 @@ class _StickerDropCellState extends State<StickerDropCell> {
         final reason = _hover ? widget.locked?.call() : null;
         return Stack(children: [
           widget.child,
+          if (_hover && reason == null) Positioned.fill(child: _ghostLayer(1)),
           if (_hover)
             Positioned.fill(
               child: IgnorePointer(
