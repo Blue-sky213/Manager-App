@@ -8,6 +8,7 @@ import '../calendar/calendar_models.dart';
 import '../calendar/stickers.dart' show DaySticker, stickersByDay, holidaysByDay, placedByDay, highlightOf;
 import '../calendar/clash_page.dart';
 import '../calendar/day_agenda.dart';
+import '../calendar/day_judge.dart' show judgeDays, importantPending;
 import '../calendar/notebook_view.dart';
 import '../calendar/sticker_book.dart';
 import '../calendar/sticker_ui.dart' show DayStickerCard;
@@ -92,6 +93,7 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
   @override
   Future<void> reload() async {
     final repo = calendar!;
+    await judgeDays(repo); // ผ่านวันแล้วงานสำคัญไม่ครบ → สติกเกอร์ "พลาด" (กันรันถี่ในตัว)
     final day = _selected;
     final view = _view;
     final byDay = <DateTime, List<Occurrence>>{};
@@ -266,7 +268,14 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
                         Expanded(
                           flex: 2,
                           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                            StickerBook(onTapSticker: (s) => calendar!.stickDay(_selected, s.id)),
+                            StickerBook(onTapSticker: (s) {
+                              if (importantPending(_byDay[_selected] ?? const [])) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('🔒 ทำงานสำคัญของวันนั้นให้ครบก่อน แล้วค่อยแปะ')));
+                                return;
+                              }
+                              calendar!.stickDay(_selected, s.id);
+                            }),
                             const SizedBox(height: 12),
                             // สติกเกอร์ของวันที่เลือก: คลิกขวา = ⭐ ไฮไลต์ · โน้ต · ลอกออก
                             DayStickerCard(day: _selected),
@@ -316,7 +325,10 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
         onOpenDay: (d) => _go(day: d, view: CalView.day),
         onOpenWeek: (monday) => _go(day: monday, view: CalView.week),
         placed: placedByDay,
+        categories: _categories,
         onDropSticker: !drag ? null : (d, st, x, y) => calendar!.stickDay(d, st.id, x: x, y: y),
+        // งานสำคัญยังไม่ครบ → ยังแปะไม่ได้ (ทำครบแล้วปลดล็อก)
+        dropLocked: (d) => importantPending(_byDay[d] ?? const []) ? 'ทำงานสำคัญให้ครบก่อน' : null,
       );
 
   /// ◀ ชื่อช่วง ▶ (แตะชื่อ = ซูมออก) · มุมมองเดือน: ลูกศรบอกชื่อเดือนก่อน / ถัดไป

@@ -5,6 +5,9 @@ import 'package:flutter/material.dart';
 import '../calendar/achievements.dart';
 import '../calendar/calendar_listener.dart';
 import '../calendar/calendar_models.dart';
+import '../calendar/lookback.dart';
+import '../calendar/stickers.dart' show DaySticker;
+import 'lookback_card.dart';
 import '../data/study_scope.dart';
 import '../study/tutor_plan.dart';
 import '../theme/noir_colors.dart';
@@ -41,6 +44,11 @@ class _StatsPageState extends State<StatsPage> with CalendarListener<StatsPage> 
   List<MedalTrack> _medals = [];
   bool _loaded = false;
 
+  // สถิติย้อนหลัง (O): เช็กอินเช้า · สติกเกอร์ (พลาด / เสร็จย้อนหลัง / อารมณ์) · หมวด (ไอคอน)
+  Map<DateTime, Checkin> _checkins = {};
+  Map<DateTime, List<DaySticker>> _stickers = {};
+  Map<int, ActivityCategory> _cats = {};
+
   DateTime get _today => dayOnly(DateTime.now());
 
   @override
@@ -66,6 +74,13 @@ class _StatsPageState extends State<StatsPage> with CalendarListener<StatsPage> 
       if (topics.isNotEmpty && topics.every((t) => (t.latestScore ?? 0) >= 80)) understood++;
     }
     final streak = streakOf(days, today);
+    final from = today.subtract(const Duration(days: 371));
+    final checkins = {for (final c in await repo.checkins(from, today.add(const Duration(days: 1)))) dayOnly(c.day): c};
+    final stuck = <DateTime, List<DaySticker>>{};
+    for (final d in await repo.daySticker(from, today)) {
+      (stuck[d.day] ??= []).add(d);
+    }
+    final fullCats = {for (final c in await repo.categories()) c.id: c};
     if (!mounted) return;
     setState(() {
       _days = days;
@@ -73,6 +88,9 @@ class _StatsPageState extends State<StatsPage> with CalendarListener<StatsPage> 
       _subjectNames = {for (final s in subjects) s.id: s.name};
       _streak = streak;
       _medals = medalTracks(days, today, understoodSubjects: understood);
+      _checkins = checkins;
+      _stickers = stuck;
+      _cats = fullCats;
       _loaded = true;
     });
   }
@@ -193,6 +211,17 @@ class _StatsPageState extends State<StatsPage> with CalendarListener<StatsPage> 
             ]),
           ),
         ])),
+        const SizedBox(height: 12),
+        // ---- O · สถิติย้อนหลัง: พลาดเพราะอะไร ----
+        LookbackCard(
+          lookback: analyzeLookback(
+            days: {for (final e in _days.entries) if (!e.key.isBefore(from)) e.key: e.value},
+            checkins: _checkins,
+            stickers: _stickers,
+            today: today,
+          ),
+          categories: _cats,
+        ),
         const SizedBox(height: 12),
         // ---- กราฟรวม: ช่วงสั้น = รายวัน 28 วัน · ช่วงยาว = รายเดือน + ตารางสีรายวัน ----
         if (!long)

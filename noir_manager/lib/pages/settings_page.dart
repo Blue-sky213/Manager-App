@@ -20,6 +20,7 @@ import '../shell/window_mode.dart';
 import '../widgets/device_preview.dart';
 import '../widgets/mini_dropdown.dart';
 import '../calendar/category_ui.dart' show CategorySettings;
+import '../calendar/day_cards.dart' show AutoStickerSettings;
 import '../widgets/mini_form.dart';
 import '../widgets/mini_segments.dart';
 
@@ -264,6 +265,8 @@ class _SettingsPageState extends State<SettingsPage> {
                     section('หมวดงาน', [const CategorySettings()]),
                     const SizedBox(height: 14),
                     section('สติกเกอร์อารมณ์', [const StickerSettings()]),
+                    const SizedBox(height: 14),
+                    section('สติกเกอร์อัตโนมัติ', [const AutoStickerSettings()]),
                     const SizedBox(height: 14),
                     if (supportsFullscreen) ...[
                       section('หน้าต่าง', [

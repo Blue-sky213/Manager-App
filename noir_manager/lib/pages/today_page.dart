@@ -6,6 +6,7 @@ import '../calendar/calendar_listener.dart';
 import '../calendar/calendar_models.dart';
 import '../calendar/clash_page.dart';
 import '../calendar/day_agenda.dart';
+import '../calendar/day_cards.dart';
 import '../theme/noir_colors.dart';
 import '../utils/thai_date.dart';
 
@@ -64,6 +65,8 @@ class _TodayPageState extends State<TodayPage> with CalendarListener<TodayPage> 
     final side = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // โต้รุ่ง · พลาดเมื่อวาน · เช็กอินเช้า (โชว์เฉพาะที่ต้องตอบ)
+        const NightCards(),
         DayStickerCard(day: _today),
         const SizedBox(height: 16),
         _SleepCard(

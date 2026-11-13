@@ -137,6 +137,11 @@ abstract class CalendarRepository extends ChangeNotifier {
   Future<void> swapDaySticker(int dayStickerId, int stickerId, {String? auto});
   Future<void> unstickDay(int dayStickerId);
 
+  /// เช็กอินตอนเช้า (v17)
+  Future<Checkin?> checkin(DateTime day);
+  Future<List<Checkin>> checkins(DateTime from, DateTime to);
+  Future<void> saveCheckin(Checkin c);
+
   Future<String?> getSetting(String key);
   Future<void> setSetting(String key, String value);
 
