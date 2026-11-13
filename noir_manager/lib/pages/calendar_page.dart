@@ -5,10 +5,12 @@ import '../calendar/calendar_flows.dart';
 import '../calendar/terms_page.dart';
 import '../calendar/calendar_listener.dart';
 import '../calendar/calendar_models.dart';
-import '../calendar/stickers.dart' show DaySticker, stickersByDay, holidaysByDay;
+import '../calendar/stickers.dart' show DaySticker, stickersByDay, holidaysByDay, placedByDay, highlightOf;
 import '../calendar/clash_page.dart';
 import '../calendar/day_agenda.dart';
 import '../calendar/notebook_view.dart';
+import '../calendar/sticker_book.dart';
+import '../calendar/sticker_ui.dart' show DayStickerCard;
 import '../calendar/week_views.dart';
 import '../data/study_repository.dart';
 import '../data/study_scope.dart';
@@ -107,10 +109,15 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
     setState(() {
       _items = items;
       _byDay = byDay;
-      stickersByDay = {};
+      placedByDay = {};
       for (final d in stuck) {
-        (stickersByDay[d.day] ??= []).add(d.sticker);
+        (placedByDay[d.day] ??= []).add(d);
       }
+      // ⭐ ไฮไลต์มาก่อน (หัววันในสัปดาห์โชว์ชิ้นแรก)
+      stickersByDay = {
+        for (final e in placedByDay.entries)
+          e.key: [highlightOf(e.value)!.sticker, ...e.value.where((d) => d != highlightOf(e.value)).map((d) => d.sticker)],
+      };
       _lifeBase = lifeBase;
       _categories = {for (final c in cats) c.id: c};
       _holidays = {for (final h in holidays) dayKey(h.day): h.name};
@@ -253,9 +260,20 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(flex: 3, child: _notebook()),
+                        Expanded(flex: 3, child: _notebook(drag: true)),
                         const SizedBox(width: 24),
-                        Expanded(flex: 2, child: _agenda(today)),
+                        // ขวา: สมุดสติกเกอร์ (ลากไปแปะ) + งานของวันที่เลือก
+                        Expanded(
+                          flex: 2,
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                            StickerBook(onTapSticker: (s) => calendar!.stickDay(_selected, s.id)),
+                            const SizedBox(height: 12),
+                            // สติกเกอร์ของวันที่เลือก: คลิกขวา = ⭐ ไฮไลต์ · โน้ต · ลอกออก
+                            DayStickerCard(day: _selected),
+                            const SizedBox(height: 12),
+                            _agenda(today),
+                          ]),
+                        ),
                       ],
                     ),
                   ]
@@ -287,7 +305,7 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
     });
   }
 
-  Widget _notebook() => NotebookMonth(
+  Widget _notebook({bool drag = false}) => NotebookMonth(
         month: _selected,
         days: monthGridDays(_selected),
         byDay: _byDay,
@@ -297,6 +315,8 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
         onTapDay: (d) => _go(day: d),
         onOpenDay: (d) => _go(day: d, view: CalView.day),
         onOpenWeek: (monday) => _go(day: monday, view: CalView.week),
+        placed: placedByDay,
+        onDropSticker: !drag ? null : (d, st, x, y) => calendar!.stickDay(d, st.id, x: x, y: y),
       );
 
   /// ◀ ชื่อช่วง ▶ (แตะชื่อ = ซูมออก) · มุมมองเดือน: ลูกศรบอกชื่อเดือนก่อน / ถัดไป

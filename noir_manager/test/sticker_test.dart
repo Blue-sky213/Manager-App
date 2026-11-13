@@ -61,6 +61,7 @@ void main() {
         options: OpenDatabaseOptions(onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON')));
     await createStickerV16(db);
     await createStickerV16(db); // ไม่ใส่ชุดซ้ำ
+    await createRound7V17(db);
     await stickerRules(SqliteCalendarRepository(db));
     await db.close();
   });

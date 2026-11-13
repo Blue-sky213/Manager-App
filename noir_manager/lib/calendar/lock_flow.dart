@@ -23,9 +23,14 @@ const commitIdsKey = 'commit_ids';
 
 /// สถานะล็อกที่หน้าจอใช้วาดสัญลักษณ์ (โหลดตอนเปิดแอป + ทุกครั้งที่เปลี่ยน)
 class LockState {
-  const LockState({this.enabled = true, this.committed = const {}});
+  const LockState({this.enabled = true, this.committed = const {}, this.lockCategories = const {}});
   final bool enabled;
   final Set<int> committed;
+
+  /// หมวดที่ตั้ง "ล็อกเมื่อเริ่ม" (ล็อกแม้ปิดล็อกรวม)
+  final Set<int> lockCategories;
+
+  bool lockedFor(Occurrence o) => enabled || lockCategories.contains(o.categoryId);
 }
 
 LockState lockState = const LockState();
@@ -33,14 +38,15 @@ LockState lockState = const LockState();
 Future<void> refreshLockState(CalendarRepository repo) async {
   final enabled = (await repo.getSetting(lockSettingKey)) != 'off';
   final ids = ((await repo.getSetting(commitIdsKey)) ?? '').split(',').map(int.tryParse).whereType<int>().toSet();
-  lockState = LockState(enabled: enabled, committed: ids);
+  final cats = {for (final c in await repo.categories()) if (c.lockOnStart) c.id};
+  lockState = LockState(enabled: enabled, committed: ids, lockCategories: cats);
   repo.refresh();
 }
 
 /// วาด 🔒 ไหม: มีคำมั่น (ตลอด) · หรือเริ่มแล้วแต่ยังไม่กรอกผล (ล็อกอยู่)
 bool showLockBadge(Occurrence o, {DateTime? now}) {
-  if (!lockState.enabled) return false;
-  if (lockState.committed.contains(o.activityId)) return true;
+  if (!lockState.lockedFor(o)) return false;
+  if (lockState.enabled && lockState.committed.contains(o.activityId)) return true;
   return o.status == OccurrenceStatus.planned && isStarted(o, now ?? DateTime.now());
 }
 
@@ -65,7 +71,8 @@ bool isStarted(Occurrence o, DateTime now) {
 
 /// ถามก่อนแก้งานที่เริ่มแล้ว · true = ไปต่อได้
 Future<bool> confirmUnlock(BuildContext context, CalendarRepository repo, Occurrence o, {DateTime? now}) async {
-  if ((await repo.getSetting(lockSettingKey)) == 'off') return true;
+  final cats = {for (final c in await repo.categories()) if (c.lockOnStart) c.id};
+  if ((await repo.getSetting(lockSettingKey)) == 'off' && !cats.contains(o.categoryId)) return true;
   if (!isStarted(o, now ?? DateTime.now())) return true;
   final note = await repo.getSetting(commitmentKey(o.activityId));
   if (!context.mounted) return false;

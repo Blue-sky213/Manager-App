@@ -133,6 +133,7 @@ void main() {
     await createTermV10(db);
     await createClassInfoV11(db); // ให้ตรงกับ schema ล่าสุดของแอป
     await createSubjectLinkV12(db);
+    await createRound7V17(db); // v17: คอลัมน์รอบ 7
     await moveRules(SqliteCalendarRepository(db));
     await db.close();
   });

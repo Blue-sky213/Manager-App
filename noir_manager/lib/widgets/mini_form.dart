@@ -212,9 +212,13 @@ class MiniRow extends StatelessWidget {
     this.onTap,
     this.trailing,
     this.last = false,
+    this.iconWidget,
   });
 
   final IconData? icon;
+
+  /// ใช้แทน [icon] (เช่น ไอคอนหมวดบนป้ายสี)
+  final Widget? iconWidget;
   final String label;
   final Widget? value;
   final String? valueText;
@@ -241,12 +245,17 @@ class MiniRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
         decoration: BoxDecoration(border: last ? null : Border(bottom: BorderSide(color: c.line))),
         child: Row(children: [
-          if (icon != null) ...[Icon(icon, size: 20, color: c.muted), const SizedBox(width: 12)],
-          // ชื่อยาว (เช่น ชื่อวิชา) ตัดบรรทัดได้ · ค่าทางขวาไม่ดันจนล้น
-          Expanded(flex: 4, child: Text(label, style: TextStyle(color: v == null ? c.text : c.muted))),
-          if (v != null) ...[
-            const SizedBox(width: 12),
-            Expanded(flex: 5, child: Align(alignment: Alignment.centerRight, child: v)),
+          if (iconWidget != null) ...[iconWidget!, const SizedBox(width: 12)]
+          else if (icon != null) ...[Icon(icon, size: 20, color: c.muted), const SizedBox(width: 12)],
+          // ชื่อยาว (เช่น ชื่อวิชา) ตัดบรรทัดได้ · ค่าทางขวาไม่ดันจนล้น · label ว่าง = ให้ค่าเต็มแถว (ชิดซ้าย)
+          if (label.isEmpty && v != null)
+            Expanded(child: v)
+          else ...[
+            Expanded(flex: 4, child: Text(label, style: TextStyle(color: v == null ? c.text : c.muted))),
+            if (v != null) ...[
+              const SizedBox(width: 12),
+              Expanded(flex: 5, child: Align(alignment: Alignment.centerRight, child: v)),
+            ],
           ],
           if (trailing != null) trailing! else if (onTap != null) Icon(Icons.chevron_right, size: 20, color: c.muted),
         ]),

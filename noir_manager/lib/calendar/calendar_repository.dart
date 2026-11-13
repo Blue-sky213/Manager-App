@@ -14,6 +14,17 @@ abstract class CalendarRepository extends ChangeNotifier {
 
   Future<List<ActivityCategory>> categories();
 
+  /// หมวดสร้างเอง (v17) · ลบ = ย้ายงานไปหมวด [moveTo] ก่อน (null = ไม่มีหมวด) · หมวดระบบลบไม่ได้
+  Future<int> addCategory(ActivityCategory c);
+  Future<void> updateCategory(ActivityCategory c);
+  Future<void> deleteCategory(int id, {int? moveTo});
+
+  /// หมวด → จำนวนงาน (กิจกรรม) ที่ใช้อยู่
+  Future<Map<int, int>> categoryUsage();
+
+  /// งานยืดหยุ่น: ตั้งช่วงที่ว่างจากงานของครั้งนี้ (null = ล้าง)
+  Future<void> setFree(int occurrenceId, DateTime? start, DateTime? end);
+
   Future<int> addActivity(NewActivity a);
 
   /// กิจกรรมต้นแบบ 1 ตัว (ใช้เปิดฟอร์มแก้ไข)
@@ -113,7 +124,17 @@ abstract class CalendarRepository extends ChangeNotifier {
 
   /// สติกเกอร์ที่แปะในช่วงวัน (รวมทั้งสองวัน) · เรียงวัน → ลำดับที่แปะ
   Future<List<DaySticker>> daySticker(DateTime from, DateTime to);
-  Future<int> stickDay(DateTime day, int stickerId, {String? note});
+  Future<int> stickDay(DateTime day, int stickerId,
+      {String? note, double? x, double? y, bool highlight = false, String? auto});
+
+  /// แก้โน้ต / ย้ายตำแหน่ง โดยไม่เปลี่ยนลำดับ (เดิมแก้โน้ต = ลอกแล้วแปะใหม่ → ลำดับสลับ)
+  Future<void> updateDaySticker(int dayStickerId, {String? note, bool clearNote = false, double? x, double? y});
+
+  /// ตั้ง ⭐ ไฮไลต์ (วันละชิ้นเดียว)
+  Future<void> setHighlight(int dayStickerId);
+
+  /// เปลี่ยนตัวสติกเกอร์ (เช่น พลาด → เสร็จย้อนหลัง) ตำแหน่ง/ลำดับเดิม
+  Future<void> swapDaySticker(int dayStickerId, int stickerId, {String? auto});
   Future<void> unstickDay(int dayStickerId);
 
   Future<String?> getSetting(String key);

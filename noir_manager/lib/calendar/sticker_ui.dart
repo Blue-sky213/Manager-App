@@ -69,19 +69,21 @@ class _DayStickerCardState extends State<DayStickerCard> with CalendarListener<D
         initial: d.note ?? '',
         confirmLabel: 'บันทึก');
     if (text == null) return;
-    // แก้โน้ต = แปะใหม่แทนอันเดิม (ลำดับเดิมไม่สำคัญ)
-    await repo.unstickDay(d.id);
-    await repo.stickDay(widget.day, d.sticker.id, note: text.trim().isEmpty ? null : text.trim());
+    // แก้โน้ตในที่เดิม · ลำดับ / ตำแหน่ง / ไฮไลต์ไม่เปลี่ยน
+    await repo.updateDaySticker(d.id, note: text.trim().isEmpty ? null : text.trim(), clearNote: text.trim().isEmpty);
   }
 
   Future<void> _menu(DaySticker d, Offset at) async {
     final repo = calendar!;
     final v = await showContextMenuAt<String>(context, at, [
+      if (!d.highlight) ctxItem('star', Icons.star_outline, 'ตั้งเป็นไฮไลต์ (ตัวใหญ่ในปฏิทิน)'),
       ctxItem('note', Icons.edit_note, 'เขียนโน้ต'),
       ctxItem('remove', Icons.close, 'ลอกออก', danger: true),
     ]);
     if (!mounted) return;
-    if (v == 'note') {
+    if (v == 'star') {
+      await repo.setHighlight(d.id);
+    } else if (v == 'note') {
       await _note(d);
     } else if (v == 'remove') {
       await repo.unstickDay(d.id);
@@ -127,7 +129,11 @@ class _DayStickerCardState extends State<DayStickerCard> with CalendarListener<D
                       child: Padding(
                         padding: const EdgeInsets.all(4),
                         child: Column(mainAxisSize: MainAxisSize.min, children: [
-                          StickerGlyph(d.sticker, size: 34),
+                          Stack(clipBehavior: Clip.none, children: [
+                            StickerGlyph(d.sticker, size: 34),
+                            if (d.highlight)
+                              const Positioned(right: -6, top: -6, child: Text('⭐', style: TextStyle(fontSize: 12))),
+                          ]),
                           Text(d.sticker.name, style: TextStyle(fontSize: 12, color: c.muted)),
                         ]),
                       ),

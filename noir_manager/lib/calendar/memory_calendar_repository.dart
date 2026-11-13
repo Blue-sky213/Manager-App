@@ -9,7 +9,8 @@ class MemoryCalendarRepository extends CalendarRepository {
           id: i + 1,
           name: seedCategories[i].$1,
           colorKey: seedCategories[i].$2,
-          systemKey: seedCategories[i].$3));
+          systemKey: seedCategories[i].$3,
+          icon: seedCategoryIcons[i]));
     }
     // Preset ตั้งต้นเหมือนฐานข้อมูลจริง: Stream · สตรีม · สำคัญ · 20:00–00:00
     _presets.add(Preset(
@@ -49,6 +50,9 @@ class MemoryCalendarRepository extends CalendarRepository {
       actualEnd: o.actualEnd,
       kind: a.kind,
       rootDay: _rootDay(o),
+      freeStart: o.freeStart,
+      freeEnd: o.freeEnd,
+      flexible: a.flexible,
     );
   }
 
@@ -65,6 +69,69 @@ class MemoryCalendarRepository extends CalendarRepository {
 
   @override
   Future<List<ActivityCategory>> categories() async => List.of(_categories);
+
+  @override
+  Future<int> addCategory(ActivityCategory c) async {
+    final id = _nextId++;
+    _categories.add(c.copyWith(id: id));
+    notifyListeners();
+    return id;
+  }
+
+  @override
+  Future<void> updateCategory(ActivityCategory c) async {
+    final i = _categories.indexWhere((x) => x.id == c.id);
+    if (i >= 0) _categories[i] = c.copyWith(systemKey: _categories[i].systemKey);
+    notifyListeners();
+  }
+
+  @override
+  Future<void> deleteCategory(int id, {int? moveTo}) async {
+    if (_categories.any((c) => c.id == id && c.isSystem)) return;
+    for (final e in _activities.entries.toList()) {
+      if (e.value.categoryId == id) {
+        final d = e.value.toDraft();
+        _activities[e.key] = NewActivity(
+          name: d.name,
+          categoryId: moveTo,
+          importance: d.importance,
+          timed: d.timed,
+          day: d.day,
+          startMinute: d.startMinute,
+          durationMin: d.durationMin,
+          repeat: d.repeat,
+          weekdays: d.weekdays,
+          endDate: d.endDate,
+          presetId: d.presetId,
+          dates: d.dates,
+          subjectId: d.subjectId,
+          kind: d.kind,
+          classInfo: d.classInfo,
+          flexible: d.flexible,
+        ).toActivity(id: e.key);
+      }
+    }
+    _categories.removeWhere((c) => c.id == id);
+    notifyListeners();
+  }
+
+  @override
+  Future<Map<int, int>> categoryUsage() async {
+    final m = <int, int>{};
+    for (final a in _activities.values) {
+      if (a.categoryId != null) m[a.categoryId!] = (m[a.categoryId!] ?? 0) + 1;
+    }
+    return m;
+  }
+
+  @override
+  Future<void> setFree(int occurrenceId, DateTime? start, DateTime? end) async {
+    final o = _occs.firstWhere((x) => x.id == occurrenceId);
+    o
+      ..freeStart = start
+      ..freeEnd = end;
+    notifyListeners();
+  }
 
   @override
   Future<int> addActivity(NewActivity n) async {
@@ -395,12 +462,46 @@ class MemoryCalendarRepository extends CalendarRepository {
   }
 
   @override
-  Future<int> stickDay(DateTime day, int stickerId, {String? note}) async {
+  Future<int> stickDay(DateTime day, int stickerId,
+      {String? note, double? x, double? y, bool highlight = false, String? auto}) async {
     final s = _stickers.firstWhere((s) => s.id == stickerId);
     final id = _nextId++;
-    _daySticker.add(DaySticker(id: id, day: dayOnly(day), sticker: s, note: note));
+    final d = dayOnly(day);
+    if (highlight) _clearHighlight(d);
+    _daySticker.add(DaySticker(id: id, day: d, sticker: s, note: note, x: x, y: y, highlight: highlight, auto: auto));
     notifyListeners();
     return id;
+  }
+
+  void _clearHighlight(DateTime day) {
+    for (var i = 0; i < _daySticker.length; i++) {
+      if (_daySticker[i].day == day && _daySticker[i].highlight) _daySticker[i] = _daySticker[i].copyWith(highlight: false);
+    }
+  }
+
+  @override
+  Future<void> updateDaySticker(int dayStickerId, {String? note, bool clearNote = false, double? x, double? y}) async {
+    final i = _daySticker.indexWhere((d) => d.id == dayStickerId);
+    if (i < 0) return;
+    _daySticker[i] = _daySticker[i].copyWith(note: note, clearNote: clearNote, x: x, y: y);
+    notifyListeners();
+  }
+
+  @override
+  Future<void> setHighlight(int dayStickerId) async {
+    final i = _daySticker.indexWhere((d) => d.id == dayStickerId);
+    if (i < 0) return;
+    _clearHighlight(_daySticker[i].day);
+    _daySticker[i] = _daySticker[i].copyWith(highlight: true);
+    notifyListeners();
+  }
+
+  @override
+  Future<void> swapDaySticker(int dayStickerId, int stickerId, {String? auto}) async {
+    final i = _daySticker.indexWhere((d) => d.id == dayStickerId);
+    if (i < 0) return;
+    _daySticker[i] = _daySticker[i].copyWith(sticker: _stickers.firstWhere((s) => s.id == stickerId), auto: auto);
+    notifyListeners();
   }
 
   @override
@@ -531,5 +632,7 @@ class _Occ {
   String? reason;
   final int? movedFrom;
   DateTime? actualStart;
+  DateTime? freeStart;
+  DateTime? freeEnd;
   DateTime? actualEnd;
 }

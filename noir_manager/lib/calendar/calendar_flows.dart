@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../data/study_models.dart';
 import '../data/study_scope.dart';
 import '../shell/app_nav.dart';
+import 'category_ui.dart' show createCategoryFlow;
 import 'lock_flow.dart';
 import '../study/class_log.dart';
 import '../study/tutor_plan.dart';
@@ -167,6 +168,7 @@ Future<NewActivity?> _openForm(
     onUpdatePreset: repo.updatePreset,
     onDeletePreset: repo.deletePreset,
     clashDays: _clashChecker(repo, activityId),
+    onCreateCategory: (ctx) => createCategoryFlow(ctx, repo),
   );
 }
 
@@ -298,6 +300,9 @@ List<ContextItem<String>> resultItems(Occurrence o) => [
         ctxItem('classlog', Icons.menu_book_outlined, 'แก้บันทึกเรียน · เวลาเลิก'),
       if (o.status == OccurrenceStatus.done && o.subjectId != null && o.timed && o.kind != ActivityKind.classSession)
         ctxItem('actual', Icons.timer_outlined, o.actualEnd == null ? 'บันทึกเวลาเลิกจริง' : 'แก้เวลาเลิกจริง'),
+      // งานยืดหยุ่น: วันนี้ไม่มีงานจริง → ว่าง (ไม่ใช่ยกเลิก · ไม่นับพลาด)
+      if (o.flexible && o.timed && o.status == OccurrenceStatus.planned)
+        ctxItem('free', Icons.pause_circle_outline, o.hasFree ? 'แก้ช่วงว่าง / ยกเลิกว่าง' : 'วันนี้ว่าง (ไม่มีงานจริง)'),
       if (o.status == OccurrenceStatus.planned) ...[
         ctxItem('move', Icons.redo, 'เลื่อน'),
         if (o.repeats) ctxItem('shift', Icons.fast_forward, 'เลื่อนไปรอบถัดไป (เนื้อหาไหลไปครั้งหน้า)'),
@@ -390,8 +395,18 @@ Future<void> runOccurrenceAction(BuildContext context, CalendarRepository repo, 
       await showOccurrenceDetails(context, o);
     case 'subject':
       subjectJump.go(o.subjectId!);
+    case 'free':
+      await freeTimeFlow(context, repo, o);
     case 'done':
       await repo.setDone(o.id, true);
+      // ทำก่อนเวลา (เช่น ทำตอนว่างจากงาน) → บันทึกเวลาที่ทำจริง · ช่องเดิมขึ้น "ทำไปแล้ว"
+      if (o.timed && o.subjectId == null && DateTime.now().isBefore(o.startAt!) && dayOnly(DateTime.now()) == o.day) {
+        final now = DateTime.now();
+        final len = o.endAt!.difference(o.startAt!);
+        final start = now.subtract(len).isBefore(dayOnly(now)) ? dayOnly(now) : now.subtract(len);
+        await repo.setActualTimes(o.id, start: start, end: now);
+        if (context.mounted) _toast(context, 'ทำก่อนเวลา · ${fmtTime(o.startAt!)}–${fmtTime(o.endAt!)} ว่างแล้ว');
+      }
       // รอบติว → ถามว่าบทที่ติวจบหรือยัง (รอบหน้าจะได้ไล่บทถัดไป)
       if (o.kind == ActivityKind.tutor && o.subjectId != null && context.mounted) {
         await _askChapterProgress(context, o.subjectId!, o.id);
@@ -442,6 +457,39 @@ Future<void> runOccurrenceAction(BuildContext context, CalendarRepository repo, 
         await repo.deleteActivity(o.activityId);
       }
   }
+}
+
+/// งานยืดหยุ่น "วันนี้ว่าง": ทั้งช่วง / บางช่วง → แล้วเสนอดึงงานอื่นมาทำในช่วงว่าง
+Future<void> freeTimeFlow(BuildContext context, CalendarRepository repo, Occurrence o) async {
+  final r = await askFreeRange(context, o);
+  if (r == null || !context.mounted) return;
+  if (r.clear) {
+    await repo.setFree(o.id, null, null);
+    if (context.mounted) _toast(context, 'ยกเลิกว่าง · "${o.title}" กลับเป็นตามแผน');
+    return;
+  }
+  await repo.setFree(o.id, r.start, r.end);
+  if (!context.mounted) return;
+  // ช่วงว่าง → งานที่ดึงมาทำได้: วันนี้หลังช่วงว่าง + พรุ่งนี้ · ยาวไม่เกินช่วงว่าง
+  final free = r.end!.difference(r.start!).inMinutes;
+  final today = await repo.occurrencesOn(o.day);
+  final tomorrow = await repo.occurrencesOn(o.day.add(const Duration(days: 1)));
+  final cands = [
+    for (final x in [...today, ...tomorrow])
+      if (x.id != o.id &&
+          x.status == OccurrenceStatus.planned &&
+          x.timed &&
+          !x.startAt!.isBefore(r.end!) &&
+          x.kind != ActivityKind.classSession &&
+          x.endAt!.difference(x.startAt!).inMinutes <= free)
+        x,
+  ]..sort((a, b) => a.startAt!.compareTo(b.startAt!));
+  if (!context.mounted) return;
+  final pick = await askPullIn(context, free: (r.start!, r.end!), candidates: cands.take(6).toList());
+  if (pick == null || !context.mounted) return;
+  final len = pick.endAt!.difference(pick.startAt!);
+  await repo.moveOccurrence(pick.id, o.day, start: r.start, end: r.start!.add(len));
+  if (context.mounted) _toast(context, 'ดึง "${pick.title}" มาทำ ${fmtTime(r.start!)}–${fmtTime(r.start!.add(len))}');
 }
 
 /// แก้เวลานอน/ตื่น

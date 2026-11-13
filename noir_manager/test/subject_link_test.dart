@@ -51,6 +51,7 @@ void main() {
     await createClassInfoV11(db);
     await createSubjectLinkV12(db);
     await createSubjectLinkV12(db); // รันซ้ำก็ไม่พัง
+    await createRound7V17(db); // v17: คอลัมน์รอบ 7
     await linkRules(SqliteStudyRepository(db));
     await db.close();
   });

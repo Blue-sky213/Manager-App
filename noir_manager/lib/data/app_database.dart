@@ -12,7 +12,7 @@ import 'seed_data.dart';
 import 'study_repository.dart';
 
 /// เวอร์ชันโครงตาราง: ถ้าวันหลังเพิ่มตาราง/คอลัมน์ ให้เพิ่มเลขนี้ + เขียน onUpgrade
-const int _schemaVersion = 16;
+const int _schemaVersion = 17;
 
 /// เลขเวอร์ชันฐานข้อมูล (โชว์ในหน้าตั้งค่า)
 const int appSchemaVersion = _schemaVersion; // v2 setting · v3 cleared_at · v4 ปฏิทิน · v5 Preset · v6 วิชาง่าย 2 รอบ · v7 คาบผูกวิชา + เวลาจริง · v8 แผนการเรียน · v9 เรียน/ติว + ประเภท/สถานะบท · v10 เทอม/วันหยุด/บันทึกติว + ย้ายค่าวิชาออกจาก setting · v11 ประเภทคาบ/ห้อง/กลุ่ม · v12 เส้นความสัมพันธ์วิชา · v13 คะแนนเก็บ/เกรด · v14 จำนวนขาดเรียน + บันทึกคาบเรียน · v15 หัวข้อ + งานที่สั่งในคาบ · v16 สติกเกอร์อารมณ์
@@ -58,6 +58,7 @@ Future<Database> openAppDatabase() async {
       await createClassLogV14(db);
       await createClassLogV15(db);
       await createStickerV16(db);
+      await createRound7V17(db);
       await seedStudyData(db);
     },
     // เครื่องที่มีไฟล์ v1 อยู่แล้ว (เครื่องนัวร์): เพิ่มเฉพาะส่วนที่ขาด ข้อมูลเดิมไม่หาย
@@ -83,6 +84,7 @@ Future<Database> openAppDatabase() async {
       if (oldVersion < 14) await createClassLogV14(db);
       if (oldVersion < 15) await createClassLogV15(db);
       if (oldVersion < 16) await createStickerV16(db);
+      if (oldVersion < 17) await createRound7V17(db);
     },
   );
 }
@@ -335,6 +337,48 @@ Future<void> createStickerV16(DatabaseExecutor db) async {
       await db.insert('sticker', {'pack_id': pack, 'name': n, 'emoji': e, 'sort': i});
     }
   }
+}
+
+/// v17 (รอบ 7): เพิ่มคอลัมน์อย่างเดียว ไม่แตะข้อมูลเดิม
+/// - หมวด: ค่าเริ่มต้น (ความสำคัญ · ความยาว) · แทนได้ · ล็อกเมื่อเริ่ม · กลุ่มสถิติ · ซ่อน
+/// - งาน: ยืดหยุ่น (บางวันว่างได้) · ครั้ง: ช่วงที่ว่างจากงาน
+/// - สติกเกอร์ในวัน: ตำแหน่ง (x, y 0–1) · ไฮไลต์ · แปะอัตโนมัติ (missed / late)
+/// - เช็กอินเช้า: นอนจริง · ตื่น · พลัง 1–5 (ไว้วิเคราะห์ย้อนหลัง)
+Future<void> createRound7V17(DatabaseExecutor db) async {
+  // เทสบางตัวสร้าง schema ไม่ครบ → เพิ่มเฉพาะตารางที่มี
+  Future<bool> has(String t) async =>
+      (await db.rawQuery("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?", [t])).isNotEmpty;
+  if (await has('category')) {
+    await addColumnIfMissing(db, 'category', 'default_importance', 'INTEGER');
+    await addColumnIfMissing(db, 'category', 'default_minutes', 'INTEGER');
+    await addColumnIfMissing(db, 'category', 'replaceable', 'INTEGER NOT NULL DEFAULT 1');
+    await addColumnIfMissing(db, 'category', 'lock_on_start', 'INTEGER NOT NULL DEFAULT 0');
+    await addColumnIfMissing(db, 'category', 'stats_group', 'TEXT');
+    await addColumnIfMissing(db, 'category', 'hidden', 'INTEGER NOT NULL DEFAULT 0');
+    // ไอคอนเริ่มต้นของหมวดที่มีอยู่ (ถ้ายังไม่มี) · ผู้ใช้เปลี่ยนได้
+    for (final (name, icon) in const [('เรียน', '🎓'), ('ออกกำลังกาย', '💪'), ('สตรีม', '🎮'), ('งาน', '💼'), ('อื่น ๆ', '📌')]) {
+      await db.execute("UPDATE category SET icon = ? WHERE name = ? AND (icon IS NULL OR icon = '')", [icon, name]);
+    }
+  }
+  if (await has('activity')) await addColumnIfMissing(db, 'activity', 'flexible', 'INTEGER NOT NULL DEFAULT 0');
+  if (await has('occurrence')) {
+    await addColumnIfMissing(db, 'occurrence', 'free_start', 'TEXT');
+    await addColumnIfMissing(db, 'occurrence', 'free_end', 'TEXT');
+  }
+  if (await has('day_sticker')) {
+    await addColumnIfMissing(db, 'day_sticker', 'x', 'REAL');
+    await addColumnIfMissing(db, 'day_sticker', 'y', 'REAL');
+    await addColumnIfMissing(db, 'day_sticker', 'highlight', 'INTEGER NOT NULL DEFAULT 0');
+    await addColumnIfMissing(db, 'day_sticker', 'auto', 'TEXT');
+  }
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS checkin (
+      day        TEXT PRIMARY KEY,
+      slept_at   TEXT,
+      woke_at    TEXT,
+      energy     INTEGER,
+      miss_reason TEXT
+    )''');
 }
 
 /// ตารางตั้งค่าแบบ key → value เช่น grading_mode → ez / advanced

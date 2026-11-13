@@ -11,8 +11,9 @@ import 'calendar_repository.dart';
   for (final o in items) {
     if (o.status == OccurrenceStatus.moved ||
         o.status == OccurrenceStatus.inbox ||
-        o.status == OccurrenceStatus.shifted) {
-      continue;
+        o.status == OccurrenceStatus.shifted ||
+        o.freeAll) {
+      continue; // ว่างจากงานทั้งช่วง (งานยืดหยุ่น) = ไม่นับว่าต้องทำ
     }
     total++;
     if (o.status == OccurrenceStatus.done || o.status == OccurrenceStatus.cancelled) done++;

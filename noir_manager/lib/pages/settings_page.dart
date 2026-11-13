@@ -19,6 +19,7 @@ import '../data/demo_year.dart' show demoMode;
 import '../shell/window_mode.dart';
 import '../widgets/device_preview.dart';
 import '../widgets/mini_dropdown.dart';
+import '../calendar/category_ui.dart' show CategorySettings;
 import '../widgets/mini_form.dart';
 import '../widgets/mini_segments.dart';
 
@@ -259,6 +260,8 @@ class _SettingsPageState extends State<SettingsPage> {
                         },
                       ),
                     ]),
+                    const SizedBox(height: 14),
+                    section('หมวดงาน', [const CategorySettings()]),
                     const SizedBox(height: 14),
                     section('สติกเกอร์อารมณ์', [const StickerSettings()]),
                     const SizedBox(height: 14),

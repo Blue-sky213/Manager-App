@@ -14,6 +14,7 @@ void main() {
     await createSettingSchema(db);
     await createCalendarSchema(db); // v4: มี subject_id ใน activity
     await createCalendarV5(db);
+    await createRound7V17(db); // v17: คอลัมน์รอบ 7
 
     await createCalendarV7(db);
     await createCalendarV7(db); // รันซ้ำก็ไม่พัง
@@ -44,6 +45,7 @@ void main() {
     await createCalendarV7(db);
     await createStudyPlanV8(db);
     await createTutorV9(db);
+    await createRound7V17(db); // v17: คอลัมน์รอบ 7
 
     final a = await db.insert('subject', {'name': 'คณิต', 'importance': 3, 'sessions_per_week': 3});
     final b = await db.insert('subject', {'name': 'อังกฤษ', 'importance': 1, 'sessions_per_week': 2});

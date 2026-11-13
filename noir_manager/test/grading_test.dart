@@ -109,6 +109,7 @@ void main() {
     await createClassLogV15(db);
     await createClassLogV14(db); // รันซ้ำก็ไม่พัง
     await createClassLogV15(db);
+    await createRound7V17(db); // v17: คอลัมน์รอบ 7
     await gradeRepoRules(SqliteStudyRepository(db));
     await db.close();
   });
