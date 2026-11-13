@@ -35,8 +35,19 @@ bool rangesOverlap(DateTime aStart, DateTime aEnd, DateTime bStart, DateTime bEn
 // ---------- หมวด ----------
 
 class ActivityCategory {
-  const ActivityCategory(
-      {required this.id, required this.name, required this.colorKey, this.systemKey});
+  const ActivityCategory({
+    required this.id,
+    required this.name,
+    required this.colorKey,
+    this.systemKey,
+    this.icon,
+    this.defaultImportance,
+    this.defaultMinutes,
+    this.replaceable = true,
+    this.lockOnStart = false,
+    this.statsGroup,
+    this.hidden = false,
+  });
 
   final int id;
   final String name;
@@ -44,16 +55,79 @@ class ActivityCategory {
   /// หมวดที่ระบบใช้เอง เช่น 'study' = หมวดเรียน (เปลี่ยนชื่อหมวดได้ ระบบไม่พัง)
   final String? systemKey;
 
-  /// ชื่อสี: blue · green · purple · amber · gray (แปลงเป็นสีจริงตามธีม)
+  /// ชื่อสี (ดู [categoryColorKeys]) · แปลงเป็นสีจริงตามธีม
   final String colorKey;
+
+  /// อีโมจิ / ไอคอนของหมวด (v17)
+  final String? icon;
+
+  /// ค่าที่เติมให้ตอนเลือกหมวดในฟอร์ม (v17)
+  final int? defaultImportance;
+  final int? defaultMinutes;
+
+  /// งานในหมวดนี้ให้ติวจองทับได้ (⇄) · ปิด = ห้ามทับ
+  final bool replaceable;
+
+  /// ล็อกงานหมวดนี้เมื่อเริ่ม (แม้ปิดล็อกรวมในตั้งค่า)
+  final bool lockOnStart;
+
+  /// นับในสถิติเป็นกลุ่มไหน (study · tutor · exercise · work · other) · null = เดาจากชื่อ
+  final String? statsGroup;
+
+  /// ซ่อนจากตัวเลือกในฟอร์ม (งานเดิมยังอยู่)
+  final bool hidden;
+
+  bool get isSystem => systemKey != null;
 
   factory ActivityCategory.fromRow(Map<String, Object?> r) => ActivityCategory(
         id: r['id'] as int,
         name: r['name'] as String,
         colorKey: r['color'] as String,
         systemKey: r['system_key'] as String?,
+        icon: r['icon'] as String?,
+        defaultImportance: r['default_importance'] as int?,
+        defaultMinutes: r['default_minutes'] as int?,
+        replaceable: (r['replaceable'] as int? ?? 1) == 1,
+        lockOnStart: (r['lock_on_start'] as int? ?? 0) == 1,
+        statsGroup: r['stats_group'] as String?,
+        hidden: (r['hidden'] as int? ?? 0) == 1,
+      );
+
+  Map<String, Object?> toRow() => {
+        'name': name,
+        'color': colorKey,
+        'icon': icon,
+        'default_importance': defaultImportance,
+        'default_minutes': defaultMinutes,
+        'replaceable': replaceable ? 1 : 0,
+        'lock_on_start': lockOnStart ? 1 : 0,
+        'stats_group': statsGroup,
+        'hidden': hidden ? 1 : 0,
+      };
+
+  ActivityCategory copyWith({int? id, String? systemKey}) => ActivityCategory(
+        id: id ?? this.id,
+        name: name,
+        colorKey: colorKey,
+        systemKey: systemKey ?? this.systemKey,
+        icon: icon,
+        defaultImportance: defaultImportance,
+        defaultMinutes: defaultMinutes,
+        replaceable: replaceable,
+        lockOnStart: lockOnStart,
+        statsGroup: statsGroup,
+        hidden: hidden,
       );
 }
+
+/// สีที่เลือกได้ของหมวด (9 สี) · 5 ตัวแรก = ชุดเดิม
+const categoryColorKeys = ['blue', 'green', 'purple', 'amber', 'gray', 'pink', 'mint', 'sky', 'red'];
+
+/// ไอคอนที่เลือกได้ของหมวด
+const categoryIcons = ['🎓', '📖', '💪', '🎮', '💼', '🎨', '🎬', '🛒', '🧘', '🏃', '🍳', '🎵', '💻', '🧹', '💰', '📌'];
+
+/// กลุ่มในสถิติ (ค่า, ชื่อ)
+const statsGroups = [('study', 'เรียน'), ('tutor', 'ติว'), ('exercise', 'ออกกำลังกาย'), ('work', 'งาน'), ('other', 'อื่น ๆ')];
 
 /// รหัสหมวดเรียน (ไม่ผูกกับชื่อหมวด)
 const studySystemKey = 'study';
@@ -264,6 +338,7 @@ class Activity {
         subjectId: r['subject_id'] as int?,
         kind: activityKindOf(r['kind']),
         classInfo: ClassInfo.fromRow(r),
+        flexible: (r['flexible'] as int? ?? 0) == 1,
       );
 
   /// แปลงกลับเป็นฟอร์ม (ใช้ตอนกด "แก้ไขงาน")
@@ -283,6 +358,7 @@ class Activity {
         subjectId: subjectId,
         kind: kind,
         classInfo: classInfo,
+        flexible: flexible,
       );
 }
 
@@ -334,7 +410,11 @@ class NewActivity {
     this.subjectId,
     this.kind = ActivityKind.todo,
     this.classInfo = ClassInfo.none,
+    this.flexible = false,
   });
+
+  /// งานยืดหยุ่น: บางวันไม่มีงานจริง → กด "วันนี้ว่าง" ได้ (v17)
+  final bool flexible;
 
   final int? subjectId;
   final ActivityKind kind;
@@ -384,6 +464,7 @@ class NewActivity {
         subjectId: subjectId,
         kind: kind,
         classInfo: classInfo,
+        flexible: flexible,
       );
 
   /// ฉบับเดิมแต่เปลี่ยนรายการวัน (เลือกวันเอง · ตัดวันที่ข้ามออก)
@@ -403,6 +484,7 @@ class NewActivity {
         subjectId: subjectId,
         kind: kind,
         classInfo: classInfo,
+        flexible: flexible,
       );
 
   /// ฉบับเดิมแต่เปลี่ยนข้อมูลคาบเรียน (ตั้งประเภท/ห้อง/กลุ่มให้คาบที่มีอยู่แล้ว)
@@ -422,6 +504,7 @@ class NewActivity {
         subjectId: subjectId,
         kind: kind,
         classInfo: info,
+        flexible: flexible,
       );
 }
 
@@ -454,7 +537,26 @@ class Occurrence {
     this.kind = ActivityKind.todo,
     this.rootDay,
     this.session,
+    this.freeStart,
+    this.freeEnd,
+    this.flexible = false,
   });
+
+  /// ช่วงที่ "ว่างจากงาน" (งานยืดหยุ่น) · null = ไม่ได้ตั้ง
+  final DateTime? freeStart;
+  final DateTime? freeEnd;
+
+  /// มาจากงานยืดหยุ่น (กด "วันนี้ว่าง" ได้)
+  final bool flexible;
+
+  bool get hasFree => freeStart != null && freeEnd != null;
+
+  /// ว่างทั้งช่วงงาน → ไม่นับว่าต้องทำ (ไม่ใช่พลาด ไม่ใช่ยกเลิก)
+  bool get freeAll =>
+      hasFree && (startAt == null || (!freeStart!.isAfter(startAt!) && !freeEnd!.isBefore(endAt!)));
+
+  /// ต้องทำจริงไหม (นับในความคืบหน้า / งานสำคัญ) = active และไม่ได้ว่างทั้งช่วง
+  bool get required => active && !freeAll;
 
   final ActivityKind kind;
 
@@ -485,6 +587,9 @@ class Occurrence {
         kind: kind,
         rootDay: rootDay,
         session: session,
+        freeStart: freeStart,
+        freeEnd: freeEnd,
+        flexible: flexible,
       );
 
   /// สำเนาที่ใส่เลขครั้งแล้ว (repository เติมให้หลังอ่านจาก DB)
@@ -507,6 +612,9 @@ class Occurrence {
         kind: kind,
         rootDay: rootDay,
         session: s,
+        freeStart: freeStart,
+        freeEnd: freeEnd,
+        flexible: flexible,
       );
 
   /// วิชาที่ผูกไว้ (คาบเรียน)
@@ -574,6 +682,9 @@ class Occurrence {
         rootDay: r['root_day'] == null
             ? null
             : DateTime.parse(r['root_day'] as String),
+        freeStart: r['free_start'] == null ? null : DateTime.parse(r['free_start'] as String),
+        freeEnd: r['free_end'] == null ? null : DateTime.parse(r['free_end'] as String),
+        flexible: (r['a_flexible'] as int? ?? 0) == 1,
       );
 }
 
@@ -719,6 +830,7 @@ List<LifeBaseDay> defaultLifeBase() => [
 
 /// หมวดเริ่มต้นตอนสร้างฐานข้อมูลครั้งแรก
 /// (ชื่อ, สี, รหัสระบบ)
+/// หมวดตั้งต้น (ชื่อ, สี, systemKey) · ไอคอนดู [seedCategoryIcons]
 const List<(String, String, String?)> seedCategories = [
   ('เรียน', 'blue', studySystemKey),
   ('ออกกำลังกาย', 'green', null),
@@ -726,6 +838,8 @@ const List<(String, String, String?)> seedCategories = [
   ('งาน', 'amber', null),
   ('อื่น ๆ', 'gray', null),
 ];
+
+const seedCategoryIcons = ['🎓', '💪', '🎮', '💼', '📌'];
 
 // ---------- ภาคเรียน + วันหยุด (v10) ----------
 

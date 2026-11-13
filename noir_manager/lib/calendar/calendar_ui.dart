@@ -30,8 +30,50 @@ String importanceText(int importance) => switch (importance) {
       'green' => (c.greenBg, c.greenText),
       'purple' => (c.purpleBg, c.purpleText),
       'amber' => (c.amberBg, c.amberText),
+      // สีใหม่ (v17): พื้น = สีจางบนพื้นการ์ด · ตัวหนังสือ = สีเต็ม
+      'pink' || 'mint' || 'sky' || 'red' => (
+          Color.alphaBlend(categoryAccent(colorKey!).withValues(alpha: 0.22), c.surface),
+          categoryAccent(colorKey),
+        ),
       _ => (c.surface2, c.text),
     };
+
+/// สีเต็มของหมวด (จุด · กรอบไอคอน · วงเลือกสี) อ่านออกทั้งธีมมืดและสว่าง
+Color categoryAccent(String key) => switch (key) {
+      'blue' => const Color(0xFF5BB4DE),
+      'green' => const Color(0xFF3FB27F),
+      'purple' => const Color(0xFFB384E8),
+      'amber' => const Color(0xFFE5A52E),
+      'pink' => const Color(0xFFEC7FB3),
+      'mint' => const Color(0xFF5FCFA8),
+      'sky' => const Color(0xFF6FA8F5),
+      'red' => const Color(0xFFE5605F),
+      _ => const Color(0xFF9AA3AE),
+    };
+
+/// ไอคอนหมวดบนป้ายสีของหมวด (ใช้แทนจุดสีทุกที่)
+class CategoryIcon extends StatelessWidget {
+  const CategoryIcon(this.category, {super.key, this.size = 26});
+  final ActivityCategory? category;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final cat = category;
+    final accent = categoryAccent(cat?.colorKey ?? 'gray');
+    return Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.2),
+        border: Border.all(color: accent, width: 1.5),
+        borderRadius: BorderRadius.circular(size * 0.3),
+      ),
+      child: Text(cat?.icon ?? '•', style: TextStyle(fontSize: size * 0.52, color: accent, height: 1.1)),
+    );
+  }
+}
 
 /// สัญลักษณ์ของวันสำคัญ: วันสอบ · กำหนดส่งงาน/การบ้าน (งาน "ส่ง: …" จากบันทึกคาบ)
 enum DayMark { exam, homework }
@@ -153,6 +195,7 @@ Future<NewActivity?> showActivityDialog(
   Future<void> Function(int presetId)? onDeletePreset,
   Future<void> Function(int presetId, String name, NewActivity? values)? onUpdatePreset,
   Future<Set<DateTime>> Function(List<DateTime> days, int startMinute, int durationMin)? clashDays,
+  Future<ActivityCategory?> Function(BuildContext context)? onCreateCategory,
 }) {
   Widget body(bool sheet) => _ActivityDialog(
         day: day,
@@ -164,6 +207,7 @@ Future<NewActivity?> showActivityDialog(
         onDeletePreset: onDeletePreset,
         onUpdatePreset: onUpdatePreset,
         clashDays: clashDays,
+        onCreateCategory: onCreateCategory,
         sheet: sheet,
       );
   // มือถือ = แผ่นจากด้านล่าง · คอม = กล่องกลางจอ
@@ -189,6 +233,7 @@ class _ActivityDialog extends StatefulWidget {
     required this.onDeletePreset,
     this.onUpdatePreset,
     this.clashDays,
+    this.onCreateCategory,
     this.sheet = false,
   });
 
@@ -205,6 +250,9 @@ class _ActivityDialog extends StatefulWidget {
   /// เช็กวันที่เวลาชน (ใช้ในตารางติ๊กวัน)
   final Future<Set<DateTime>> Function(List<DateTime> days, int startMinute, int durationMin)? clashDays;
 
+  /// "+ สร้างหมวดใหม่" ในแผ่นเลือกหมวด → คืนหมวดที่สร้างแล้ว
+  final Future<ActivityCategory?> Function(BuildContext context)? onCreateCategory;
+
   @override
   State<_ActivityDialog> createState() => _ActivityDialogState();
 }
@@ -215,8 +263,10 @@ class _ActivityDialogState extends State<_ActivityDialog> {
   late int? _presetId = widget.presets.any((p) => p.id == widget.initial?.presetId)
       ? widget.initial?.presetId
       : null;
+  late final List<ActivityCategory> _cats = List.of(widget.categories);
   late int? _categoryId = widget.initial?.categoryId ??
       (widget.categories.isEmpty ? null : widget.categories.first.id);
+  late bool _flexible = widget.initial?.flexible ?? false;
   late int _importance = widget.initial?.importance ?? 2;
   late bool _timed = widget.initial?.timed ?? true;
   late DateTime _day = dayOnly(widget.initial?.day ?? widget.day);
@@ -251,6 +301,7 @@ class _ActivityDialogState extends State<_ActivityDialog> {
         subjectId: widget.initial?.subjectId, // แก้ไขคาบเรียนแล้วยังผูกวิชาเดิม
         kind: widget.initial?.kind ?? ActivityKind.todo,
         classInfo: widget.initial?.classInfo ?? ClassInfo.none, // แก้เวลาในปฏิทินแล้วประเภท/ห้องไม่หาย
+        flexible: _repeat != RepeatKind.none && _flexible,
       );
 
   String? get _problem {
@@ -383,7 +434,7 @@ class _ActivityDialogState extends State<_ActivityDialog> {
 
   /// ดูข้อมูล Preset (อ่านอย่างเดียว)
   Future<void> _viewPreset(Preset p) {
-    final cat = widget.categories.where((c) => c.id == p.categoryId).firstOrNull;
+    final cat = _cats.where((c) => c.id == p.categoryId).firstOrNull;
     return showMiniForm<void>(
       context,
       (ctx) => MiniForm(title: 'Preset · ${p.name}', children: [
@@ -640,18 +691,49 @@ class _ActivityDialogState extends State<_ActivityDialog> {
         ]);
       });
 
+  /// เลือกหมวด → เติมค่าเริ่มต้นของหมวด (ความสำคัญ · ความยาว) ให้
+  void _pickCategory(ActivityCategory cat) {
+    _categoryId = cat.id;
+    if (cat.defaultImportance != null) _importance = cat.defaultImportance!;
+    if (cat.defaultMinutes != null) _duration = cat.defaultMinutes!;
+  }
+
   Future<void> _editCategory() => _sheet('หมวด', (ctx, set) {
-        return Column(children: [
-          for (final cat in widget.categories)
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: CircleAvatar(radius: 7, backgroundColor: categoryColors(ctx.noir, cat.colorKey).$2),
-              title: Text(cat.name),
-              trailing: cat.id == _categoryId ? const Icon(Icons.check) : null,
+        final c = ctx.noir;
+        final list = _cats.where((x) => !x.hidden || x.id == _categoryId).toList();
+        return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          for (final (i, cat) in list.indexed)
+            MiniRow(
+              key: Key('cat-${cat.id}'),
+              value: Text(cat.name, style: TextStyle(color: c.text)),
+              label: '',
+              last: i == list.length - 1 && widget.onCreateCategory == null,
+              trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                if (cat.id == _categoryId) Icon(Icons.check, size: 20, color: c.accent),
+              ]),
+              iconWidget: CategoryIcon(cat),
               onTap: () {
-                set(() => _categoryId = cat.id);
+                set(() => _pickCategory(cat));
                 Navigator.pop(ctx);
               },
+            ),
+          if (widget.onCreateCategory != null)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                key: const Key('cat-new'),
+                onPressed: () async {
+                  final made = await widget.onCreateCategory!(ctx);
+                  if (made == null) return;
+                  set(() {
+                    _cats.add(made);
+                    _pickCategory(made);
+                  });
+                  if (ctx.mounted) Navigator.pop(ctx);
+                },
+                icon: const Icon(Icons.add),
+                label: const Text('สร้างหมวดใหม่'),
+              ),
             ),
         ]);
       });
@@ -681,7 +763,7 @@ class _ActivityDialogState extends State<_ActivityDialog> {
   Widget build(BuildContext context) {
     final c = context.noir;
     final problem = _problem;
-    final cat = widget.categories.where((x) => x.id == _categoryId).firstOrNull;
+    final cat = _cats.where((x) => x.id == _categoryId).firstOrNull;
     void submit() {
       if (_problem == null) Navigator.pop(context, _draft);
     }
@@ -794,8 +876,8 @@ class _ActivityDialogState extends State<_ActivityDialog> {
         Icons.label_outline,
         'หมวด',
         Row(mainAxisSize: MainAxisSize.min, children: [
-          if (cat != null) CircleAvatar(radius: 5, backgroundColor: categoryColors(c, cat.colorKey).$2),
-          const SizedBox(width: 6),
+          if (cat != null) CategoryIcon(cat, size: 22),
+          const SizedBox(width: 8),
           Flexible(child: strong(cat?.name ?? 'ไม่มี')),
         ]),
         _editCategory,
@@ -810,6 +892,17 @@ class _ActivityDialogState extends State<_ActivityDialog> {
         ]),
         _editImportance,
       ),
+      // งานซ้ำที่บางวันไม่มีงานจริง (เช่น ทำงาน) → กด "วันนี้ว่าง" ได้
+      if (_repeat != RepeatKind.none && _timed)
+        MiniSwitchRow(
+          key: const Key('row-flexible'),
+          icon: Icons.unfold_less,
+          label: 'งานยืดหยุ่น',
+          detail: 'บางวันว่างได้',
+          value: _flexible,
+          last: true,
+          onChanged: (v) => setState(() => _flexible = v),
+        ),
       if (problem != null && _name.text.trim().isNotEmpty) ...[
         const SizedBox(height: 8),
         Text(problem, style: TextStyle(color: c.bad, fontSize: 12)),
@@ -1264,6 +1357,11 @@ class DashedRoundedBorder extends ShapeBorder {
       DashedRoundedBorder(color: fg.withValues(alpha: 0.75), radius: radius),
     );
   }
+  // งานยืดหยุ่นที่ว่างทั้งช่วง / ทำก่อนเวลาไปแล้ว = กรอบเส้นประจาง (ช่องนี้ว่าง)
+  final early = o.status == OccurrenceStatus.done && o.actualStart != null && o.startAt != null && o.actualStart!.isBefore(o.startAt!);
+  if (o.freeAll || early) {
+    return (c.surface, DashedRoundedBorder(color: early ? c.good : c.accent, radius: radius));
+  }
   return (bg, RoundedRectangleBorder(borderRadius: BorderRadius.circular(radius)));
 }
 
@@ -1291,4 +1389,110 @@ class _ImportanceDots extends StatelessWidget {
         ),
     ]);
   }
+}
+
+// ---------- งานยืดหยุ่น: วันนี้ว่าง (v17) ----------
+
+typedef FreeRange = ({bool clear, DateTime? start, DateTime? end});
+
+/// ถามช่วงที่ว่างจากงาน: ทั้งช่วง / บางช่วง · มีช่วงว่างอยู่แล้ว → ยกเลิกว่างได้ที่ ⋮
+Future<FreeRange?> askFreeRange(BuildContext context, Occurrence o) {
+  final s0 = minuteOf(o.startAt!), dur = o.endAt!.difference(o.startAt!).inMinutes;
+  var whole = !o.hasFree || o.freeAll;
+  var fs = o.hasFree ? minuteOf(o.freeStart!) : s0;
+  var fe = o.hasFree ? minuteOf(o.freeStart!) + o.freeEnd!.difference(o.freeStart!).inMinutes : s0 + dur;
+  return showMiniForm<FreeRange>(
+    context,
+    (ctx) => StatefulBuilder(builder: (ctx, setLocal) {
+      final c = ctx.noir;
+      final ok = whole || (fe > fs && fs >= s0 && fe <= s0 + dur);
+      return MiniForm(
+        title: 'วันนี้ว่าง · ${o.title} (${rangeText(s0, dur)})',
+        menu: [
+          if (o.hasFree) miniMenu('ยกเลิกว่าง (มีงานตามปกติ)', () => Navigator.pop(ctx, (clear: true, start: null, end: null))),
+        ],
+        primaryLabel: 'บันทึก',
+        onPrimary: !ok
+            ? null
+            : () => Navigator.pop(ctx, (
+                  clear: false,
+                  start: atMinute(o.day, whole ? s0 : fs),
+                  end: atMinute(o.day, whole ? s0 + dur : fe),
+                )),
+        children: [
+          MiniSegments<bool>(
+            key: const Key('free-whole'),
+            value: whole,
+            items: const [(true, 'ว่างทั้งช่วง'), (false, 'ว่างบางช่วง')],
+            onChanged: (v) => setLocal(() => whole = v),
+          ),
+          if (!whole) ...[
+            const SizedBox(height: 6),
+            MiniRow(
+              icon: Icons.schedule,
+              label: 'ว่างตั้งแต่',
+              valueText: fmtMinute(fs),
+              onTap: () async {
+                final m = await pickMinute(ctx, fs, title: 'ว่างตั้งแต่');
+                if (m != null) setLocal(() => fs = m);
+              },
+            ),
+            MiniRow(
+              icon: Icons.flag_outlined,
+              label: 'ว่างถึง',
+              valueText: '${fmtMinute(fe)} · ${durationText(fe - fs)}',
+              last: true,
+              onTap: () async {
+                final m = await pickMinute(ctx, fe % (24 * 60), title: 'ว่างถึง');
+                if (m != null) setLocal(() => fe = m < fs ? m + 24 * 60 : m);
+              },
+            ),
+            if (!ok) Text('ช่วงว่างต้องอยู่ในเวลางาน', style: TextStyle(fontSize: 12, color: c.bad)),
+          ],
+          const SizedBox(height: 8),
+          Text('ไม่ใช่ยกเลิก · ไม่ต้องใส่เหตุผล · ไม่นับว่าพลาด · ช่วงว่างจองติว / ดึงงานอื่นมาทำได้',
+              style: TextStyle(fontSize: 12, color: c.muted)),
+        ],
+      );
+    }),
+  );
+}
+
+/// ช่วงว่างจากงาน → เลือกงานที่จะดึงมาทำ (วันนี้ / พรุ่งนี้ ที่ยาวพอดี) · null = ไม่ดึง
+Future<Occurrence?> askPullIn(BuildContext context,
+    {required (DateTime, DateTime) free, required List<Occurrence> candidates}) async {
+  if (candidates.isEmpty) return null;
+  return showMiniForm<Occurrence>(
+    context,
+    (ctx) {
+      final c = ctx.noir;
+      final today = dayOnly(free.$1);
+      return MiniForm(
+        title: 'ว่าง ${fmtTime(free.$1)}–${fmtTime(free.$2)} · ดึงงานมาทำก่อนได้',
+        secondaryLabel: 'ไม่ต้อง',
+        primaryLabel: null,
+        children: [
+          for (final (i, x) in candidates.indexed)
+            MiniRow(
+              key: Key('pull-${x.id}'),
+              label: x.title,
+              valueText:
+                  '${x.day == today ? 'วันนี้' : 'พรุ่งนี้'} ${fmtTime(x.startAt!)} · ${durationText(x.endAt!.difference(x.startAt!).inMinutes)}',
+              last: i == candidates.length - 1,
+              trailing: Padding(
+                padding: const EdgeInsets.only(left: 6),
+                child: Text('ดึงมา', style: TextStyle(color: c.accent, fontWeight: FontWeight.w600)),
+              ),
+              onTap: () => Navigator.pop(ctx, x),
+            ),
+          const SizedBox(height: 8),
+          Text('หรือกด "ทำแล้ว" ที่งานนั้นตอนทำเสร็จ → บันทึกว่าทำก่อนเวลา', style: TextStyle(fontSize: 12, color: c.muted)),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('ไม่ต้อง · พักก่อน')),
+          ),
+        ],
+      );
+    },
+  );
 }

@@ -137,7 +137,7 @@ class SqliteCalendarRepository extends CalendarRepository {
 
   /// SELECT ที่ใช้ซ้ำ: งานแต่ละครั้ง + ชื่อ/หมวด/ความสำคัญจากกิจกรรมต้นแบบ
   static const _occurrenceSelect = '''
-    SELECT o.*, a.name AS a_name, a.category_id, a.importance, a.repeat, a.subject_id, a.kind AS a_kind,
+    SELECT o.*, a.name AS a_name, a.category_id, a.importance, a.repeat, a.subject_id, a.kind AS a_kind, a.flexible AS a_flexible,
       -- root_day: ไล่ moved_from ย้อนกลับจนเจอครั้งต้นทางที่มี origin_day (เลื่อนกี่ทอดก็ได้)
       (WITH RECURSIVE chain(cday, cfrom) AS (
          SELECT o.origin_day, o.moved_from
@@ -154,6 +154,43 @@ class SqliteCalendarRepository extends CalendarRepository {
   Future<List<ActivityCategory>> categories() async {
     final rows = await _db.query('category', orderBy: 'sort_order, id');
     return rows.map(ActivityCategory.fromRow).toList();
+  }
+
+  @override
+  Future<int> addCategory(ActivityCategory c) async {
+    final max = Sqflite.firstIntValue(await _db.rawQuery('SELECT MAX(sort_order) FROM category')) ?? 0;
+    final id = await _db.insert('category', {...c.toRow(), 'sort_order': max + 1});
+    notifyListeners();
+    return id;
+  }
+
+  @override
+  Future<void> updateCategory(ActivityCategory c) async {
+    await _db.update('category', c.toRow(), where: 'id = ?', whereArgs: [c.id]);
+    notifyListeners();
+  }
+
+  @override
+  Future<void> deleteCategory(int id, {int? moveTo}) async {
+    await _db.transaction((t) async {
+      await t.update('activity', {'category_id': moveTo}, where: 'category_id = ?', whereArgs: [id]);
+      await t.update('preset', {'category_id': moveTo}, where: 'category_id = ?', whereArgs: [id]);
+      await t.delete('category', where: 'id = ? AND system_key IS NULL', whereArgs: [id]);
+    });
+    notifyListeners();
+  }
+
+  @override
+  Future<Map<int, int>> categoryUsage() async {
+    final rows = await _db.rawQuery('SELECT category_id, COUNT(*) AS n FROM activity WHERE category_id IS NOT NULL GROUP BY category_id');
+    return {for (final r in rows) r['category_id'] as int: r['n'] as int};
+  }
+
+  @override
+  Future<void> setFree(int occurrenceId, DateTime? start, DateTime? end) async {
+    await _db.update('occurrence', {'free_start': start?.toIso8601String(), 'free_end': end?.toIso8601String()},
+        where: 'id = ?', whereArgs: [occurrenceId]);
+    notifyListeners();
   }
 
   /// ค่าของแถว activity จากฟอร์ม
@@ -176,6 +213,7 @@ class SqliteCalendarRepository extends CalendarRepository {
       'class_type': a.classInfo.type?.name,
       'room': a.classInfo.room,
       'section': a.classInfo.section,
+      'flexible': a.flexible ? 1 : 0,
     };
   }
 

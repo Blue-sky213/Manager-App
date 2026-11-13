@@ -126,6 +126,7 @@ void main() {
       await createStudyPlanV8(db);
       await createTutorV9(db);
       await createTermV10(db);
+      await createRound7V17(db); // v17: คอลัมน์รอบ 7
 
       await createClassInfoV11(db);
       await createClassInfoV11(db); // รันซ้ำก็ไม่พัง

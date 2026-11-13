@@ -54,7 +54,11 @@ class _StatsPageState extends State<StatsPage> with CalendarListener<StatsPage> 
       final d = DateTime(today.year, today.month, today.day - i);
       days[d] = await repo.occurrencesOn(d);
     }
-    final cats = {for (final c in await repo.categories()) c.id: c.name};
+    // หมวดที่ตั้ง "นับในสถิติเป็น" → ใช้ชื่อกลุ่มนั้นแทนชื่อหมวด (v17)
+    final groupNames = {for (final (k, n) in statsGroups) k: n};
+    final cats = {
+      for (final c in await repo.categories()) c.id: (c.statsGroup == null || c.statsGroup == 'other') ? c.name : groupNames[c.statsGroup]!,
+    };
     final subjects = await study.subjects();
     var understood = 0;
     for (final s in subjects) {

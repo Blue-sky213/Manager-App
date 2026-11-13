@@ -14,6 +14,17 @@ abstract class CalendarRepository extends ChangeNotifier {
 
   Future<List<ActivityCategory>> categories();
 
+  /// หมวดสร้างเอง (v17) · ลบ = ย้ายงานไปหมวด [moveTo] ก่อน (null = ไม่มีหมวด) · หมวดระบบลบไม่ได้
+  Future<int> addCategory(ActivityCategory c);
+  Future<void> updateCategory(ActivityCategory c);
+  Future<void> deleteCategory(int id, {int? moveTo});
+
+  /// หมวด → จำนวนงาน (กิจกรรม) ที่ใช้อยู่
+  Future<Map<int, int>> categoryUsage();
+
+  /// งานยืดหยุ่น: ตั้งช่วงที่ว่างจากงานของครั้งนี้ (null = ล้าง)
+  Future<void> setFree(int occurrenceId, DateTime? start, DateTime? end);
+
   Future<int> addActivity(NewActivity a);
 
   /// กิจกรรมต้นแบบ 1 ตัว (ใช้เปิดฟอร์มแก้ไข)

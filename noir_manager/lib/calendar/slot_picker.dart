@@ -54,18 +54,30 @@ int? fitStart(List<Gap> bookable, int minute, int len) {
 Future<SlotDay> _loadDay(CalendarRepository repo, DateTime day, List<LifeBaseDay> lifeBase, int bufferAfter) async {
   final now = DateTime.now();
   final list = <Busy>[];
+  final fixedCats = {for (final c in await repo.categories()) if (!c.replaceable) c.id};
   for (final x in await repo.occurrencesOn(day)) {
-    if (!x.timed || !x.active) continue;
+    if (!x.timed || !x.active || x.freeAll) continue;
     final s = minuteOf(x.startAt!);
     final e = (s + x.endAt!.difference(x.startAt!).inMinutes).clamp(s, 24 * 60);
     // รอบติวมีพักเงียบหลังจบ → กันเวลาต่อท้ายงานติวไว้ด้วย
     final pad = x.kind == ActivityKind.tutor ? bufferAfter : 0;
-    list.add(Busy(s, (e + pad).clamp(s, 24 * 60), x.title,
-        subjectId: x.subjectId,
-        importance: x.importance,
-        tutor: x.kind == ActivityKind.tutor,
-        classSession: x.kind == ActivityKind.classSession,
-        locked: showLockBadge(x)));
+    // งานยืดหยุ่นที่ "ว่าง" บางช่วง → ช่วงนั้นจองได้ (เหลือเฉพาะส่วนที่ยังมีงาน)
+    final parts = <(int, int)>[(s, (e + pad).clamp(s, 24 * 60))];
+    if (x.hasFree) {
+      final fs = minuteOf(x.freeStart!), fe = minuteOf(x.freeEnd!) == 0 ? 24 * 60 : minuteOf(x.freeEnd!);
+      parts
+        ..clear()
+        ..addAll([if (fs > s) (s, fs), if (fe < e) (fe, e)]);
+    }
+    for (final (ps, pe) in parts) {
+      list.add(Busy(ps, pe, x.title,
+          subjectId: x.subjectId,
+          importance: x.importance,
+          tutor: x.kind == ActivityKind.tutor,
+          classSession: x.kind == ActivityKind.classSession,
+          locked: showLockBadge(x),
+          fixed: fixedCats.contains(x.categoryId)));
+    }
   }
   final lb = lifeBase[day.weekday - 1];
   var from = lb.wakeMinute;

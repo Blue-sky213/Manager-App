@@ -130,7 +130,12 @@ class _MarkerRow extends StatelessWidget {
 
 /// ข้อความสถานะใต้ชื่องาน
 String? _statusText(Occurrence o) => switch (o.status) {
-      OccurrenceStatus.planned => null,
+      OccurrenceStatus.planned => o.freeAll
+          ? '⏸ ว่างจากงานทั้งช่วง'
+          : (o.hasFree ? '⏸ ว่าง ${fmtTime(o.freeStart!)}–${fmtTime(o.freeEnd!)}' : null),
+      // ทำก่อนเวลา (เช่น ตอนว่างจากงาน) → ช่องตามแผนว่างแล้ว
+      OccurrenceStatus.done when o.actualStart != null && o.startAt != null && o.actualStart!.isBefore(o.startAt!) =>
+        'ทำไปแล้วตอน ${fmtTime(o.actualStart!)} · ช่วงนี้ว่างแล้ว',
       OccurrenceStatus.done => o.actualEnd == null
           ? 'ทำแล้ว'
           : 'เลิกจริง ${fmtTime(o.actualEnd!)} (${diffText(o.endDiffMinutes!)})',
@@ -171,7 +176,7 @@ class _OccurrenceRow extends StatelessWidget {
     // รอบติว = พื้นจาง + กรอบ · คาบเรียน/สอบ = พื้นทึบ
     final tutor = o.kind == ActivityKind.tutor;
     final (bg, shape) = occurrenceLook(c, o, rawBg, fg, clash: clash);
-    final faded = !o.active;
+    final faded = !o.active || o.freeAll;
     final status = _statusText(o);
     final icon = _statusIcon(o.status);
 
@@ -289,7 +294,7 @@ class _ListRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.noir;
     final status = _statusText(o);
-    final faded = !o.active;
+    final faded = !o.active || o.freeAll;
     return OccurrenceMenuArea(o: o, child: ListTile(
       onTap: onTap,
       leading: Icon(
