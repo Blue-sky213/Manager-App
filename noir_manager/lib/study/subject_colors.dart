@@ -21,7 +21,7 @@ const List<Color> subjectPalette = [
 /// สีตามระดับความสำคัญ (สูง / กลาง / น้อย)
 const Map<int, Color> importancePalette = {
   3: Color(0xFFC94A4A),
-  2: Color(0xFFB7801F),
+  2: Color(0xFFE8822E), // ส้ม
   1: Color(0xFF3C8F64),
 };
 

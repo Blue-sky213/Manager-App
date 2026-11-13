@@ -1107,6 +1107,9 @@ class DashedRoundedBorder extends ShapeBorder {
 }
 
 
+/// ส้มของความสำคัญระดับกลาง (อ่านออกทั้งธีมมืดและสว่าง)
+const importanceOrange = Color(0xFFE8822E);
+
 /// ความสำคัญเป็นจุด 3 ระดับ (เต็ม = สำคัญ)
 class _ImportanceDots extends StatelessWidget {
   const _ImportanceDots(this.level);
@@ -1115,13 +1118,15 @@ class _ImportanceDots extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.noir;
+    // สีตามระดับ: น้อย = เขียว · กลาง = ส้ม · สำคัญ = แดง (นัวร์เลือก)
+    final on = switch (level) { >= 3 => c.bad, 2 => importanceOrange, _ => c.good };
     return Row(mainAxisSize: MainAxisSize.min, children: [
       for (var i = 1; i <= 3; i++)
         Container(
           width: 8,
           height: 8,
           margin: const EdgeInsets.only(right: 3),
-          decoration: BoxDecoration(shape: BoxShape.circle, color: i <= level ? c.warn : c.line2),
+          decoration: BoxDecoration(shape: BoxShape.circle, color: i <= level ? on : c.line2),
         ),
     ]);
   }
