@@ -386,6 +386,25 @@ class NewActivity {
         classInfo: classInfo,
       );
 
+  /// ฉบับเดิมแต่เปลี่ยนรายการวัน (เลือกวันเอง · ตัดวันที่ข้ามออก)
+  NewActivity withDates(List<ScheduledDate> list) => NewActivity(
+        name: name,
+        categoryId: categoryId,
+        importance: importance,
+        timed: timed,
+        day: day,
+        startMinute: startMinute,
+        durationMin: durationMin,
+        repeat: repeat,
+        weekdays: weekdays,
+        endDate: endDate,
+        presetId: presetId,
+        dates: list,
+        subjectId: subjectId,
+        kind: kind,
+        classInfo: classInfo,
+      );
+
   /// ฉบับเดิมแต่เปลี่ยนข้อมูลคาบเรียน (ตั้งประเภท/ห้อง/กลุ่มให้คาบที่มีอยู่แล้ว)
   NewActivity withClassInfo(ClassInfo info) => NewActivity(
         name: name,
@@ -773,4 +792,22 @@ List<int> duplicateActivityIds(Iterable<Activity> activities) {
     }
   }
   return remove;
+}
+
+/// เลื่อนไป/กลับ [step] เดือน แต่คงวันที่ไว้ (31 ม.ค. + 1 เดือน → 28/29 ก.พ.)
+DateTime addMonths(DateTime d, int step) {
+  final first = DateTime(d.year, d.month + step);
+  final last = DateTime(first.year, first.month + 1, 0).day;
+  return DateTime(first.year, first.month, d.day > last ? last : d.day);
+}
+
+/// วันทั้งหมดในตารางเดือน: เริ่มวันจันทร์ จบวันอาทิตย์ (5–6 แถว)
+List<DateTime> monthGridDays(DateTime month) {
+  final first = DateTime(month.year, month.month);
+  final start = first.subtract(Duration(days: first.weekday - 1));
+  final last = DateTime(month.year, month.month + 1, 0);
+  final end = last.add(Duration(days: 7 - last.weekday));
+  return [
+    for (var d = start; !d.isAfter(end); d = DateTime(d.year, d.month, d.day + 1)) d,
+  ];
 }

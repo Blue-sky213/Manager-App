@@ -30,6 +30,9 @@ class TutorCard extends StatefulWidget {
 
 class _TutorCardState extends State<TutorCard> with CalendarListener<TutorCard> {
   List<Occurrence> _week = [];
+
+  /// วันคาบแรกของวิชา (ใช้คิดเป้าสัปดาห์แรก)
+  DateTime? _firstClass;
   int _minutes = 90;
 
   /// บทถัดไปเคยติวมาแล้วกี่รอบ (จาก tutor_log)
@@ -54,6 +57,16 @@ class _TutorCardState extends State<TutorCard> with CalendarListener<TutorCard> 
 
   DateTime get _monday => mondayOf(DateTime.now());
 
+  /// วันแรกที่งานนี้เกิดจริง (ดูไปข้างหน้าไม่เกิน 2 สัปดาห์)
+  static DateTime? _firstDayOf(Activity a) {
+    var d = dayOnly(a.startDate);
+    for (var i = 0; i < 14; i++) {
+      if (occursOn(a, d)) return d;
+      d = DateTime(d.year, d.month, d.day + 1);
+    }
+    return null;
+  }
+
   @override
   void didUpdateWidget(TutorCard old) {
     super.didUpdateWidget(old);
@@ -76,6 +89,11 @@ class _TutorCardState extends State<TutorCard> with CalendarListener<TutorCard> 
     }
     // ความยาวรอบ: อ่านจากวิชาครั้งแรกที่เปิดวิชานี้ · หลังจากนั้นใช้ค่าที่กดเลือกล่าสุด
     final minutes = _loadedFor == id ? _minutes : widget.subject.tutorMinutes;
+    final classActs = (await calendar!.activitiesForSubject(id)).where((a) => a.kind == ActivityKind.classSession);
+    final firstClass = classActs.isEmpty
+        ? null
+        : classActs.map(_firstDayOf).whereType<DateTime>().fold<DateTime?>(
+            null, (m, d) => m == null || d.isBefore(m) ? d : m);
     final logs = await settings.classLogs(id);
     final advanced = await settings.gradingMode() == GradingMode.advanced;
     final pass = int.tryParse(await settings.getSetting(tutorPassKey) ?? '') ?? defaultTutorPass;
@@ -89,6 +107,7 @@ class _TutorCardState extends State<TutorCard> with CalendarListener<TutorCard> 
       _pass = pass;
       _rest = rest;
       _week = week;
+      _firstClass = firstClass;
       _minutes = minutes;
       _loadedFor = id;
       _chapterRounds = done;
@@ -154,7 +173,8 @@ class _TutorCardState extends State<TutorCard> with CalendarListener<TutorCard> 
   Widget build(BuildContext context) {
     final c = context.noir;
     final scope = _scope;
-    final q = weekQuota(widget.subject.sessionsPerWeek, _week, advanced: _advanced, passed: _passed);
+    final q = weekQuota(widget.subject.sessionsPerWeek, _week,
+        advanced: _advanced, passed: _passed, today: DateTime.now(), monday: _monday, firstClass: _firstClass);
     final plan = planTutor(scope, _minutes);
     final reached = reachedIndex(widget.chapters, _logs);
     final avg = scopeAverage(scope);
@@ -175,15 +195,18 @@ class _TutorCardState extends State<TutorCard> with CalendarListener<TutorCard> 
             const SizedBox(height: 8),
             // เป้า · เรียน · ติว
             Wrap(spacing: 8, runSpacing: 8, children: [
-              _Chip('เป้า ${q.target} รอบ', c.surface2, c.text),
+              _Chip(q.firstWeek ? 'เป้าสัปดาห์แรก ${q.weekTarget} รอบ' : 'เป้า ${q.target} รอบ', c.surface2, c.text),
               _Chip('เรียน ${q.classes}', c.navBg, c.navText),
               _Chip('ติว ${q.tutors}/${q.tutorNeeded}', c.surface2, c.text),
               if (q.passed)
                 _Chip('ผ่าน ${avg!.round()}% · พักได้', c.greenBg, c.greenText)
+              else if (q.firstWeek && q.tutorNeeded == 0)
+                _Chip('สัปดาห์แรก · เริ่มติวสัปดาห์หน้า', c.greenBg, c.greenText)
               else if (q.remaining == 0)
                 _Chip(q.tutorNeeded == 0 ? 'คาบเรียนครบเป้าแล้ว' : 'ครบแล้ว', c.greenBg, c.greenText)
               else
-                _Chip('ต้องติวอีก ${q.remaining} รอบ', c.amberBg, c.amberText),
+                _Chip('ต้องติวอีก ${q.remaining} รอบ${q.cappedByDays ? ' (เหลือ ${q.daysLeft} วัน)' : ''}', c.amberBg,
+                    c.amberText),
             ]),
             // เรียนถึงบทไหน → ขอบเขตติว
             if (reached != null) ...[

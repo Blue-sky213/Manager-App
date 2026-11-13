@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../theme/noir_colors.dart';
@@ -395,12 +397,9 @@ Future<void> showMiniSubSheet(
   required void Function(VoidCallback) parentSetState,
   required Widget Function(BuildContext ctx, void Function(VoidCallback) set) build,
 }) =>
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      showDragHandle: true,
-      builder: (ctx) => StatefulBuilder(builder: (ctx, setLocal) {
+    showSubPanel<void>(
+      context,
+      (ctx) => StatefulBuilder(builder: (ctx, setLocal) {
         void set(VoidCallback f) {
           parentSetState(f);
           setLocal(() {});
@@ -420,6 +419,56 @@ Future<void> showMiniSubSheet(
         );
       }),
     );
+
+/// จอกว้างพอให้แผ่นตัวเลือกขึ้นข้างฟอร์ม (คอม) · แคบกว่านี้ = แผ่นจากด้านล่าง
+bool sidePanelFits(BuildContext context) => MediaQuery.sizeOf(context).width >= 900;
+
+/// แผ่นตัวเลือกย่อย: คอม = กล่องข้างฟอร์มกลางจอ (เห็นฟอร์มไปด้วย) · มือถือ = แผ่นล่าง
+Future<T?> showSubPanel<T>(BuildContext context, WidgetBuilder builder, {double width = 400}) {
+  if (!sidePanelFits(context)) {
+    return showModalBottomSheet<T>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: builder,
+    );
+  }
+  return showGeneralDialog<T>(
+    context: context,
+    barrierDismissible: true,
+    barrierLabel: 'ปิด',
+    barrierColor: Colors.black.withValues(alpha: 0.15),
+    transitionDuration: const Duration(milliseconds: 150),
+    pageBuilder: (ctx, _, __) {
+      final size = MediaQuery.sizeOf(ctx);
+      // ฟอร์มหลักกว้างราว 560 อยู่กลางจอ → แผ่นนี้วางชิดขอบขวาของฟอร์ม (ไม่ล้นจอ)
+      final left = math.max(16.0, math.min(size.width / 2 + 292, size.width - width - 16));
+      final theme = Theme.of(ctx);
+      return Stack(children: [
+        Positioned(
+          left: left,
+          top: 24,
+          bottom: 24,
+          width: width,
+          child: Center(
+            child: Material(
+              key: const Key('side-panel'),
+              color: theme.dialogTheme.backgroundColor ?? theme.colorScheme.surfaceContainerHigh,
+              elevation: 8,
+              borderRadius: BorderRadius.circular(20),
+              clipBehavior: Clip.antiAlias,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: size.height - 48),
+                child: Padding(padding: const EdgeInsets.only(top: 16), child: builder(ctx)),
+              ),
+            ),
+          ),
+        ),
+      ]);
+    },
+  );
+}
 
 /// กล่องยืนยันแบบ minimal: หัวเล็ก · ข้อความ · ยกเลิก | ปุ่มหลัก
 Future<bool> confirmMini(BuildContext context,

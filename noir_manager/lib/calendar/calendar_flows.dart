@@ -67,7 +67,8 @@ List<DateTime> _checkDays(Activity a) {
 /// เช็กเวลาทับทุกวันที่เกี่ยว: true = ไปต่อ · false = กลับไปแก้ฟอร์ม · null = ยกเลิก
 Future<bool?> _checkDraft(BuildContext context, CalendarRepository repo,
     NewActivity draft, {int? activityId}) async {
-  if (!draft.timed) return true;
+  // เลือกวันเอง: ถามทีละวันไปแล้วใน _resolveDates
+  if (!draft.timed || draft.repeat == RepeatKind.dates) return true;
   final a = draft.toActivity(id: activityId ?? 0);
   for (final day in _checkDays(a)) {
     final t = timeFor(a, day);
@@ -95,12 +96,62 @@ Future<bool?> _checkDraft(BuildContext context, CalendarRepository repo,
   return true;
 }
 
+/// งานของวันอื่น ๆ ที่ทับช่วงเวลา (ไม่นับงานตัวเอง)
+Future<List<Occurrence>> _clashesOn(CalendarRepository repo, DateTime day, int start, int dur, int? activityId) async {
+  final others =
+      (await repo.occurrencesOn(day)).where((o) => activityId == null || o.activityId != activityId).toList();
+  final s = atMinute(day, start);
+  return findOverlaps(others, s, s.add(Duration(minutes: dur)));
+}
+
+/// เลือกวันเอง + ล็อกเวลา: รวมวันที่ชนแล้วถามทีละวันในกล่องเดียว
+/// คืน (ok, draft ใหม่) · ok: true = ไปต่อ · false = กลับไปแก้ฟอร์ม · null = ยกเลิก
+Future<(bool?, NewActivity)> _resolveDates(
+    BuildContext context, CalendarRepository repo, NewActivity draft, {int? activityId}) async {
+  if (!draft.timed || draft.repeat != RepeatKind.dates) return (true, draft);
+  final a = draft.toActivity(id: activityId ?? 0);
+  final clashes = <(DateTime, List<Occurrence>)>[];
+  for (final d in draft.dates) {
+    final day = dayOnly(d.day);
+    final t = timeFor(a, day);
+    if (t == null) continue;
+    final found = await _clashesOn(repo, day, t.$1, t.$2, activityId);
+    if (found.isNotEmpty) clashes.add((day, found));
+  }
+  if (clashes.isEmpty || !context.mounted) return (true, draft);
+  final ans = await askDayClashes(context, clashes, draft.dates.length);
+  if (ans == null) return (null, draft);
+  if (ans.back) return (false, draft);
+  final skip = <DateTime>{};
+  for (final (day, found) in clashes) {
+    switch (ans.picks[day]!) {
+      case DayClashChoice.skip:
+        skip.add(day);
+      case DayClashChoice.allow:
+        break;
+      case DayClashChoice.moveOthers:
+        for (final o in found) {
+          await repo.sendToInbox(o.id);
+        }
+    }
+  }
+  return (true, draft.withDates([for (final d in draft.dates) if (!skip.contains(dayOnly(d.day))) d]));
+}
+
+/// ฟอร์มเปิดพร้อมตัวเช็กวันชน (ใช้ในตารางติ๊กวัน)
+Future<Set<DateTime>> Function(List<DateTime>, int, int) _clashChecker(CalendarRepository repo, int? activityId) =>
+    (days, start, dur) async => {
+          for (final d in days)
+            if ((await _clashesOn(repo, d, start, dur, activityId)).isNotEmpty) d,
+        };
+
 Future<NewActivity?> _openForm(
   BuildContext context,
   CalendarRepository repo, {
   required DateTime day,
   NewActivity? initial,
   bool editing = false,
+  int? activityId,
 }) async {
   final categories = await repo.categories();
   final presets = await repo.presets();
@@ -115,6 +166,7 @@ Future<NewActivity?> _openForm(
     onSavePreset: repo.addPreset,
     onUpdatePreset: repo.updatePreset,
     onDeletePreset: repo.deletePreset,
+    clashDays: _clashChecker(repo, activityId),
   );
 }
 
@@ -125,6 +177,14 @@ Future<void> addActivityFlow(
   while (context.mounted) {
     draft = await _openForm(context, repo, day: day, initial: draft);
     if (draft == null || !context.mounted) return;
+    final (datesOk, trimmed) = await _resolveDates(context, repo, draft);
+    if (datesOk == null) return;
+    if (!datesOk) continue;
+    if (trimmed.repeat == RepeatKind.dates && trimmed.dates.isEmpty) {
+      if (context.mounted) _toast(context, 'ข้ามทุกวัน · ไม่ได้เพิ่ม "${draft.name}"');
+      return;
+    }
+    draft = trimmed;
     final ok = await _checkDraft(context, repo, draft);
     if (ok == null) return;
     if (!ok) continue; // เปิดฟอร์มเดิมให้แก้เวลา
@@ -140,8 +200,16 @@ Future<void> editActivityFlow(
   NewActivity? draft = (await repo.activity(activityId)).toDraft();
   while (context.mounted) {
     draft = await _openForm(context, repo,
-        day: draft!.day, initial: draft, editing: true);
+        day: draft!.day, initial: draft, editing: true, activityId: activityId);
     if (draft == null || !context.mounted) return;
+    final (datesOk, trimmed) = await _resolveDates(context, repo, draft, activityId: activityId);
+    if (datesOk == null) return;
+    if (!datesOk) continue;
+    if (trimmed.repeat == RepeatKind.dates && trimmed.dates.isEmpty) {
+      if (context.mounted) _toast(context, 'ข้ามทุกวัน · ไม่ได้บันทึก');
+      return;
+    }
+    draft = trimmed;
     final ok = await _checkDraft(context, repo, draft, activityId: activityId);
     if (ok == null) return;
     if (!ok) continue;

@@ -215,7 +215,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('เลือกวันเอง'));
     await tester.pumpAndSettle();
-    expect(find.text('เพิ่มวัน'), findsOneWidget);
+    // ตารางเดือนให้ติ๊กวัน (แทนรายการ + ปุ่มเพิ่มวัน)
+    expect(find.byKey(const Key('tick-days')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

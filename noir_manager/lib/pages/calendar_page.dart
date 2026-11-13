@@ -17,26 +17,10 @@ import '../theme/noir_colors.dart';
 import '../utils/thai_date.dart';
 import '../widgets/mini_dropdown.dart';
 
+export '../calendar/calendar_models.dart' show addMonths, monthGridDays;
+
 /// มุมมองปฏิทิน 4 แบบ
 enum CalView { day, week, month, year }
-
-/// เลื่อนไป/กลับ [step] เดือน แต่คงวันที่ไว้ (31 ม.ค. + 1 เดือน → 28/29 ก.พ.)
-DateTime addMonths(DateTime d, int step) {
-  final first = DateTime(d.year, d.month + step);
-  final last = DateTime(first.year, first.month + 1, 0).day;
-  return DateTime(first.year, first.month, d.day > last ? last : d.day);
-}
-
-/// วันทั้งหมดในตารางเดือน: เริ่มวันจันทร์ จบวันอาทิตย์ (5–6 แถว)
-List<DateTime> monthGridDays(DateTime month) {
-  final first = DateTime(month.year, month.month);
-  final start = first.subtract(Duration(days: first.weekday - 1));
-  final last = DateTime(month.year, month.month + 1, 0);
-  final end = last.add(Duration(days: 7 - last.weekday));
-  return [
-    for (var d = start; !d.isAfter(end); d = DateTime(d.year, d.month, d.day + 1)) d,
-  ];
-}
 
 /// มุมมองสัปดาห์ 3 แบบ (นัวร์เลือกได้ จำไว้ใน setting `week_style`)
 enum WeekStyle { timeline, list, cards }
@@ -311,6 +295,8 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
         holidays: _holidays,
         selected: _selected,
         onTapDay: (d) => _go(day: d),
+        onOpenDay: (d) => _go(day: d, view: CalView.day),
+        onOpenWeek: (monday) => _go(day: monday, view: CalView.week),
       );
 
   /// ◀ ชื่อช่วง ▶ (แตะชื่อ = ซูมออก) · มุมมองเดือน: ลูกศรบอกชื่อเดือนก่อน / ถัดไป
