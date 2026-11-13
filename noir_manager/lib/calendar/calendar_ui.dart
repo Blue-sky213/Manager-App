@@ -525,7 +525,7 @@ class _ActivityDialogState extends State<_ActivityDialog> {
           for (final cat in widget.categories)
             ListTile(
               contentPadding: EdgeInsets.zero,
-              leading: CircleAvatar(radius: 7, backgroundColor: categoryColors(ctx.noir, cat.colorKey).$1),
+              leading: CircleAvatar(radius: 7, backgroundColor: categoryColors(ctx.noir, cat.colorKey).$2),
               title: Text(cat.name),
               trailing: cat.id == _categoryId ? const Icon(Icons.check) : null,
               onTap: () {
@@ -683,7 +683,7 @@ class _ActivityDialogState extends State<_ActivityDialog> {
         Icons.label_outline,
         'หมวด',
         Row(mainAxisSize: MainAxisSize.min, children: [
-          if (cat != null) CircleAvatar(radius: 5, backgroundColor: categoryColors(c, cat.colorKey).$1),
+          if (cat != null) CircleAvatar(radius: 5, backgroundColor: categoryColors(c, cat.colorKey).$2),
           const SizedBox(width: 6),
           Flexible(child: strong(cat?.name ?? 'ไม่มี')),
         ]),
