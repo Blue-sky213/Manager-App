@@ -70,7 +70,7 @@ class MemorySkillRepository extends SkillRepository {
     _files.removeWhere((_, f) => f.skillId == id);
     _reviews.removeWhere((_, r) => r.skillId == id);
     _links.removeWhere((_, s) => s == id);
-    _done(null);
+    notifyListeners();
   }
 
   @override
@@ -93,7 +93,10 @@ class MemorySkillRepository extends SkillRepository {
   }
 
   @override
-  Future<void> deleteGoal(int id) async => _done(_goals.remove(id));
+  Future<void> deleteGoal(int id) async {
+    _goals.remove(id);
+    notifyListeners();
+  }
 
   @override
   Future<List<SkillLog>> logs(int skillId) async => _logs.values.where((l) => l.skillId == skillId).toList()
@@ -122,7 +125,7 @@ class MemorySkillRepository extends SkillRepository {
   Future<void> deleteLog(int id) async {
     _logs.remove(id);
     _files.removeWhere((_, f) => f.logId == id);
-    _done(null);
+    notifyListeners();
   }
 
   @override
@@ -145,16 +148,25 @@ class MemorySkillRepository extends SkillRepository {
   }
 
   @override
-  Future<void> deleteFile(int id) async => _done(_files.remove(id));
+  Future<void> deleteFile(int id) async {
+    _files.remove(id);
+    notifyListeners();
+  }
 
   @override
   Future<SkillReview?> review(int skillId, String month) async => _reviews['$skillId:$month'];
 
   @override
-  Future<void> saveReview(SkillReview r) async => _done(_reviews['${r.skillId}:${r.month}'] = r);
+  Future<void> saveReview(SkillReview r) async {
+    _reviews['${r.skillId}:${r.month}'] = r;
+    notifyListeners();
+  }
 
   @override
-  Future<void> linkActivity(int skillId, int activityId) async => _done(_links[activityId] = skillId);
+  Future<void> linkActivity(int skillId, int activityId) async {
+    _links[activityId] = skillId;
+    notifyListeners();
+  }
 
   @override
   Future<int?> skillOfActivity(int activityId) async => _links[activityId];
