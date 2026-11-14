@@ -5,6 +5,7 @@ import '../pages/files_page.dart';
 import '../pages/learn_page.dart';
 import '../pages/stats_page.dart';
 import '../pages/today_page.dart';
+import '../pages/work_page.dart';
 
 /// ข้อมูลของเมนู 1 ปุ่ม: ชื่อ + ไอคอน + หน้าที่จะเปิด
 class AppDestination {
@@ -21,7 +22,7 @@ class AppDestination {
   final Widget page;
 }
 
-/// รายการเมนูหลักทั้ง 5 (เรียงตาม Mockup)
+/// รายการเมนูหลัก (เรียงตาม Mockup) · เมนูใน [hiddenMenus] ไม่โชว์
 /// อยากเพิ่ม/ย้ายเมนู แก้ที่นี่ที่เดียว ทั้ง Sidebar และ Bottom bar เปลี่ยนตาม
 const List<AppDestination> appDestinations = [
   AppDestination(
@@ -41,6 +42,12 @@ const List<AppDestination> appDestinations = [
     icon: Icons.account_tree_outlined,
     selectedIcon: Icons.account_tree,
     page: LearnPage(), // มหาลัย | สกิล (รอบ 8C)
+  ),
+  AppDestination(
+    label: 'งาน', // รอบ 8D · ซ่อนได้ในตั้งค่า
+    icon: Icons.work_outline,
+    selectedIcon: Icons.work,
+    page: WorkPage(),
   ),
   AppDestination(
     label: 'ไฟล์',

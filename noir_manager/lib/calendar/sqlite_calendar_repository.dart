@@ -2,6 +2,7 @@ import 'package:sqflite/sqflite.dart';
 
 import '../skills/skill_repository.dart';
 import '../skills/sqlite_skill_repository.dart';
+import '../work/work_repository.dart';
 import 'calendar_models.dart';
 import 'calendar_repository.dart';
 
@@ -135,6 +136,8 @@ Future<void> createCalendarV5(DatabaseExecutor db) async {
 class SqliteCalendarRepository extends CalendarRepository {
   @override
   late final SkillRepository skillRepo = SqliteSkillRepository(_db);
+  @override
+  late final WorkRepository workRepo = SqliteWorkRepository(_db);
   SqliteCalendarRepository(this._db);
 
   final Database _db;
