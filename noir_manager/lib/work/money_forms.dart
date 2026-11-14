@@ -37,12 +37,13 @@ Future<int?> editEntryForm(BuildContext context, WorkRepository repo,
     (ctx) => StatefulBuilder(builder: (ctx, setLocal) {
       final c = ctx.noir;
       final cats = k == MoneyKind.income ? incomeCategories : expenseCategories;
-      final bad = (_num(amount.text) ?? 0) <= 0;
+      // อ่านค่าตอนกด (ไม่ใช่ตอนวาด) กันค่าค้าง
+      bool bad() => (_num(amount.text) ?? 0) <= 0;
       return MiniForm(
         title: entry == null ? 'จดรายการ' : 'แก้รายการ',
         primaryLabel: 'บันทึก',
         onPrimary: () {
-          if (bad) return setLocal(() => showErr = true);
+          if (bad()) return setLocal(() => showErr = true);
           Navigator.pop(ctx, true);
         },
         onSecondary: () => Navigator.pop(ctx, false),
@@ -64,7 +65,7 @@ Future<int?> editEntryForm(BuildContext context, WorkRepository repo,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             onChanged: (_) => setLocal(() {}),
           ),
-          if (showErr && bad) Text('ใส่จำนวนเงิน', style: TextStyle(fontSize: 12, color: c.bad)),
+          if (showErr && bad()) Text('ใส่จำนวนเงิน', style: TextStyle(fontSize: 12, color: c.bad)),
           const MiniLabel('หมวด'),
           Wrap(spacing: 6, runSpacing: 6, children: [
             for (final x in cats)
@@ -240,12 +241,12 @@ Future<int?> editInvestmentForm(BuildContext context, WorkRepository repo, {Inve
     context,
     (ctx) => StatefulBuilder(builder: (ctx, setLocal) {
       final c = ctx.noir;
-      final bad = name.text.trim().isEmpty || (_num(amount.text) ?? 0) <= 0;
+      bool bad() => name.text.trim().isEmpty || (_num(amount.text) ?? 0) <= 0;
       return MiniForm(
         title: inv == null ? 'เงินลงทุนใหม่' : 'แก้เงินลงทุน',
         primaryLabel: 'บันทึก',
         onPrimary: () {
-          if (bad) return setLocal(() => showErr = true);
+          if (bad()) return setLocal(() => showErr = true);
           Navigator.pop(ctx, true);
         },
         onSecondary: () => Navigator.pop(ctx, false),
@@ -272,7 +273,7 @@ Future<int?> editInvestmentForm(BuildContext context, WorkRepository repo, {Inve
             },
           ),
           MiniRow(icon: Icons.notes, label: 'โน้ต', last: true, value: MiniInlineField(controller: note, width: 200)),
-          if (showErr && bad) Text('ใส่ชื่อและจำนวนเงิน', style: TextStyle(fontSize: 12, color: c.bad)),
+          if (showErr && bad()) Text('ใส่ชื่อและจำนวนเงิน', style: TextStyle(fontSize: 12, color: c.bad)),
           Text('รายรับที่เลือก "ช่วยคืนทุน" = เงินที่คืนแล้ว', style: TextStyle(fontSize: 12, color: c.muted)),
         ],
       );
