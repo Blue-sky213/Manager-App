@@ -380,12 +380,13 @@ Future<int> loadCurriculumLinks(StudyRepository study) async {
 }
 
 /// ใส่แผนการเรียนทั้งหลักสูตร: ปี 1 เทอม 1 แบบละเอียด + เทอมอื่นแบบรายชื่อ · คืนจำนวนวิชาที่เพิ่ม
-Future<int> loadDemoCurriculum(StudyRepository study, CalendarRepository calendar) async {
+/// [today] = วันนี้ของข้อมูลตัวอย่าง (เทสส่งค่าคงที่ · ไม่ส่ง = วันจริง)
+Future<int> loadDemoCurriculum(StudyRepository study, CalendarRepository calendar, {DateTime? today}) async {
   var added = 0;
   if (await loadDemoTerm(study, calendar)) {
     added += demoSubjects.length;
     // ใส่ใหม่ครั้งแรก → เติมรายละเอียดให้ครบทุกระบบเลย (คะแนน ห้อง คาบที่เรียนแล้ว ติว ฯลฯ)
-    await enrichDemoTerm(study, calendar);
+    await enrichDemoTerm(study, calendar, today: today);
   }
 
   // วิชาตัวอย่างปี 1 เทอม 1 ที่ใส่ไว้ก่อนมีแผนการเรียน → เติมรหัส/หน่วยกิต/ปี/เทอม
