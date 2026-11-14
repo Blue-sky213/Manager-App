@@ -12,10 +12,10 @@ import 'seed_data.dart';
 import 'study_repository.dart';
 
 /// เวอร์ชันโครงตาราง: ถ้าวันหลังเพิ่มตาราง/คอลัมน์ ให้เพิ่มเลขนี้ + เขียน onUpgrade
-const int _schemaVersion = 19;
+const int _schemaVersion = 20;
 
 /// เลขเวอร์ชันฐานข้อมูล (โชว์ในหน้าตั้งค่า)
-const int appSchemaVersion = _schemaVersion; // v2 setting · v3 cleared_at · v4 ปฏิทิน · v5 Preset · v6 วิชาง่าย 2 รอบ · v7 คาบผูกวิชา + เวลาจริง · v8 แผนการเรียน · v9 เรียน/ติว + ประเภท/สถานะบท · v10 เทอม/วันหยุด/บันทึกติว + ย้ายค่าวิชาออกจาก setting · v11 ประเภทคาบ/ห้อง/กลุ่ม · v12 เส้นความสัมพันธ์วิชา · v13 คะแนนเก็บ/เกรด · v14 จำนวนขาดเรียน + บันทึกคาบเรียน · v15 หัวข้อ + งานที่สั่งในคาบ · v16 สติกเกอร์อารมณ์ · v17 รอบ 7 · v18 สติกเกอร์พอดี · v19 สกิล
+const int appSchemaVersion = _schemaVersion; // v2 setting · v3 cleared_at · v4 ปฏิทิน · v5 Preset · v6 วิชาง่าย 2 รอบ · v7 คาบผูกวิชา + เวลาจริง · v8 แผนการเรียน · v9 เรียน/ติว + ประเภท/สถานะบท · v10 เทอม/วันหยุด/บันทึกติว + ย้ายค่าวิชาออกจาก setting · v11 ประเภทคาบ/ห้อง/กลุ่ม · v12 เส้นความสัมพันธ์วิชา · v13 คะแนนเก็บ/เกรด · v14 จำนวนขาดเรียน + บันทึกคาบเรียน · v15 หัวข้อ + งานที่สั่งในคาบ · v16 สติกเกอร์อารมณ์ · v17 รอบ 7 · v18 สติกเกอร์พอดี · v19 สกิล · v20 การเงิน
 
 /// เปิด (หรือสร้างครั้งแรก) ไฟล์ฐานข้อมูล noir_manager.db
 /// ที่อยู่ไฟล์ DB ที่เปิดล่าสุด (ใช้กับระบบสำรองข้อมูล)
@@ -61,6 +61,7 @@ Future<Database> openAppDatabase() async {
       await createRound7V17(db);
       await createStickerFitV18(db);
       await createSkillV19(db);
+      await createMoneyV20(db);
       await seedStudyData(db);
     },
     // เครื่องที่มีไฟล์ v1 อยู่แล้ว (เครื่องนัวร์): เพิ่มเฉพาะส่วนที่ขาด ข้อมูลเดิมไม่หาย
@@ -89,6 +90,7 @@ Future<Database> openAppDatabase() async {
       if (oldVersion < 17) await createRound7V17(db);
       if (oldVersion < 18) await createStickerFitV18(db);
       if (oldVersion < 19) await createSkillV19(db);
+      if (oldVersion < 20) await createMoneyV20(db);
     },
   );
 }
@@ -341,6 +343,42 @@ Future<void> createStickerV16(DatabaseExecutor db) async {
       await db.insert('sticker', {'pack_id': pack, 'name': n, 'emoji': e, 'sort': i});
     }
   }
+}
+
+/// v20 (รอบ 8D): การเงิน · ตารางใหม่ทั้งหมด
+/// ลบค่าบริการ / เงินลงทุน → รายการเงินเดิมยังอยู่ (แค่ไม่ผูก)
+Future<void> createMoneyV20(DatabaseExecutor db) async {
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS subscription (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      name       TEXT NOT NULL,
+      amount     REAL,
+      cycle      TEXT NOT NULL DEFAULT 'monthly',
+      bill_day   INTEGER NOT NULL DEFAULT 1,
+      bill_month INTEGER,
+      active     INTEGER NOT NULL DEFAULT 1
+    )''');
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS investment (
+      id        INTEGER PRIMARY KEY AUTOINCREMENT,
+      name      TEXT NOT NULL,
+      amount    REAL NOT NULL,
+      start_day TEXT NOT NULL,
+      note      TEXT
+    )''');
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS money_entry (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      day             TEXT NOT NULL,
+      kind            TEXT NOT NULL,
+      amount          REAL NOT NULL,
+      category        TEXT NOT NULL,
+      note            TEXT,
+      project_id      INTEGER,
+      investment_id   INTEGER REFERENCES investment(id) ON DELETE SET NULL,
+      subscription_id INTEGER REFERENCES subscription(id) ON DELETE SET NULL
+    )''');
+  await db.execute('CREATE INDEX IF NOT EXISTS money_entry_day ON money_entry(day)');
 }
 
 /// v19 (รอบ 8C): สกิล · ตารางใหม่ทั้งหมด ไม่แตะตารางเดิม

@@ -68,3 +68,10 @@ Offset lastPointerDown = Offset.zero;
 
 /// ชื่อเมนูที่เปิดอยู่ · หน้าที่ซ่อนอยู่ใน IndexedStack ใช้เช็กว่าตัวเองกำลังโชว์ไหม
 final currentTab = ValueNotifier<String>('วันนี้');
+
+/// เมนูที่ผู้ใช้ซ่อน (ชื่อเมนู) · ตั้งค่า › เมนู · เก็บใน setting [hiddenMenusKey] คั่นด้วย ,
+final hiddenMenus = ValueNotifier<Set<String>>(const {});
+const hiddenMenusKey = 'hidden_menus';
+
+/// เมนูที่ซ่อนได้ (เมนูหลักอื่นซ่อนไม่ได้)
+const hideableMenus = {'งาน'};

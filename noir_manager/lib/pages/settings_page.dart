@@ -21,6 +21,7 @@ import '../widgets/device_preview.dart';
 import '../widgets/mini_dropdown.dart';
 import '../calendar/category_ui.dart' show CategorySettings;
 import '../calendar/day_cards.dart' show AutoStickerSettings;
+import '../shell/app_nav.dart' show hiddenMenus, hiddenMenusKey;
 import '../widgets/mini_form.dart';
 import '../widgets/mini_segments.dart';
 import '../widgets/toast.dart';
@@ -191,9 +192,25 @@ class _SettingsPageState extends State<SettingsPage> {
                       ),
                       const SizedBox(height: 6),
                       Text(appModes.firstWhere((m) => m.$1 == _mode).$3, style: TextStyle(fontSize: 12, color: c.muted)),
-                      if (_mode != 'study')
-                        Text('โหมดทำงานเต็มรูปแบบมาในรอบ v2 · ตอนนี้ใช้ปฏิทินและวันนี้ได้ตามปกติ',
-                            style: TextStyle(fontSize: 12, color: c.warn)),
+                      const SizedBox(height: 6),
+                      // รอบ 8D: เมนู "งาน" ซ่อนได้ (คนที่ใช้แค่เรียนไม่ต้องเห็น)
+                      ValueListenableBuilder(
+                        valueListenable: hiddenMenus,
+                        builder: (ctx, hidden, _) => MiniSwitchRow(
+                          key: const Key('menu-work'),
+                          icon: Icons.work_outline,
+                          label: 'เมนู "งาน"',
+                          detail: 'โปรเจกต์ · การเงิน',
+                          value: !hidden.contains('งาน'),
+                          last: true,
+                          onChanged: (v) {
+                            final next = {...hidden};
+                            v ? next.remove('งาน') : next.add('งาน');
+                            hiddenMenus.value = next;
+                            repo.setSetting(hiddenMenusKey, next.join(','));
+                          },
+                        ),
+                      ),
                     ]),
                     const SizedBox(height: 14),
                     // EZ / Advanced + กฎ Advanced อยู่ที่เดียว (หน้าวิชามีแค่สวิตช์)

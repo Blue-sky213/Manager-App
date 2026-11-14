@@ -66,7 +66,7 @@ void main() {
     await tester.tap(find.text('ทั้งคู่'));
     await tester.pumpAndSettle();
     expect(await study.getSetting('app_mode'), 'both');
-    expect(find.textContaining('โหมดทำงานเต็มรูปแบบ'), findsOneWidget);
+    expect(find.byKey(const Key('menu-work')), findsOneWidget); // รอบ 8D: สวิตช์เมนู "งาน"
 
     // เปิดแอปใหม่ (repo เดิม) → ธีมชมพูยังอยู่
     await tester.pumpWidget(const SizedBox());

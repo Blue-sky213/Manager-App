@@ -5,6 +5,7 @@ import '../pages/learn_page.dart';
 import '../theme/noir_colors.dart';
 import '../data/backup.dart';
 import '../pages/settings_page.dart';
+import '../data/study_scope.dart';
 import 'app_nav.dart';
 import 'destinations.dart';
 
@@ -40,6 +41,35 @@ class _AppShellState extends State<AppShell> {
 
   /// เมนูก่อนหน้าที่ถูกพามา (เปิดวิชาจากปฏิทิน ฯลฯ) → ย้อนกลับไปทีละขั้น
   final List<int> _history = [];
+
+  /// เมนูที่โชว์ (ไม่รวมที่ซ่อนในตั้งค่า)
+  List<int> get _visible => [
+        for (var i = 0; i < appDestinations.length; i++)
+          if (!hiddenMenus.value.contains(appDestinations[i].label)) i,
+      ];
+
+  bool _menusLoaded = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_menusLoaded) return;
+    _menusLoaded = true;
+    StudyScope.of(context).getSetting(hiddenMenusKey).then((v) {
+      final set = {for (final x in (v ?? '').split(',')) if (hideableMenus.contains(x)) x};
+      if (set.isNotEmpty) hiddenMenus.value = set;
+    });
+  }
+
+  // ซ่อนเมนูที่เปิดอยู่ → กลับหน้าแรก
+  void _onHidden() {
+    if (!mounted) return;
+    if (hiddenMenus.value.contains(appDestinations[_index].label)) {
+      _select(0);
+    } else {
+      setState(() {});
+    }
+  }
 
   void _select(int i) {
     setState(() => _index = i);
@@ -86,6 +116,8 @@ class _AppShellState extends State<AppShell> {
     subjectJump.addListener(_onSubjectJump);
     appBack.add(_onBack);
     appForward.clear(); // เปิดแอปใหม่ = ไม่มีทางข้างหน้าค้าง
+    hiddenMenus.value = const {}; // โหลดจากตั้งค่าใน didChangeDependencies
+    hiddenMenus.addListener(_onHidden);
   }
 
   @override
@@ -93,6 +125,7 @@ class _AppShellState extends State<AppShell> {
     calendarJump.removeListener(_onJump);
     subjectJump.removeListener(_onSubjectJump);
     appBack.remove(_onBack);
+    hiddenMenus.removeListener(_onHidden);
     super.dispose();
   }
 
@@ -119,6 +152,7 @@ class _AppShellState extends State<AppShell> {
             body: Row(
               children: [
                 _Sidebar(
+                  visible: _visible,
                   selectedIndex: _index,
                   onSelect: _userSelect,
                   isDark: widget.isDark,
@@ -147,10 +181,10 @@ class _AppShellState extends State<AppShell> {
           ),
           body: body,
           bottomNavigationBar: NavigationBar(
-            selectedIndex: _index,
-            onDestinationSelected: _userSelect,
+            selectedIndex: _visible.indexOf(_index).clamp(0, _visible.length - 1),
+            onDestinationSelected: (k) => _userSelect(_visible[k]),
             destinations: [
-              for (final d in appDestinations)
+              for (final d in [for (final i in _visible) appDestinations[i]])
                 NavigationDestination(
                   icon: Icon(d.icon),
                   selectedIcon: Icon(d.selectedIcon),
@@ -167,6 +201,7 @@ class _AppShellState extends State<AppShell> {
 /// แถบเมนูด้านซ้าย หน้าตาตาม Mockup 2D
 class _Sidebar extends StatelessWidget {
   const _Sidebar({
+    required this.visible,
     required this.selectedIndex,
     required this.onSelect,
     required this.isDark,
@@ -175,6 +210,7 @@ class _Sidebar extends StatelessWidget {
   });
 
   final VoidCallback onSettings;
+  final List<int> visible;
   final int selectedIndex;
   final ValueChanged<int> onSelect;
   final bool isDark;
@@ -209,7 +245,7 @@ class _Sidebar extends StatelessWidget {
               ),
             ),
           ),
-          for (var i = 0; i < appDestinations.length; i++)
+          for (final i in visible)
             _SidebarItem(
               destination: appDestinations[i],
               selected: i == selectedIndex,

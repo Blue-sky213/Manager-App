@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 
 import '../skills/skill_repository.dart';
+import '../work/work_repository.dart';
 import 'calendar_models.dart';
 import 'stickers.dart';
 export 'stickers.dart';
@@ -15,6 +16,9 @@ abstract class CalendarRepository extends ChangeNotifier {
 
   /// สกิล (v19 · รอบ 8C) · ฟังการเปลี่ยนแปลงแยกจากปฏิทิน
   SkillRepository get skillRepo;
+
+  /// เมนู "งาน": การเงิน (v20 · รอบ 8D) · โปรเจกต์ (รอบ 8E)
+  WorkRepository get workRepo;
 
   Future<List<ActivityCategory>> categories();
 

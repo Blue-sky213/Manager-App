@@ -1,4 +1,5 @@
 import '../skills/skill_repository.dart';
+import '../work/work_repository.dart';
 import 'calendar_models.dart';
 import 'calendar_repository.dart';
 
@@ -6,6 +7,8 @@ import 'calendar_repository.dart';
 class MemoryCalendarRepository extends CalendarRepository {
   @override
   final SkillRepository skillRepo = MemorySkillRepository();
+  @override
+  final WorkRepository workRepo = MemoryWorkRepository();
 
   MemoryCalendarRepository() {
     for (var i = 0; i < seedCategories.length; i++) {
