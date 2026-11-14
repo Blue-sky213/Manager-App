@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/noir_colors.dart';
 import '../utils/thai_date.dart';
+import '../widgets/info_card.dart';
 import 'achievements.dart';
 import 'calendar_models.dart';
 import 'calendar_ui.dart';
@@ -345,12 +346,9 @@ class NotebookMonth extends StatelessWidget {
 Future<void> showNotebookDay(BuildContext context, DateTime day, List<Occurrence> items, List<Sticker> stickers) {
   final c = context.noir;
   final (done, total) = dayProgress(items);
-  return showModalBottomSheet<void>(
-    context: context,
-    showDragHandle: true,
-    builder: (ctx) => Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-      child: ListView(shrinkWrap: true, children: [
+  return showInfoCard(
+    context,
+    builder: (ctx) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
         Row(children: [
           Expanded(
             child: Text(thaiShortDate(day), style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: c.text)),
@@ -375,7 +373,6 @@ Future<void> showNotebookDay(BuildContext context, DateTime day, List<Occurrence
             subtitle: o.timed ? Text('${fmtTime(o.startAt!)}–${fmtTime(o.endAt!)}') : null,
           ),
       ]),
-    ),
   );
 }
 

@@ -21,12 +21,12 @@ import 'calendar_models.dart';
 import 'calendar_repository.dart';
 import 'calendar_ui.dart';
 import 'holiday_flow.dart';
+import '../widgets/info_card.dart';
+import '../widgets/toast.dart';
 
 void _toast(BuildContext context, String text) {
   if (!context.mounted) return;
-  ScaffoldMessenger.of(context)
-    ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(content: Text(text)));
+  showToast(context, text);
 }
 
 /// ตรวจเวลาทับ: คืน true = ไปต่อได้ · false = ให้ผู้ใช้เลือกเวลาใหม่ · null = ยกเลิกทั้งหมด
@@ -349,18 +349,13 @@ Future<void> showOccurrenceDetails(BuildContext context, Occurrence o) {
     OccurrenceStatus.moved => 'ถูกเลื่อนไปวันอื่นแล้ว',
     OccurrenceStatus.shifted => 'เลื่อนไปรอบถัดไปแล้ว',
   };
-  return showModalBottomSheet<void>(
-    context: context,
-    showDragHandle: true,
-    isScrollControlled: true,
-    builder: (ctx) => SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
-        child: Column(
+  return showInfoCard(
+    context,
+    builder: (ctx) => Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(o.title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+            Text(o.title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
             const SizedBox(height: 6),
             Text('$time${thaiShortDate(o.day)}${o.session == null ? '' : ' · ${o.session!.label}'}'),
             Text('สถานะ: $status · ความสำคัญ: ${importanceText(o.importance)}'),
@@ -368,11 +363,9 @@ Future<void> showOccurrenceDetails(BuildContext context, Occurrence o) {
             if (o.reason != null) Text('ยกเลิกเพราะ: ${o.reason}'),
             const SizedBox(height: 12),
             Text('คลิก = กรอกผล (ทำแล้ว + บันทึกเรียน · เลื่อน · ยกเลิก) · คลิกขวา = แก้ไข · เกี่ยวกับวิชา · ลบ',
-                style: TextStyle(fontSize: 13, color: c.muted)),
+                style: TextStyle(fontSize: 12, color: c.muted)),
           ],
         ),
-      ),
-    ),
   );
 }
 
@@ -559,7 +552,5 @@ Future<void> celebrateIfDayComplete(BuildContext context, CalendarRepository rep
   final streak = dayOnly(day) == today ? (await loadStreak(repo, today)).current : 0;
   if (!context.mounted) return;
   final when = dayOnly(day) == today ? 'วันนี้' : thaiShortDate(day);
-  ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
-    content: Text('ครบทุกงาน$when${streak > 1 ? ' · Streak $streak วัน' : ''}'),
-  ));
+  showToast(context, 'ครบทุกงาน$when${streak > 1 ? ' · Streak $streak วัน' : ''}');
 }

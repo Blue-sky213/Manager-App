@@ -8,6 +8,7 @@ import '../calendar/calendar_models.dart';
 import '../calendar/calendar_ui.dart' show CategoryIcon;
 import '../calendar/lookback.dart';
 import '../theme/noir_colors.dart';
+import '../widgets/toast.dart';
 
 /// การ์ด "สถิติย้อนหลัง · พลาดเพราะอะไร" (รอบ 7 · O)
 class LookbackCard extends StatelessWidget {
@@ -17,7 +18,6 @@ class LookbackCard extends StatelessWidget {
   final Map<int, ActivityCategory> categories;
 
   Future<void> _export(BuildContext context) async {
-    final messenger = ScaffoldMessenger.of(context);
     try {
       final dir = await getApplicationDocumentsDirectory();
       final now = DateTime.now();
@@ -26,9 +26,9 @@ class LookbackCard extends StatelessWidget {
       final file = File(p.join(folder.path, 'lookback_${dayKey(now)}.csv'));
       // BOM = Excel อ่านภาษาไทยถูก
       await file.writeAsString('﻿${lookbackCsv(lookback)}');
-      messenger.showSnackBar(SnackBar(content: Text('ส่งออกแล้ว · ${file.path}')));
+      if (context.mounted) showToast(context, 'ส่งออกแล้ว · ${file.path}');
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('ส่งออกไม่ได้: $e')));
+      if (context.mounted) showToast(context, 'ส่งออกไม่ได้: $e');
     }
   }
 

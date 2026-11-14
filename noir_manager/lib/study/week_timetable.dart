@@ -14,6 +14,7 @@ import 'class_schedule_card.dart';
 import 'credit_hours.dart';
 import 'subject_colors.dart';
 import 'timetable_sim.dart';
+import '../widgets/toast.dart';
 
 /// คาบเรียน 1 ช่องบนตาราง: วิชาเดียวกัน วันเดียวกัน เวลา/ประเภท/ห้อง/กลุ่มเดียวกัน
 /// คาบที่ถูกแยกช่วงวันที่ (เช่น ก่อน/หลังกลางภาค) รวมเป็นช่องเดียว จะได้ไม่ซ้อนกันเอง
@@ -138,8 +139,7 @@ class _WeekTimetablePageState extends State<WeekTimetablePage> with CalendarList
   Future<void> _simulate() async {
     final years = {for (final s in _subjects) if (s.planYear != null && s.planTerm != null) s.planYear!}.toList()..sort();
     if (years.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('ยังไม่มีวิชาที่จัดปี/ภาค · ใส่แผน 4 ปีก่อน (หน้าวิชา ⋮)')));
+      showToast(context, 'ยังไม่มีวิชาที่จัดปี/ภาค · ใส่แผน 4 ปีก่อน (หน้าวิชา ⋮)');
       return;
     }
     var year = years.first, term = 1;
@@ -199,11 +199,9 @@ class _WeekTimetablePageState extends State<WeekTimetablePage> with CalendarList
     if (!mounted) return;
     setState(() => _week = mondayOf(today));
     final skippedHas = target.length - todo.length;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text('จำลอง ${plan.sessions.length} คาบ · ${todo.length - plan.skipped.length} วิชา'
+    showToast(context, 'จำลอง ${plan.sessions.length} คาบ · ${todo.length - plan.skipped.length} วิชา'
           '${skippedHas > 0 ? ' · ข้าม $skippedHas วิชาที่มีคาบแล้ว' : ''}'
-          '${plan.skipped.isNotEmpty ? ' · วางไม่ลง ${plan.skipped.length}' : ''}'),
-    ));
+          '${plan.skipped.isNotEmpty ? ' · วางไม่ลง ${plan.skipped.length}' : ''}');
   }
 
   /// ลบเฉพาะคาบที่จำลอง (จำ id ไว้) · คาบที่ใส่เองไม่ถูกแตะ

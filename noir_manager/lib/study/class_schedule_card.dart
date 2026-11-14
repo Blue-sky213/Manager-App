@@ -14,6 +14,7 @@ import '../widgets/dialogs.dart';
 import '../widgets/mini_form.dart';
 import '../widgets/mini_segments.dart';
 import 'credit_hours.dart';
+import '../widgets/toast.dart';
 
 /// การ์ด "ตารางเรียน + วันสอบ + สถิติเวลาเลิก" ของวิชาที่เลือก (ในหน้าวิชา)
 ///
@@ -311,14 +312,7 @@ Future<void> addClassSlot(BuildContext context, CalendarRepository repo, Subject
     classInfo: draft.info,
   ));
   if (clashes.isNotEmpty && context.mounted) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(
-        behavior: SnackBarBehavior.floating,
-        width: 420,
-        content: Text('⚠ ทับกับ ${clashes.join(', ')}',
-            maxLines: 2, overflow: TextOverflow.ellipsis),
-      ));
+    showToast(context, '⚠ ทับกับ ${clashes.join(', ')}');
   }
 }
 

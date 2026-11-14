@@ -8,6 +8,7 @@ import '../widgets/mini_segments.dart';
 import 'calendar_listener.dart';
 import 'calendar_models.dart';
 import 'holiday_flow.dart';
+import '../widgets/toast.dart';
 
 Future<void> openTermsPage(BuildContext context) => Navigator.of(context)
     .push(MaterialPageRoute(builder: (_) => const TermsPage()));
@@ -82,8 +83,7 @@ class _TermsPageState extends State<TermsPage> with CalendarListener<TermsPage> 
         'วันสุดท้ายของเทอม');
     if (end == null || !mounted) return;
     if (end.isBefore(start)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('วันสุดท้ายต้องไม่อยู่ก่อนวันเปิดเทอม')));
+      showToast(context, 'วันสุดท้ายต้องไม่อยู่ก่อนวันเปิดเทอม');
       return;
     }
     // เปลี่ยนปี/เทอมของรายการเดิม → ลบตัวเก่าก่อน (ไม่งั้นจะเหลือ 2 รายการ)

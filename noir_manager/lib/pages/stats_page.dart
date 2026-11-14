@@ -14,6 +14,7 @@ import '../theme/noir_colors.dart';
 import '../utils/thai_date.dart';
 import '../widgets/mini_segments.dart';
 import '../widgets/page_scaffold.dart';
+import '../widgets/toast.dart';
 
 /// หน้า "สถิติ": วงกลมภาพรวม · กราฟรายวัน 4 สัปดาห์ · แถบ % แยกกิจกรรม / วิชา · Streak · เหรียญ
 class StatsPage extends StatefulWidget {
@@ -487,12 +488,9 @@ class YearHeatmap extends StatelessWidget {
                     child: GestureDetector(
                       onTap: !inRange
                           ? null
-                          : () => ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
-                                content: Text(total == 0
+                          : () => showToast(context, total == 0
                                     ? '${thaiShortDate(d)} · ไม่มีงาน'
                                     : '${thaiShortDate(d)} · ทำแล้ว $done/$total'),
-                                duration: const Duration(seconds: 2),
-                              )),
                       child: Container(
                         width: _cell,
                         height: _cell,
