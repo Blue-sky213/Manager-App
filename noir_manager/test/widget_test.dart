@@ -593,7 +593,8 @@ void main() {
     expect(find.byType(BottomSheet), findsNothing);
     await tester.tap(find.text('ดูรายละเอียด'));
     await tester.pumpAndSettle();
-    expect(find.byType(BottomSheet), findsOneWidget);
+    // รอบ 8A: คอม = การ์ดลอยข้างจุดที่คลิก (มือถือยังเป็นแผ่นล่าง)
+    expect(find.byKey(const Key('info-card')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
