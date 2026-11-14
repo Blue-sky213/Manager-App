@@ -22,7 +22,7 @@ class ProjectMoney {
 
 ProjectMoney projectMoney(Project p, Iterable<MoneyEntry> entries, List<ProjectPayment> payments) {
   final mine = entries.where((e) => e.projectId == p.id);
-  final price = p.price ?? payments.fold(0.0, (a, x) => a + x.amount);
+  final double price = p.price ?? payments.fold<double>(0, (a, x) => a + x.amount);
   return ProjectMoney(
     price: price,
     cost: mine.where((e) => e.kind == MoneyKind.expense).fold(0, (a, e) => a + e.amount),
