@@ -669,6 +669,9 @@ class SqliteCalendarRepository extends CalendarRepository {
         name: r['name'] as String,
         emoji: r['emoji'] as String?,
         imagePath: r['image_path'] as String?,
+        scale: (r['scale'] as num?)?.toDouble() ?? 1,
+        dx: (r['dx'] as num?)?.toDouble() ?? 0,
+        dy: (r['dy'] as num?)?.toDouble() ?? 0,
       );
 
   static String _d(DateTime d) =>
@@ -719,6 +722,12 @@ class SqliteCalendarRepository extends CalendarRepository {
         'sticker', {'pack_id': packId, 'name': name, 'emoji': emoji, 'image_path': imagePath, 'sort': sort});
     notifyListeners();
     return id;
+  }
+
+  @override
+  Future<void> updateStickerFit(int stickerId, {required double scale, required double dx, required double dy}) async {
+    await _db.update('sticker', {'scale': scale, 'dx': dx, 'dy': dy}, where: 'id = ?', whereArgs: [stickerId]);
+    notifyListeners();
   }
 
   @override

@@ -6,9 +6,11 @@ import '../theme/noir_colors.dart';
 import '../utils/thai_date.dart';
 import '../widgets/dialogs.dart';
 import '../widgets/mini_form.dart';
+import '../widgets/toast.dart';
 import 'calendar_listener.dart';
 import 'calendar_models.dart';
 import 'calendar_repository.dart';
+import 'sticker_fit.dart';
 import 'sticker_images.dart';
 
 /// วาดสติกเกอร์ 1 ชิ้น: รูป (ถ้ามี) หรืออีโมจิ · ขนาดสี่เหลี่ยม [size]
@@ -21,16 +23,25 @@ class StickerGlyph extends StatelessWidget {
   Widget build(BuildContext context) {
     final emoji = Text(sticker.glyph, style: TextStyle(fontSize: size * 0.85, height: 1.1));
     final path = sticker.imagePath;
-    if (path == null) return emoji;
+    // ปรับให้พอดี (v18): ซูม + เลื่อนในกรอบ · ล้นกรอบตัดทิ้ง
+    Widget fit(Widget w) => !sticker.fitted
+        ? w
+        : Transform.translate(
+            offset: Offset(sticker.dx * size, sticker.dy * size),
+            child: Transform.scale(scale: sticker.scale, child: w),
+          );
+    if (path == null) return fit(emoji);
     return SizedBox(
       width: size,
       height: size,
-      child: Image.file(
-        File(path),
-        fit: BoxFit.contain,
-        cacheWidth: (size * MediaQuery.devicePixelRatioOf(context)).ceil(),
-        // ไฟล์หาย (เช่น ย้ายเครื่อง) → ใช้ตัวอักษรแทน ไม่พัง
-        errorBuilder: (_, _, _) => emoji,
+      child: ClipRect(
+        child: fit(Image.file(
+          File(path),
+          fit: BoxFit.contain,
+          cacheWidth: (size * sticker.scale.clamp(1, 2.5) * MediaQuery.devicePixelRatioOf(context)).ceil(),
+          // ไฟล์หาย (เช่น ย้ายเครื่อง) → ใช้ตัวอักษรแทน ไม่พัง
+          errorBuilder: (_, _, _) => emoji,
+        )),
       ),
     );
   }
@@ -374,9 +385,12 @@ class _StickerSettingsState extends State<StickerSettings> with CalendarListener
       return;
     }
     final dir = await stickerFolder();
+    final ids = <int>[];
     for (final f in images.where(picked.contains)) {
-      await repo.addSticker(packId, stickerNameFromFile(f), imagePath: await saveStickerImage(f, dir));
+      ids.add(await repo.addSticker(packId, stickerNameFromFile(f), imagePath: await saveStickerImage(f, dir)));
     }
+    // พอดีอัตโนมัติ + ปรับได้ตั้งแต่ครั้งแรก (รอบ 8B)
+    if (mounted) await fitNewStickers(context, repo, ids);
   }
 
   /// ชุดจากรูป: เลือกหลายรูป → ตั้งชื่อชุด → ทุกรูปเป็นสติกเกอร์ (ชื่อ = ชื่อไฟล์)
@@ -389,20 +403,26 @@ class _StickerSettingsState extends State<StickerSettings> with CalendarListener
     if (name == null || name.trim().isEmpty) return;
     final dir = await stickerFolder();
     final packId = await repo.addStickerPack(name.trim());
+    final ids = <int>[];
     for (final f in picked) {
       final saved = await saveStickerImage(f, dir);
-      await repo.addSticker(packId, stickerNameFromFile(f), imagePath: saved);
+      ids.add(await repo.addSticker(packId, stickerNameFromFile(f), imagePath: saved));
     }
+    if (mounted) await fitNewStickers(context, repo, ids);
   }
 
   Future<void> _packMenu(StickerPack p, Offset at) async {
     final repo = calendar!;
     final v = await showContextMenuAt<String>(context, at, [
       ctxItem('add', Icons.add, 'เพิ่มสติกเกอร์ในชุดนี้'),
+      if (p.stickers.any((s) => s.imagePath != null)) ctxItem('fitall', Icons.auto_fix_high, 'พอดีอัตโนมัติทั้งชุด'),
       if (!p.builtin) ctxItem('delete', Icons.delete_outline, 'ลบชุดนี้', danger: true),
     ]);
     if (!mounted) return;
-    if (v == 'add') {
+    if (v == 'fitall') {
+      final n = await autoFitAll(repo, p.stickers);
+      if (mounted) showToast(context, 'ปรับให้พอดีแล้ว $n รูป');
+    } else if (v == 'add') {
       await _addSticker(p);
     } else if (v == 'delete' && await confirmDelete(context, p.name)) {
       await repo.deleteStickerPack(p.id);
@@ -435,7 +455,8 @@ class _StickerSettingsState extends State<StickerSettings> with CalendarListener
                   child: Text(editing ? 'เสร็จ' : 'แก้ไข'),
                 ),
             ]),
-            Text('${p.stickers.length} ชิ้น · ชี้ / กดค้าง = ดูชื่อ', style: TextStyle(fontSize: 12, color: c.muted)),
+            Text('${p.stickers.length} ชิ้น · ชี้ / กดค้าง = ดูชื่อ · แตะ = ปรับขนาด / ตำแหน่ง',
+                style: TextStyle(fontSize: 12, color: c.muted)),
             const SizedBox(height: 12),
             Flexible(
               child: SingleChildScrollView(
@@ -445,12 +466,24 @@ class _StickerSettingsState extends State<StickerSettings> with CalendarListener
                       message: st.name,
                       triggerMode: TooltipTriggerMode.longPress,
                       child: Stack(clipBehavior: Clip.none, children: [
-                        Container(
-                          width: 56,
-                          height: 56,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(color: c.surface2, borderRadius: BorderRadius.circular(12)),
-                          child: StickerGlyph(st, size: 36),
+                        InkWell(
+                          key: ValueKey('fit-open-${st.id}'),
+                          borderRadius: BorderRadius.circular(12),
+                          onTap: editing
+                              ? null
+                              : () async {
+                                  if (await showStickerFitEditor(ctx, repo, st)) {
+                                    await reload();
+                                    setLocal(() {});
+                                  }
+                                },
+                          child: Container(
+                            width: 56,
+                            height: 56,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(color: c.surface2, borderRadius: BorderRadius.circular(12)),
+                            child: StickerGlyph(st, size: 36),
+                          ),
                         ),
                         if (editing)
                           Positioned(

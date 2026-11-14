@@ -4,12 +4,32 @@
 library;
 
 class Sticker {
-  const Sticker({required this.id, required this.packId, required this.name, this.emoji, this.imagePath});
+  const Sticker({
+    required this.id,
+    required this.packId,
+    required this.name,
+    this.emoji,
+    this.imagePath,
+    this.scale = 1,
+    this.dx = 0,
+    this.dy = 0,
+  });
   final int id;
   final int packId;
   final String name;
   final String? emoji;
   final String? imagePath;
+
+  /// ปรับให้พอดี (v18 · รอบ 8B): ซูม (1 = เดิม) · เลื่อน dx, dy เป็นสัดส่วนของกรอบ (-0.5–0.5)
+  /// เก็บกับตัวสติกเกอร์ ไม่แก้ไฟล์รูป · ใช้ทุกที่ที่วาดสติกเกอร์
+  final double scale;
+  final double dx;
+  final double dy;
+
+  bool get fitted => scale != 1 || dx != 0 || dy != 0;
+
+  Sticker withFit(double scale, double dx, double dy) =>
+      Sticker(id: id, packId: packId, name: name, emoji: emoji, imagePath: imagePath, scale: scale, dx: dx, dy: dy);
 
   /// สิ่งที่วาดบนจอ: อีโมจิ หรือตัวแรกของชื่อถ้ายังไม่มีรูป
   String get glyph => emoji ?? (name.isEmpty ? '?' : String.fromCharCode(name.runes.first));
