@@ -12,10 +12,10 @@ import 'seed_data.dart';
 import 'study_repository.dart';
 
 /// เวอร์ชันโครงตาราง: ถ้าวันหลังเพิ่มตาราง/คอลัมน์ ให้เพิ่มเลขนี้ + เขียน onUpgrade
-const int _schemaVersion = 20;
+const int _schemaVersion = 21;
 
 /// เลขเวอร์ชันฐานข้อมูล (โชว์ในหน้าตั้งค่า)
-const int appSchemaVersion = _schemaVersion; // v2 setting · v3 cleared_at · v4 ปฏิทิน · v5 Preset · v6 วิชาง่าย 2 รอบ · v7 คาบผูกวิชา + เวลาจริง · v8 แผนการเรียน · v9 เรียน/ติว + ประเภท/สถานะบท · v10 เทอม/วันหยุด/บันทึกติว + ย้ายค่าวิชาออกจาก setting · v11 ประเภทคาบ/ห้อง/กลุ่ม · v12 เส้นความสัมพันธ์วิชา · v13 คะแนนเก็บ/เกรด · v14 จำนวนขาดเรียน + บันทึกคาบเรียน · v15 หัวข้อ + งานที่สั่งในคาบ · v16 สติกเกอร์อารมณ์ · v17 รอบ 7 · v18 สติกเกอร์พอดี · v19 สกิล · v20 การเงิน
+const int appSchemaVersion = _schemaVersion; // v2 setting · v3 cleared_at · v4 ปฏิทิน · v5 Preset · v6 วิชาง่าย 2 รอบ · v7 คาบผูกวิชา + เวลาจริง · v8 แผนการเรียน · v9 เรียน/ติว + ประเภท/สถานะบท · v10 เทอม/วันหยุด/บันทึกติว + ย้ายค่าวิชาออกจาก setting · v11 ประเภทคาบ/ห้อง/กลุ่ม · v12 เส้นความสัมพันธ์วิชา · v13 คะแนนเก็บ/เกรด · v14 จำนวนขาดเรียน + บันทึกคาบเรียน · v15 หัวข้อ + งานที่สั่งในคาบ · v16 สติกเกอร์อารมณ์ · v17 รอบ 7 · v18 สติกเกอร์พอดี · v19 สกิล · v20 การเงิน · v21 โปรเจกต์
 
 /// เปิด (หรือสร้างครั้งแรก) ไฟล์ฐานข้อมูล noir_manager.db
 /// ที่อยู่ไฟล์ DB ที่เปิดล่าสุด (ใช้กับระบบสำรองข้อมูล)
@@ -62,6 +62,7 @@ Future<Database> openAppDatabase() async {
       await createStickerFitV18(db);
       await createSkillV19(db);
       await createMoneyV20(db);
+      await createProjectV21(db);
       await seedStudyData(db);
     },
     // เครื่องที่มีไฟล์ v1 อยู่แล้ว (เครื่องนัวร์): เพิ่มเฉพาะส่วนที่ขาด ข้อมูลเดิมไม่หาย
@@ -91,6 +92,7 @@ Future<Database> openAppDatabase() async {
       if (oldVersion < 18) await createStickerFitV18(db);
       if (oldVersion < 19) await createSkillV19(db);
       if (oldVersion < 20) await createMoneyV20(db);
+      if (oldVersion < 21) await createProjectV21(db);
     },
   );
 }
@@ -343,6 +345,60 @@ Future<void> createStickerV16(DatabaseExecutor db) async {
       await db.insert('sticker', {'pack_id': pack, 'name': n, 'emoji': e, 'sort': i});
     }
   }
+}
+
+/// v21 (รอบ 8E): โปรเจกต์ · ตารางใหม่ทั้งหมด · money_entry.project_id มีตั้งแต่ v20
+Future<void> createProjectV21(DatabaseExecutor db) async {
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS project (
+      id             INTEGER PRIMARY KEY AUTOINCREMENT,
+      name           TEXT NOT NULL,
+      client         TEXT,
+      type           TEXT NOT NULL DEFAULT 'other',
+      status         TEXT NOT NULL DEFAULT 'quote',
+      price          REAL,
+      start_day      TEXT,
+      due_day        TEXT,
+      travel_minutes INTEGER,
+      note           TEXT
+    )''');
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS project_member (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id INTEGER NOT NULL REFERENCES project(id) ON DELETE CASCADE,
+      name       TEXT NOT NULL,
+      role       TEXT,
+      duty       TEXT
+    )''');
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS project_task (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id  INTEGER NOT NULL REFERENCES project(id) ON DELETE CASCADE,
+      title       TEXT NOT NULL,
+      owner       TEXT,
+      due_day     TEXT,
+      done        INTEGER NOT NULL DEFAULT 0,
+      activity_id INTEGER
+    )''');
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS project_payment (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id INTEGER NOT NULL REFERENCES project(id) ON DELETE CASCADE,
+      label      TEXT NOT NULL,
+      amount     REAL NOT NULL,
+      condition  TEXT,
+      due_day    TEXT,
+      entry_id   INTEGER
+    )''');
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS project_file (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id INTEGER NOT NULL REFERENCES project(id) ON DELETE CASCADE,
+      kind       TEXT NOT NULL,
+      path       TEXT NOT NULL,
+      title      TEXT NOT NULL,
+      added_at   TEXT NOT NULL
+    )''');
 }
 
 /// v20 (รอบ 8D): การเงิน · ตารางใหม่ทั้งหมด

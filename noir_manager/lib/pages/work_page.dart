@@ -4,8 +4,8 @@ library;
 import 'package:flutter/material.dart';
 
 import '../widgets/mini_segments.dart';
-import '../widgets/page_scaffold.dart';
 import '../work/finance_page.dart';
+import '../work/projects_page.dart';
 
 class WorkPage extends StatefulWidget {
   const WorkPage({super.key});
@@ -15,7 +15,7 @@ class WorkPage extends StatefulWidget {
 }
 
 class _WorkPageState extends State<WorkPage> {
-  bool _money = true;
+  bool _money = false; // เปิดมาที่โปรเจกต์ (รอบ 8E)
 
   @override
   Widget build(BuildContext context) {
@@ -36,14 +36,7 @@ class _WorkPageState extends State<WorkPage> {
         ),
       ),
       Expanded(
-        child: IndexedStack(index: _money ? 1 : 0, children: const [
-          PageScaffold(
-            overline: 'งาน',
-            title: 'โปรเจกต์',
-            children: [ComingSoonCard(icon: Icons.view_kanban_outlined, message: 'บอร์ดโปรเจกต์ · งวดงาน · ทีม — มาในชุด 8E')],
-          ),
-          FinancePage(),
-        ]),
+        child: IndexedStack(index: _money ? 1 : 0, children: const [ProjectsPage(), FinancePage()]),
       ),
     ]);
   }
