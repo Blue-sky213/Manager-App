@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../pages/calendar_page.dart';
-import '../pages/study_page.dart';
+import '../pages/learn_page.dart';
 import '../theme/noir_colors.dart';
 import '../data/backup.dart';
 import '../pages/settings_page.dart';
@@ -63,7 +63,7 @@ class _AppShellState extends State<AppShell> {
 
   // หน้าอื่นขอเปิดปฏิทิน (เช่น แตะวันสอบ) / เปิดวิชา (คลิกคาบในปฏิทิน) → สลับเมนู
   void _onJump() => _jumpTo((p) => p is CalendarPage);
-  void _onSubjectJump() => _jumpTo((p) => p is StudyPage);
+  void _onSubjectJump() => _jumpTo((p) => p is LearnPage); // การเรียน = มหาลัย | สกิล (รอบ 8C)
 
   bool _onBack() {
     if (_history.isEmpty) return false;
