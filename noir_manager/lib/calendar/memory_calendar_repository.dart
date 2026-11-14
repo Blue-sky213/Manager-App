@@ -1,8 +1,12 @@
+import '../skills/skill_repository.dart';
 import 'calendar_models.dart';
 import 'calendar_repository.dart';
 
 /// CalendarRepository แบบเก็บใน RAM — ใช้ในการเทส กฎต้องเหมือนตัว SQLite ทุกข้อ
 class MemoryCalendarRepository extends CalendarRepository {
+  @override
+  final SkillRepository skillRepo = MemorySkillRepository();
+
   MemoryCalendarRepository() {
     for (var i = 0; i < seedCategories.length; i++) {
       _categories.add(ActivityCategory(

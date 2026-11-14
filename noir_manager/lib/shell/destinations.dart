@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../pages/calendar_page.dart';
 import '../pages/files_page.dart';
+import '../pages/learn_page.dart';
 import '../pages/stats_page.dart';
-import '../pages/study_page.dart';
 import '../pages/today_page.dart';
 
 /// ข้อมูลของเมนู 1 ปุ่ม: ชื่อ + ไอคอน + หน้าที่จะเปิด
@@ -40,7 +40,7 @@ const List<AppDestination> appDestinations = [
     label: 'การเรียน',
     icon: Icons.account_tree_outlined,
     selectedIcon: Icons.account_tree,
-    page: StudyPage(),
+    page: LearnPage(), // มหาลัย | สกิล (รอบ 8C)
   ),
   AppDestination(
     label: 'ไฟล์',
