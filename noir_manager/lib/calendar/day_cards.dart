@@ -256,7 +256,7 @@ class _NightCardsState extends State<NightCards> with CalendarListener<NightCard
                 MiniSegments<int>(
                   key: const Key('checkin-energy'),
                   value: _energy,
-                  items: const [(1, '😴 1'), (2, '2'), (3, '🙂 3'), (4, '4'), (5, '⚡ 5')],
+                  items: const [(1, '😴 1'), (2, '🥱 2'), (3, '🙂 3'), (4, '😃 4'), (5, '⚡ 5')],
                   onChanged: (v) => setState(() {
                     _editingCheckin = true;
                     _energy = v;

@@ -61,6 +61,14 @@ Future<Sticker?> _stickerFor(CalendarRepository repo, String key, String fallbac
 Future<Sticker?> missedSticker(CalendarRepository repo) => _stickerFor(repo, missedStickerKey, _defaultMissed);
 Future<Sticker?> lateSticker(CalendarRepository repo) => _stickerFor(repo, lateStickerKey, _defaultLate);
 
+/// ช้าเท่าไร แบบอ่านง่าย: ≥ 1 วัน = "7 วัน 2 ชม." (เดิม "170 ชม. 11 นาที") · ไม่ถึงวัน = "2 ชม. 5 นาที"
+String lateText(Duration late) {
+  final d = late.inDays, h = late.inHours % 24, m = late.inMinutes % 60;
+  if (d > 0) return '$d วัน${h > 0 ? ' $h ชม.' : ''}';
+  if (h > 0) return '$h ชม.${m > 0 ? ' $m นาที' : ''}';
+  return '$m นาที';
+}
+
 DateTime? _lastRun;
 
 /// ตัดสินวันที่ผ่านมา (ย้อน 14 วัน) · คืนจำนวนวันที่แปะ "พลาด"
@@ -99,8 +107,7 @@ Future<String?> afterDone(CalendarRepository repo, DateTime day, {DateTime? now}
   if (auto == null) return null;
   if (importantPending(await repo.occurrencesOn(d))) return null;
   final late = (now ?? DateTime.now()).difference(await cutoffOf(repo, d, await repo.lifeBase()));
-  final h = late.inHours, m = late.inMinutes % 60;
-  final text = 'ทำย้อนหลัง · ช้า ${h > 0 ? '$h ชม. ' : ''}${m > 0 || h == 0 ? '$m นาที' : ''}'.trim();
+  final text = 'ทำย้อนหลัง · ช้า ${lateText(late)}';
   final swap = (await repo.getSetting(lateModeKey)) != 'tag';
   final lateS = await lateSticker(repo);
   if (swap && lateS != null) {

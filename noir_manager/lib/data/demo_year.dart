@@ -59,7 +59,7 @@ Future<DemoYear> buildDemoYear({DateTime? today, int seed = 2569}) async {
   final cal = MemoryCalendarRepository();
 
   // เทอมปัจจุบัน + แผน 4 ปี (ข้อมูลตัวอย่างเดิม)
-  await loadDemoCurriculum(study, cal);
+  await loadDemoCurriculum(study, cal, today: now); // เดิมไม่ส่ง → เทสพังตามวันจริง
   final cats = await cal.categories();
   final learn = studyCategoryId(cats) ?? cats.first.id;
   final sport = cats.where((c) => c.name == 'ออกกำลังกาย').firstOrNull?.id;
