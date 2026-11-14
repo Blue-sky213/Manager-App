@@ -19,6 +19,7 @@ import '../shell/app_nav.dart';
 import '../theme/noir_colors.dart';
 import '../utils/thai_date.dart';
 import '../widgets/mini_dropdown.dart';
+import '../widgets/toast.dart';
 
 export '../calendar/calendar_models.dart' show addMonths, monthGridDays;
 
@@ -272,8 +273,7 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
                           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                             StickerBook(onTapSticker: (s) {
                               if (importantPending(_byDay[_selected] ?? const [])) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('🔒 ทำงานสำคัญของวันนั้นให้ครบก่อน แล้วค่อยแปะ')));
+                                showToast(context, '🔒 ทำงานสำคัญของวันนั้นให้ครบก่อน แล้วค่อยแปะ');
                                 return;
                               }
                               stickWithLimit(context, calendar!, _selected, s);

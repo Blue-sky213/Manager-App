@@ -8,6 +8,7 @@ import '../widgets/dialogs.dart';
 import '../widgets/mini_form.dart';
 import 'attendance.dart';
 import 'grading.dart';
+import '../widgets/toast.dart';
 
 /// แท็บ "เกรด" ในหน้าวิชา: ใส่คะแนนย่อย → เห็นเกรด · ต้องได้อีกเท่าไหร่ · ช่วงเกรดของอาจารย์
 class GradeCard extends StatefulWidget {
@@ -269,7 +270,7 @@ class _GradeCardState extends State<GradeCard> {
     await _saveSetup(GradeSetup(scale: scale, flags: _setup.flags, official: _setup.official));
   }
 
-  void _toast(String msg) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  void _toast(String msg) => showToast(context, msg);
 
   // ---------- หน้าจอ ----------
 

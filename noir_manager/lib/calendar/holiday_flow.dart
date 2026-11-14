@@ -11,6 +11,7 @@ import '../widgets/mini_form.dart';
 import 'calendar_flows.dart';
 import 'calendar_models.dart';
 import 'calendar_repository.dart';
+import '../widgets/toast.dart';
 
 /// 4 ทางของกล่องเลื่อน (ลำดับตามสเปก)
 enum HolidayChoice { shift, reschedule, inbox, cancel }
@@ -106,9 +107,7 @@ Future<void> shiftFlow(BuildContext context, CalendarRepository repo, Occurrence
 
 void _toast(BuildContext context, String text) {
   if (!context.mounted) return;
-  ScaffoldMessenger.of(context)
-    ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(content: Text(text)));
+  showToast(context, text);
 }
 
 /// เพิ่มวันหยุดแล้ว → กล่องเลือกทางเลื่อนของงานที่โดน

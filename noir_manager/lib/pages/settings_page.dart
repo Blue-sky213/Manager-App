@@ -23,6 +23,7 @@ import '../calendar/category_ui.dart' show CategorySettings;
 import '../calendar/day_cards.dart' show AutoStickerSettings;
 import '../widgets/mini_form.dart';
 import '../widgets/mini_segments.dart';
+import '../widgets/toast.dart';
 
 /// โหมดแอป: เรียน / ทำงาน / ทั้งคู่ (เก็บใน setting key = app_mode)
 const appModeKey = 'app_mode';
@@ -415,7 +416,7 @@ class _BackupSectionState extends State<_BackupSection> {
     if (mounted) setState(() => _files = files);
   }
 
-  void _toast(String m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+  void _toast(String m) => showToast(context, m);
 
   Future<void> _backupNow() async {
     setState(() => _busy = true);

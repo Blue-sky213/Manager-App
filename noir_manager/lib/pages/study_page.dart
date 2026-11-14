@@ -28,6 +28,7 @@ import '../widgets/mini_dropdown.dart';
 import '../widgets/dialogs.dart';
 import '../widgets/mini_form.dart';
 import '../widgets/mini_segments.dart';
+import '../widgets/toast.dart';
 
 /// หน้า "วิชา": Study Tree + Mastery Score
 /// วิชา → บท → หัวข้อย่อย · แตะหัวข้อย่อยเพื่อบันทึกคะแนน / ติดธง / ลบ
@@ -237,11 +238,9 @@ class _StudyPageState extends State<StudyPage> {
   Future<void> _loadDemo() async {
     final added = await loadDemoCurriculum(_repo!, CalendarScope.of(context));
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(added > 0
+    showToast(context, added > 0
           ? 'ใส่แผน 4 ปีแล้ว: เพิ่ม $added วิชา · ปี 1 เทอม 1 มีบท + คาบ + วันสอบ'
-          : 'มีแผนตัวอย่างครบแล้ว'),
-    ));
+          : 'มีแผนตัวอย่างครบแล้ว');
     await _reload();
   }
 
@@ -285,7 +284,7 @@ class _StudyPageState extends State<StudyPage> {
     if (ok != true || !mounted) return;
     final summary = await enrichDemoTerm(_repo!, CalendarScope.of(context));
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(summary)));
+    showToast(context, summary);
     await _reload();
   }
 
@@ -293,11 +292,9 @@ class _StudyPageState extends State<StudyPage> {
   Future<void> _loadLinks() async {
     final n = await loadCurriculumLinks(_repo!);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(n == 0
+    showToast(context, n == 0
           ? 'ไม่มีเส้นใหม่ให้เพิ่ม (มีครบแล้ว หรือรหัสวิชาไม่ตรงหลักสูตร)'
-          : 'เพิ่มเส้นเชื่อม $n เส้น'),
-    ));
+          : 'เพิ่มเส้นเชื่อม $n เส้น');
     await _reload();
   }
 
@@ -308,8 +305,7 @@ class _StudyPageState extends State<StudyPage> {
         s.planYear == null || s.planTerm == null ? null : s.planYear! * 10 + s.planTerm!;
     final me = order(subject);
     if (me == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('จัดปี / เทอม ของวิชานี้ก่อน แล้วค่อยต่อเส้น')));
+      showToast(context, 'จัดปี / เทอม ของวิชานี้ก่อน แล้วค่อยต่อเส้น');
       return;
     }
     final others = [for (final s in _subjects) if (s.id != subject.id && order(s) != null) s]
@@ -386,9 +382,7 @@ class _StudyPageState extends State<StudyPage> {
   Future<void> _removeDuplicates() async {
     final n = await CalendarScope.of(context).removeDuplicateActivities();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(n == 0 ? 'ไม่มีคาบเรียน/วันสอบซ้ำ' : 'ลบรายการที่ซ้ำแล้ว $n รายการ'),
-    ));
+    showToast(context, n == 0 ? 'ไม่มีคาบเรียน/วันสอบซ้ำ' : 'ลบรายการที่ซ้ำแล้ว $n รายการ');
   }
 
   Widget _yearPicker(BuildContext context, Subject? subject, {VoidCallback? onPicked, VoidCallback? onYear}) {
