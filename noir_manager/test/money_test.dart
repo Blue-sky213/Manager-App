@@ -117,7 +117,9 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('งาน').first);
     await tester.pumpAndSettle();
-    expect(find.byKey(const Key('money-add')), findsOneWidget); // เปิดมาที่การเงิน
+    await tester.tap(find.text('การเงิน').first); // รอบ 8E: เปิดมาที่โปรเจกต์
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('money-add')), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('money-add')));
     await tester.pumpAndSettle();
