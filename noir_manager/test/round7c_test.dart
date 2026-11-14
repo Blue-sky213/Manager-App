@@ -154,4 +154,11 @@ void main() {
     expect(highlightOf([DaySticker(id: 1, day: d, sticker: s1), DaySticker(id: 2, day: d, sticker: s2)])!.id, 1);
     expect(highlightOf([DaySticker(id: 1, day: d, sticker: s1), DaySticker(id: 2, day: d, sticker: s2, highlight: true)])!.id, 2);
   });
+
+  test('ช้าเกินวัน → บอกเป็นวัน (เดิม 170 ชม. 11 นาที)', () {
+    expect(lateText(const Duration(hours: 170, minutes: 11)), '7 วัน 2 ชม.');
+    expect(lateText(const Duration(days: 1)), '1 วัน');
+    expect(lateText(const Duration(hours: 2, minutes: 30)), '2 ชม. 30 นาที');
+    expect(lateText(const Duration(minutes: 45)), '45 นาที');
+  });
 }
