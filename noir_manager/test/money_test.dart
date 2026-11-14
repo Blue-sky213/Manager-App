@@ -125,6 +125,9 @@ void main() {
     await tester.tap(find.byKey(const Key('money-cat-เดินทาง')));
     await tester.tap(find.widgetWithText(FilledButton, 'บันทึก'));
     await tester.pumpAndSettle();
+    expect(find.byKey(const Key('money-amount')), findsNothing, reason: 'ฟอร์มต้องปิดหลังบันทึก');
+    expect(await cal.workRepo.entries(DateTime(2000), DateTime(2100)), hasLength(1));
+    await tester.pumpAndSettle();
     expect((tester.widget(find.byKey(const Key('kpi-out'))) as Text).data, '฿350');
 
     await tester.tap(find.byKey(const Key('sub-add')));
