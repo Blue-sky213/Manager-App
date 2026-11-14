@@ -12,10 +12,10 @@ import 'seed_data.dart';
 import 'study_repository.dart';
 
 /// เวอร์ชันโครงตาราง: ถ้าวันหลังเพิ่มตาราง/คอลัมน์ ให้เพิ่มเลขนี้ + เขียน onUpgrade
-const int _schemaVersion = 17;
+const int _schemaVersion = 18;
 
 /// เลขเวอร์ชันฐานข้อมูล (โชว์ในหน้าตั้งค่า)
-const int appSchemaVersion = _schemaVersion; // v2 setting · v3 cleared_at · v4 ปฏิทิน · v5 Preset · v6 วิชาง่าย 2 รอบ · v7 คาบผูกวิชา + เวลาจริง · v8 แผนการเรียน · v9 เรียน/ติว + ประเภท/สถานะบท · v10 เทอม/วันหยุด/บันทึกติว + ย้ายค่าวิชาออกจาก setting · v11 ประเภทคาบ/ห้อง/กลุ่ม · v12 เส้นความสัมพันธ์วิชา · v13 คะแนนเก็บ/เกรด · v14 จำนวนขาดเรียน + บันทึกคาบเรียน · v15 หัวข้อ + งานที่สั่งในคาบ · v16 สติกเกอร์อารมณ์
+const int appSchemaVersion = _schemaVersion; // v2 setting · v3 cleared_at · v4 ปฏิทิน · v5 Preset · v6 วิชาง่าย 2 รอบ · v7 คาบผูกวิชา + เวลาจริง · v8 แผนการเรียน · v9 เรียน/ติว + ประเภท/สถานะบท · v10 เทอม/วันหยุด/บันทึกติว + ย้ายค่าวิชาออกจาก setting · v11 ประเภทคาบ/ห้อง/กลุ่ม · v12 เส้นความสัมพันธ์วิชา · v13 คะแนนเก็บ/เกรด · v14 จำนวนขาดเรียน + บันทึกคาบเรียน · v15 หัวข้อ + งานที่สั่งในคาบ · v16 สติกเกอร์อารมณ์ · v17 รอบ 7 · v18 สติกเกอร์พอดี
 
 /// เปิด (หรือสร้างครั้งแรก) ไฟล์ฐานข้อมูล noir_manager.db
 /// ที่อยู่ไฟล์ DB ที่เปิดล่าสุด (ใช้กับระบบสำรองข้อมูล)
@@ -59,6 +59,7 @@ Future<Database> openAppDatabase() async {
       await createClassLogV15(db);
       await createStickerV16(db);
       await createRound7V17(db);
+      await createStickerFitV18(db);
       await seedStudyData(db);
     },
     // เครื่องที่มีไฟล์ v1 อยู่แล้ว (เครื่องนัวร์): เพิ่มเฉพาะส่วนที่ขาด ข้อมูลเดิมไม่หาย
@@ -85,6 +86,7 @@ Future<Database> openAppDatabase() async {
       if (oldVersion < 15) await createClassLogV15(db);
       if (oldVersion < 16) await createStickerV16(db);
       if (oldVersion < 17) await createRound7V17(db);
+      if (oldVersion < 18) await createStickerFitV18(db);
     },
   );
 }
@@ -337,6 +339,15 @@ Future<void> createStickerV16(DatabaseExecutor db) async {
       await db.insert('sticker', {'pack_id': pack, 'name': n, 'emoji': e, 'sort': i});
     }
   }
+}
+
+/// v18 (รอบ 8B): สติกเกอร์ปรับให้พอดี (ซูม · เลื่อน) · เพิ่มคอลัมน์อย่างเดียว ค่าเริ่มต้น = หน้าตาเดิม
+Future<void> createStickerFitV18(DatabaseExecutor db) async {
+  final has = (await db.rawQuery("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'sticker'")).isNotEmpty;
+  if (!has) return; // เทสบางตัวสร้าง schema ไม่ครบ
+  await addColumnIfMissing(db, 'sticker', 'scale', 'REAL NOT NULL DEFAULT 1');
+  await addColumnIfMissing(db, 'sticker', 'dx', 'REAL NOT NULL DEFAULT 0');
+  await addColumnIfMissing(db, 'sticker', 'dy', 'REAL NOT NULL DEFAULT 0');
 }
 
 /// v17 (รอบ 7): เพิ่มคอลัมน์อย่างเดียว ไม่แตะข้อมูลเดิม

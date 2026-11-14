@@ -7,7 +7,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../theme/noir_colors.dart';
+import '../shell/app_nav.dart' show lastPointerDown;
+import '../widgets/dialogs.dart';
 import 'calendar_listener.dart';
+import 'sticker_fit.dart';
 import 'sticker_ui.dart';
 import 'stickers.dart';
 
@@ -81,10 +84,15 @@ class _StickerBookState extends State<StickerBook> with CalendarListener<Sticker
                   childWhenDragging: Opacity(opacity: 0.3, child: _tile(c, s)),
                   child: Tooltip(
                     message: s.name,
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(10),
-                      onTap: () => widget.onTapSticker(s),
-                      child: _tile(c, s),
+                    // คลิกขวา = ปรับขนาด / ตำแหน่ง (รอบ 8B)
+                    child: GestureDetector(
+                      onSecondaryTapUp: (e) => _menu(s, e.globalPosition),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(10),
+                        onTap: () => widget.onTapSticker(s),
+                        onLongPress: () => _menu(s, lastPointerDown),
+                        child: _tile(c, s),
+                      ),
                     ),
                   ),
                 ),
@@ -97,6 +105,13 @@ class _StickerBookState extends State<StickerBook> with CalendarListener<Sticker
         ]),
       ),
     );
+  }
+
+  Future<void> _menu(Sticker s, Offset at) async {
+    final v = await showContextMenuAt<String>(context, at, [
+      ctxItem('fit', Icons.crop_free, 'ปรับขนาด / ตำแหน่ง'),
+    ]);
+    if (v == 'fit' && mounted) await showStickerFitEditor(context, calendar!, s);
   }
 
   Widget _tile(NoirColors c, Sticker s) => Container(

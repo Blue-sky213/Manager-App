@@ -132,6 +132,9 @@ abstract class CalendarRepository extends ChangeNotifier {
   Future<int> addSticker(int packId, String name, {String? emoji, String? imagePath});
   Future<void> deleteSticker(int stickerId);
 
+  /// ซูม / เลื่อนให้พอดี (v18) · ไม่แตะไฟล์รูป
+  Future<void> updateStickerFit(int stickerId, {required double scale, required double dx, required double dy});
+
   /// สติกเกอร์ที่แปะในช่วงวัน (รวมทั้งสองวัน) · เรียงวัน → ลำดับที่แปะ
   Future<List<DaySticker>> daySticker(DateTime from, DateTime to);
   Future<int> stickDay(DateTime day, int stickerId,

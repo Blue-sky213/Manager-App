@@ -448,6 +448,18 @@ class MemoryCalendarRepository extends CalendarRepository {
   }
 
   @override
+  Future<void> updateStickerFit(int stickerId, {required double scale, required double dx, required double dy}) async {
+    final i = _stickers.indexWhere((s) => s.id == stickerId);
+    if (i < 0) return;
+    final s = _stickers[i] = _stickers[i].withFit(scale, dx, dy);
+    // ที่แปะไว้แล้วเก็บสำเนาสติกเกอร์ → อัปเดตด้วย
+    for (var k = 0; k < _daySticker.length; k++) {
+      if (_daySticker[k].sticker.id == stickerId) _daySticker[k] = _daySticker[k].copyWith(sticker: s);
+    }
+    notifyListeners();
+  }
+
+  @override
   Future<void> deleteSticker(int stickerId) async {
     _stickers.removeWhere((s) => s.id == stickerId);
     _daySticker.removeWhere((d) => d.sticker.id == stickerId);
