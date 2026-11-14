@@ -21,6 +21,7 @@ import 'calendar_models.dart';
 import 'calendar_repository.dart';
 import 'calendar_ui.dart';
 import 'holiday_flow.dart';
+import '../skills/skill_forms.dart' show editLogForm;
 import '../widgets/info_card.dart';
 import '../widgets/toast.dart';
 
@@ -417,6 +418,15 @@ Future<void> runOccurrenceAction(BuildContext context, CalendarRepository repo, 
       else if (o.subjectId != null && o.timed && context.mounted) {
         final end = await askActualEnd(context, o);
         if (end != null) await repo.setActualTimes(o.id, end: end);
+      }
+      // ช่วงฝึกสกิล → บันทึกรอบนี้เลย (รอบ 8C) · เวลาฝึก = ความยาวงาน
+      final skillId = await repo.skillRepo.skillOfActivity(o.activityId);
+      if (skillId != null && context.mounted) {
+        final skill = (await repo.skillRepo.skills()).where((s) => s.id == skillId).firstOrNull;
+        if (skill != null && context.mounted) {
+          await editLogForm(context, repo.skillRepo, skill,
+              minutes: o.timed ? o.endAt!.difference(o.startAt!).inMinutes : null, occurrenceId: o.id, day: o.day);
+        }
       }
       // ความสำเร็จ: งานสุดท้ายของวันเสร็จ → แถบแจ้งสั้นด้านล่าง
       if (context.mounted) await celebrateIfDayComplete(context, repo, o.day);

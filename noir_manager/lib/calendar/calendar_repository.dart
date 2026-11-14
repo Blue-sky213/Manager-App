@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 
+import '../skills/skill_repository.dart';
 import 'calendar_models.dart';
 import 'stickers.dart';
 export 'stickers.dart';
@@ -11,6 +12,9 @@ export 'stickers.dart';
 abstract class CalendarRepository extends ChangeNotifier {
   /// ให้ทุกหน้าที่ฟังปฏิทินวาดใหม่ (เช่น หลังตั้งคำมั่น / เปิดปิดล็อก ซึ่งเก็บใน setting)
   void refresh() => notifyListeners();
+
+  /// สกิล (v19 · รอบ 8C) · ฟังการเปลี่ยนแปลงแยกจากปฏิทิน
+  SkillRepository get skillRepo;
 
   Future<List<ActivityCategory>> categories();
 

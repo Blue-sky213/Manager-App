@@ -12,10 +12,10 @@ import 'seed_data.dart';
 import 'study_repository.dart';
 
 /// เวอร์ชันโครงตาราง: ถ้าวันหลังเพิ่มตาราง/คอลัมน์ ให้เพิ่มเลขนี้ + เขียน onUpgrade
-const int _schemaVersion = 18;
+const int _schemaVersion = 19;
 
 /// เลขเวอร์ชันฐานข้อมูล (โชว์ในหน้าตั้งค่า)
-const int appSchemaVersion = _schemaVersion; // v2 setting · v3 cleared_at · v4 ปฏิทิน · v5 Preset · v6 วิชาง่าย 2 รอบ · v7 คาบผูกวิชา + เวลาจริง · v8 แผนการเรียน · v9 เรียน/ติว + ประเภท/สถานะบท · v10 เทอม/วันหยุด/บันทึกติว + ย้ายค่าวิชาออกจาก setting · v11 ประเภทคาบ/ห้อง/กลุ่ม · v12 เส้นความสัมพันธ์วิชา · v13 คะแนนเก็บ/เกรด · v14 จำนวนขาดเรียน + บันทึกคาบเรียน · v15 หัวข้อ + งานที่สั่งในคาบ · v16 สติกเกอร์อารมณ์ · v17 รอบ 7 · v18 สติกเกอร์พอดี
+const int appSchemaVersion = _schemaVersion; // v2 setting · v3 cleared_at · v4 ปฏิทิน · v5 Preset · v6 วิชาง่าย 2 รอบ · v7 คาบผูกวิชา + เวลาจริง · v8 แผนการเรียน · v9 เรียน/ติว + ประเภท/สถานะบท · v10 เทอม/วันหยุด/บันทึกติว + ย้ายค่าวิชาออกจาก setting · v11 ประเภทคาบ/ห้อง/กลุ่ม · v12 เส้นความสัมพันธ์วิชา · v13 คะแนนเก็บ/เกรด · v14 จำนวนขาดเรียน + บันทึกคาบเรียน · v15 หัวข้อ + งานที่สั่งในคาบ · v16 สติกเกอร์อารมณ์ · v17 รอบ 7 · v18 สติกเกอร์พอดี · v19 สกิล
 
 /// เปิด (หรือสร้างครั้งแรก) ไฟล์ฐานข้อมูล noir_manager.db
 /// ที่อยู่ไฟล์ DB ที่เปิดล่าสุด (ใช้กับระบบสำรองข้อมูล)
@@ -60,6 +60,7 @@ Future<Database> openAppDatabase() async {
       await createStickerV16(db);
       await createRound7V17(db);
       await createStickerFitV18(db);
+      await createSkillV19(db);
       await seedStudyData(db);
     },
     // เครื่องที่มีไฟล์ v1 อยู่แล้ว (เครื่องนัวร์): เพิ่มเฉพาะส่วนที่ขาด ข้อมูลเดิมไม่หาย
@@ -87,6 +88,7 @@ Future<Database> openAppDatabase() async {
       if (oldVersion < 16) await createStickerV16(db);
       if (oldVersion < 17) await createRound7V17(db);
       if (oldVersion < 18) await createStickerFitV18(db);
+      if (oldVersion < 19) await createSkillV19(db);
     },
   );
 }
@@ -339,6 +341,74 @@ Future<void> createStickerV16(DatabaseExecutor db) async {
       await db.insert('sticker', {'pack_id': pack, 'name': n, 'emoji': e, 'sort': i});
     }
   }
+}
+
+/// v19 (รอบ 8C): สกิล · ตารางใหม่ทั้งหมด ไม่แตะตารางเดิม
+/// งานฝึกในปฏิทินผูกผ่าน skill_activity (ไม่เพิ่มคอลัมน์ใน activity) · ลบสกิล = ลบของในสกิล (งานในปฏิทินอยู่ต่อ)
+Future<void> createSkillV19(DatabaseExecutor db) async {
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS skill (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      name       TEXT NOT NULL,
+      icon       TEXT,
+      color_key  TEXT,
+      why        TEXT,
+      status     TEXT NOT NULL DEFAULT 'active',
+      started_at TEXT NOT NULL,
+      done_at    TEXT
+    )''');
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS skill_goal (
+      id       INTEGER PRIMARY KEY AUTOINCREMENT,
+      skill_id INTEGER NOT NULL REFERENCES skill(id) ON DELETE CASCADE,
+      kind     TEXT NOT NULL,
+      title    TEXT NOT NULL,
+      unit     TEXT,
+      target   REAL,
+      streak   INTEGER NOT NULL DEFAULT 3,
+      status   TEXT NOT NULL DEFAULT 'active',
+      steps    TEXT
+    )''');
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS skill_log (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      skill_id      INTEGER NOT NULL REFERENCES skill(id) ON DELETE CASCADE,
+      goal_id       INTEGER REFERENCES skill_goal(id) ON DELETE SET NULL,
+      day           TEXT NOT NULL,
+      minutes       INTEGER,
+      value         REAL,
+      rating        INTEGER,
+      better        TEXT,
+      stuck         TEXT,
+      next          TEXT,
+      skipped       INTEGER NOT NULL DEFAULT 0,
+      occurrence_id INTEGER
+    )''');
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS skill_file (
+      id       INTEGER PRIMARY KEY AUTOINCREMENT,
+      skill_id INTEGER NOT NULL REFERENCES skill(id) ON DELETE CASCADE,
+      log_id   INTEGER REFERENCES skill_log(id) ON DELETE SET NULL,
+      kind     TEXT NOT NULL,
+      path     TEXT NOT NULL,
+      title    TEXT NOT NULL,
+      featured INTEGER NOT NULL DEFAULT 0,
+      added_at TEXT NOT NULL
+    )''');
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS skill_review (
+      skill_id  INTEGER NOT NULL REFERENCES skill(id) ON DELETE CASCADE,
+      month     TEXT NOT NULL,
+      can       TEXT,
+      weak      TEXT,
+      next_goal TEXT,
+      PRIMARY KEY (skill_id, month)
+    )''');
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS skill_activity (
+      activity_id INTEGER PRIMARY KEY,
+      skill_id    INTEGER NOT NULL REFERENCES skill(id) ON DELETE CASCADE
+    )''');
 }
 
 /// v18 (รอบ 8B): สติกเกอร์ปรับให้พอดี (ซูม · เลื่อน) · เพิ่มคอลัมน์อย่างเดียว ค่าเริ่มต้น = หน้าตาเดิม
