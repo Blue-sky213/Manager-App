@@ -76,6 +76,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('สถิติ').last);
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const ValueKey('tab-ชีวิต'))); // แท็บเลื่อนได้บนมือถือ
     await tester.tap(find.byKey(const ValueKey('tab-ชีวิต'))); // รอบ 9C: หน้าสถิติเดิม = แท็บชีวิต
     await tester.pumpAndSettle();
     expect(find.text('ทำตามแผนรายวัน'), findsOneWidget);
