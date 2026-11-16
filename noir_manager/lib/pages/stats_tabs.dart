@@ -236,8 +236,8 @@ class _StatsPageState extends State<StatsPage> {
     final recent = _skills.fold<double>(0, (a, s) => a + s.recent);
     final topSkills = _skills.where((s) => s.recent > 0).take(2).map((s) => '${s.skill.name} ${_h(s.recent)}').join(' · ');
     final income = m.income == 0 ? null : (m.net / m.income);
-    Widget card(StatsTab t, String title, String value, double? ratio, String sub, {Color? color}) => InkWell(
-          key: ValueKey('stats-card-${t.name}'),
+    Widget card(StatsTab t, String title, String value, double? ratio, String sub, {Color? color, String? id}) => InkWell(
+          key: ValueKey('stats-card-${id ?? t.name}'),
           borderRadius: BorderRadius.circular(14),
           onTap: () => setState(() => _tab = t),
           child: Container(
@@ -246,7 +246,7 @@ class _StatsPageState extends State<StatsPage> {
             decoration: BoxDecoration(color: c.surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: c.line)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(title, style: TextStyle(fontSize: 12, color: c.muted)),
-              Text(value, key: ValueKey('stats-value-${t.name}'), style: TextStyle(fontSize: 21, fontWeight: FontWeight.w700, color: color ?? c.text)),
+              Text(value, key: ValueKey('stats-value-${id ?? t.name}'), style: TextStyle(fontSize: 21, fontWeight: FontWeight.w700, color: color ?? c.text)),
               const SizedBox(height: 4),
               _bar(c, ratio ?? 0, color ?? c.accent),
               const SizedBox(height: 4),
@@ -269,7 +269,8 @@ class _StatsPageState extends State<StatsPage> {
         card(StatsTab.money, '💰 เหลือเดือนนี้', baht(m.net), income ?? 0, 'รับ ${baht(m.income)} · จ่าย ${baht(m.expense)}',
             color: m.net >= 0 ? c.good : c.bad),
         card(StatsTab.life, '😴 นอนเฉลี่ย', _sleep == null ? '—' : '${_sleep!.toStringAsFixed(1)} ชม.', (_sleep ?? 0) / 8,
-            _energy == null ? 'ยังไม่มีเช็กอินเช้า' : 'พลังเช้า ${_energy!.toStringAsFixed(1)}/5'),
+            _energy == null ? 'ยังไม่มีเช็กอินเช้า' : 'พลังเช้า ${_energy!.toStringAsFixed(1)}/5',
+            id: 'sleep'),
       ]),
     ];
   }
