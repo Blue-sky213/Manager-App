@@ -28,6 +28,19 @@ class _ReviewItem {
   final int? score;
 }
 
+/// วิชาเทอมนี้ (ไม่มีเทอม = วิชาที่มีคาบในปฏิทิน 2 สัปดาห์ข้างหน้า · ยังไม่มีอีก = 8 วิชาแรก) · สถิติใช้ชุดเดียวกัน
+Future<List<Subject>> termSubjects(List<Subject> all, CalendarRepository cal, DateTime today) async {
+  final term = (await cal.terms()).where((t) => !today.isBefore(t.start) && !today.isAfter(t.end)).firstOrNull;
+  var subjects = term == null ? <Subject>[] : [for (final s in all) if (s.planYear == term.year && s.planTerm == term.termNo) s];
+  if (subjects.isEmpty) {
+    final week = await cal.occurrencesBetween(today, today.add(const Duration(days: 13)));
+    final ids = {for (final l in week.values) for (final o in l) if (o.subjectId != null) o.subjectId};
+    subjects = [for (final s in all) if (ids.contains(s.id)) s];
+  }
+  if (subjects.isEmpty) subjects = all.take(8).toList();
+  return subjects;
+}
+
 class TermOverview extends StatefulWidget {
   const TermOverview({super.key, required this.onOpenSubject});
 
@@ -74,14 +87,8 @@ class _TermOverviewState extends State<TermOverview> {
     final mode = await study.gradingMode();
     final all = await study.subjects();
     final term = (await cal.terms()).where((t) => !today.isBefore(t.start) && !today.isAfter(t.end)).firstOrNull;
-    // วิชาเทอมนี้ (ไม่มีเทอม = วิชาที่มีคาบในปฏิทิน · ยังไม่มีอีก = ทุกวิชา)
-    var subjects = term == null ? <Subject>[] : [for (final s in all) if (s.planYear == term.year && s.planTerm == term.termNo) s];
     final week = await cal.occurrencesBetween(today, today.add(const Duration(days: 13)));
-    if (subjects.isEmpty) {
-      final ids = {for (final l in week.values) for (final o in l) if (o.subjectId != null) o.subjectId};
-      subjects = [for (final s in all) if (ids.contains(s.id)) s];
-    }
-    if (subjects.isEmpty) subjects = all.take(8).toList();
+    final subjects = await termSubjects(all, cal, today);
     final ids = {for (final s in subjects) s.id};
 
     final rows = <_SubjectRow>[];

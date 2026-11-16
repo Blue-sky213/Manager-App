@@ -111,3 +111,13 @@ String moneyCsv(Iterable<MoneyEntry> entries) {
   }
   return b.toString();
 }
+
+/// ค่าบริการที่ต้องจัดการเดือนนี้: เลยวันตัด · ใกล้ตัด (≤ 3 วัน) · เลยก่อน
+List<(Subscription, BillState)> billsToHandle(Iterable<Subscription> subs, Iterable<MoneyEntry> entries, DateTime month, DateTime today) {
+  final out = <(Subscription, BillState)>[];
+  for (final s in subs.where((s) => s.active)) {
+    final st = billState(s, entries, month, today).$1;
+    if (st == BillState.overdue || st == BillState.dueSoon) out.add((s, st));
+  }
+  return out..sort((a, b) => a.$2.index - b.$2.index);
+}

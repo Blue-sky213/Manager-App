@@ -130,6 +130,8 @@ void main() {
     await tester.pumpAndSettle();
     expect((tester.widget(find.byKey(const Key('kpi-out'))) as Text).data, '฿350');
 
+    await tester.tap(find.byKey(const ValueKey('tab-ค่าบริการ'))); // รอบ 9C: แท็บของเงิน
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('sub-add')));
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const Key('sub-name')), 'Adobe');
@@ -138,6 +140,8 @@ void main() {
     await tester.pumpAndSettle();
     final sub = (await cal.workRepo.subscriptions()).single;
     await tester.tap(find.byKey(ValueKey('sub-paid-${sub.id}')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('tab-เดือนนี้')));
     await tester.pumpAndSettle();
     expect((tester.widget(find.byKey(const Key('kpi-out'))) as Text).data, '฿1,319');
     final now = DateTime.now();

@@ -23,6 +23,9 @@ import 'project_forms.dart';
 import 'project_models.dart';
 import 'work_repository.dart';
 
+/// เปิดโปรเจกต์จากที่อื่น (ภาพรวมงาน) → เลือกการ์ดนั้น
+final projectOpenRequest = ValueNotifier<int?>(null);
+
 class ProjectsPage extends StatefulWidget {
   const ProjectsPage({super.key});
 
@@ -54,7 +57,21 @@ class _ProjectsPageState extends State<ProjectsPage> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    projectOpenRequest.addListener(_onOpen);
+  }
+
+  void _onOpen() {
+    final id = projectOpenRequest.value;
+    if (id == null || !mounted) return;
+    projectOpenRequest.value = null;
+    _open(id);
+  }
+
+  @override
   void dispose() {
+    projectOpenRequest.removeListener(_onOpen);
     _repo?.removeListener(_load);
     super.dispose();
   }

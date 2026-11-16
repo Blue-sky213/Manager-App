@@ -13,15 +13,14 @@ import '../study/tutor_plan.dart';
 import '../theme/noir_colors.dart';
 import '../utils/thai_date.dart';
 import '../widgets/mini_segments.dart';
-import '../widgets/page_scaffold.dart';
 import '../widgets/toast.dart';
 
-/// หน้า "สถิติ": วงกลมภาพรวม · กราฟรายวัน 4 สัปดาห์ · แถบ % แยกกิจกรรม / วิชา · Streak · เหรียญ
-class StatsPage extends StatefulWidget {
-  const StatsPage({super.key});
+/// สถิติ › ชีวิต (เดิมคือหน้าสถิติทั้งหน้า): วงกลมภาพรวม · กราฟรายวัน 4 สัปดาห์ · แถบ % แยกกิจกรรม / วิชา · Streak · เหรียญ
+class LifeStats extends StatefulWidget {
+  const LifeStats({super.key});
 
   @override
-  State<StatsPage> createState() => _StatsPageState();
+  State<LifeStats> createState() => _LifeStatsState();
 }
 
 /// ช่วงที่ดู
@@ -36,7 +35,7 @@ const _rangeLabel = {
   _Range.m12: '1 ปี',
 };
 
-class _StatsPageState extends State<StatsPage> with CalendarListener<StatsPage> {
+class _LifeStatsState extends State<LifeStats> with CalendarListener<LifeStats> {
   @override
   String? get hiddenTab => 'สถิติ';
 
@@ -153,9 +152,8 @@ class _StatsPageState extends State<StatsPage> with CalendarListener<StatsPage> 
     Widget card(Widget child) => Card(child: Padding(padding: const EdgeInsets.all(16), child: child));
     Text label(String t) => Text(t, style: TextStyle(fontSize: 13, color: c.muted));
 
-    return PageScaffold(
-      overline: 'Stats',
-      title: 'สถิติ',
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
       children: [
         Align(
           alignment: Alignment.centerLeft,
