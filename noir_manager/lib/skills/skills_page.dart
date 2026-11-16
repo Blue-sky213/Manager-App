@@ -22,6 +22,9 @@ import 'skill_repository.dart';
 
 const _wide = 900.0;
 
+/// เปิดสกิลจากที่อื่น (แผนผัง · ปุ่มเพิ่มบนหัว) → เลือก + เปิดรายละเอียด
+final skillOpenRequest = ValueNotifier<int?>(null);
+
 class SkillsPage extends StatefulWidget {
   const SkillsPage({super.key});
 
@@ -56,7 +59,25 @@ class _SkillsPageState extends State<SkillsPage> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    skillOpenRequest.addListener(_onOpen);
+  }
+
+  void _onOpen() {
+    final id = skillOpenRequest.value;
+    if (id == null || !mounted) return;
+    skillOpenRequest.value = null;
+    setState(() {
+      _selected = id;
+      _showDetail = true;
+    });
+    _load();
+  }
+
+  @override
   void dispose() {
+    skillOpenRequest.removeListener(_onOpen);
     _repo?.removeListener(_load);
     _cal?.removeListener(_load);
     super.dispose();
@@ -164,7 +185,7 @@ class _SkillsPageState extends State<SkillsPage> {
     ];
     return ListView(padding: const EdgeInsets.fromLTRB(16, 12, 8, 24), children: [
       Row(children: [
-        Expanded(child: Text('สกิล', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: c.text))),
+        Expanded(child: Text('รายการสกิล', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: c.text))),
         TextButton.icon(key: const Key('skill-add'), onPressed: _add, icon: const Icon(Icons.add, size: 18), label: const Text('เพิ่ม')),
       ]),
       if (_skills.isEmpty)

@@ -12,9 +12,43 @@ String skillStatusText(SkillStatus s) => switch (s) {
       SkillStatus.done => 'จบแล้ว',
     };
 
+/// สาย (ชั้น 1 ของแผนผัง · รอบ 9B): หมวดใหญ่ เช่น ตัดต่อ · ภาษา · ศิลปะ · สตรีม
+class SkillBranch {
+  const SkillBranch({this.id = 0, required this.name, this.icon = '🌟', this.colorKey = 'purple', this.sort = 0});
+  final int id;
+  final String name;
+  final String icon;
+  final String colorKey;
+  final int sort;
+}
+
+/// "ต้องผ่านก่อน" ระหว่างสกิล (ข้ามสายได้ เช่น Photoshop → Thumbnail) · แค่เตือน ไม่บล็อก
+class SkillNeed {
+  const SkillNeed(this.skillId, this.needId);
+  final int skillId;
+  final int needId;
+}
+
+/// ไอคอนที่เลือกได้ของสาย
+const branchIcons = ['🎬', '🗣️', '🎨', '🎮', '💻', '🎵', '📷', '🏃', '📚', '🌟'];
+
+/// ทักษะย่อย (ชั้น 3): ด่านในสกิล เรียงต่อกัน · ผ่านอันก่อนถึง "ปลดล็อก" อันถัดไป (แค่เตือน ไม่บล็อก)
+class SkillNode {
+  const SkillNode({this.id = 0, required this.skillId, required this.name, this.sort = 0, this.done = false});
+  final int id;
+  final int skillId;
+  final String name;
+  final int sort;
+  final bool done;
+
+  SkillNode copyWith({String? name, bool? done, int? sort}) =>
+      SkillNode(id: id, skillId: skillId, name: name ?? this.name, sort: sort ?? this.sort, done: done ?? this.done);
+}
+
 class Skill {
   const Skill({
     this.id = 0,
+    this.branchId,
     required this.name,
     this.icon = '🎯',
     this.colorKey = 'purple',
@@ -25,6 +59,9 @@ class Skill {
   });
 
   final int id;
+
+  /// อยู่สายไหน (null = ยังไม่จัดสาย)
+  final int? branchId;
   final String name;
   final String icon;
   final String colorKey;
@@ -35,9 +72,19 @@ class Skill {
   final DateTime startedAt;
   final DateTime? doneAt;
 
-  Skill copyWith({String? name, String? icon, String? colorKey, String? why, SkillStatus? status, DateTime? doneAt, bool clearDone = false}) =>
+  Skill copyWith(
+          {String? name,
+          String? icon,
+          String? colorKey,
+          String? why,
+          SkillStatus? status,
+          DateTime? doneAt,
+          bool clearDone = false,
+          int? branchId,
+          bool clearBranch = false}) =>
       Skill(
         id: id,
+        branchId: clearBranch ? null : (branchId ?? this.branchId),
         name: name ?? this.name,
         icon: icon ?? this.icon,
         colorKey: colorKey ?? this.colorKey,

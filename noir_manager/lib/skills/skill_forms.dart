@@ -18,11 +18,16 @@ import '../widgets/mini_segments.dart';
 import 'skill_models.dart';
 import 'skill_progress.dart';
 import 'skill_repository.dart';
+import 'skill_tree.dart' show unsortedBranch;
 
 double? _num(String s) => double.tryParse(s.trim().replaceAll(',', ''));
 
 /// เพิ่ม / แก้สกิล · คืน id
-Future<int?> editSkillForm(BuildContext context, SkillRepository repo, {Skill? skill}) async {
+/// [branchId] = สายเริ่มต้น (เพิ่มจากแผนผัง)
+Future<int?> editSkillForm(BuildContext context, SkillRepository repo, {Skill? skill, int? branchId}) async {
+  final branches = await repo.branches();
+  if (!context.mounted) return null;
+  int? branch = skill != null ? skill.branchId : branchId;
   final name = TextEditingController(text: skill?.name ?? '');
   final why = TextEditingController(text: skill?.why ?? '');
   var icon = skill?.icon ?? skillIcons.first;
@@ -80,6 +85,18 @@ Future<int?> editSkillForm(BuildContext context, SkillRepository repo, {Skill? s
                 ),
               ),
           ]),
+          if (branches.isNotEmpty) ...[
+            const MiniLabel('สาย'),
+            Wrap(spacing: 6, runSpacing: 6, children: [
+              for (final b in [...branches, unsortedBranch])
+                ChoiceChip(
+                  key: ValueKey('skill-branch-${b.id}'),
+                  label: Text('${b.icon} ${b.name}'),
+                  selected: (branch ?? -1) == b.id,
+                  onSelected: (_) => setLocal(() => branch = b.id < 0 ? null : b.id),
+                ),
+            ]),
+          ],
           const SizedBox(height: 8),
           MiniRow(
             icon: Icons.flag_outlined,
@@ -94,6 +111,7 @@ Future<int?> editSkillForm(BuildContext context, SkillRepository repo, {Skill? s
   if (ok != true) return null;
   return repo.saveSkill(Skill(
     id: skill?.id ?? 0,
+    branchId: branch,
     name: name.text.trim(),
     icon: icon,
     colorKey: color,
@@ -477,4 +495,104 @@ Future<bool> addPortfolioLink(BuildContext context, SkillRepository repo, int sk
     addedAt: DateTime.now(),
   ));
   return true;
+}
+
+/// เพิ่ม / แก้สาย (ชั้น 1 ของแผนผัง)
+Future<int?> editBranchForm(BuildContext context, SkillRepository repo, {SkillBranch? branch}) async {
+  final name = TextEditingController(text: branch?.name ?? '');
+  var icon = branch?.icon ?? branchIcons.first;
+  var color = branch?.colorKey ?? 'purple';
+  var showErr = false;
+  final sort = branch?.sort ?? (await repo.branches()).length;
+  if (!context.mounted) return null;
+  final ok = await showMiniForm<bool>(
+    context,
+    (ctx) => StatefulBuilder(builder: (ctx, setLocal) {
+      final c = ctx.noir;
+      return MiniForm(
+        title: branch == null ? 'สายใหม่' : 'แก้สาย',
+        primaryLabel: branch == null ? 'สร้าง' : 'บันทึก',
+        onPrimary: () {
+          if (name.text.trim().isEmpty) return setLocal(() => showErr = true);
+          Navigator.pop(ctx, true);
+        },
+        onSecondary: () => Navigator.pop(ctx, false),
+        children: [
+          MiniBigField(key: const Key('branch-name'), controller: name, hint: 'เช่น ตัดต่อ · ภาษา · ศิลปะ'),
+          if (showErr && name.text.trim().isEmpty) Text('ใส่ชื่อสาย', style: TextStyle(fontSize: 12, color: c.bad)),
+          const MiniLabel('ไอคอน'),
+          Wrap(spacing: 6, runSpacing: 6, children: [
+            for (final e in branchIcons)
+              InkWell(
+                key: ValueKey('branch-icon-$e'),
+                borderRadius: BorderRadius.circular(10),
+                onTap: () => setLocal(() => icon = e),
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: e == icon ? c.accent.withValues(alpha: 0.18) : c.surface2,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: e == icon ? c.accent : Colors.transparent, width: 2),
+                  ),
+                  child: Text(e, style: const TextStyle(fontSize: 20)),
+                ),
+              ),
+          ]),
+          const MiniLabel('สี'),
+          Wrap(spacing: 8, children: [
+            for (final k in categoryColorKeys)
+              InkWell(
+                customBorder: const CircleBorder(),
+                onTap: () => setLocal(() => color = k),
+                child: Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: categoryAccent(k),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: k == color ? c.text : Colors.transparent, width: 2.5),
+                  ),
+                ),
+              ),
+          ]),
+        ],
+      );
+    }),
+  );
+  if (ok != true) return null;
+  return repo.saveBranch(SkillBranch(id: branch?.id ?? 0, name: name.text.trim(), icon: icon, colorKey: color, sort: sort));
+}
+
+/// เพิ่ม / แก้ชื่อทักษะย่อย · เพิ่มใหม่ต่อท้ายเสมอ
+Future<int?> editNodeForm(BuildContext context, SkillRepository repo, int skillId, {SkillNode? node}) async {
+  final name = TextEditingController(text: node?.name ?? '');
+  final count = node == null ? (await repo.nodes()).where((n) => n.skillId == skillId).length : 0;
+  if (!context.mounted) return null;
+  var showErr = false;
+  final ok = await showMiniForm<bool>(
+    context,
+    (ctx) => StatefulBuilder(builder: (ctx, setLocal) {
+      final c = ctx.noir;
+      return MiniForm(
+        title: node == null ? 'ทักษะย่อยใหม่' : 'แก้ทักษะย่อย',
+        primaryLabel: node == null ? 'เพิ่ม' : 'บันทึก',
+        onPrimary: () {
+          if (name.text.trim().isEmpty) return setLocal(() => showErr = true);
+          Navigator.pop(ctx, true);
+        },
+        onSecondary: () => Navigator.pop(ctx, false),
+        children: [
+          MiniBigField(key: const Key('node-name'), controller: name, hint: 'เช่น Cut · Color · Fairlight'),
+          if (showErr && name.text.trim().isEmpty) Text('ใส่ชื่อ', style: TextStyle(fontSize: 12, color: c.bad)),
+          Text('ด่านเรียงต่อกัน: ผ่านอันก่อนถึงปลดล็อกอันถัดไป (แค่เตือน ข้ามได้)', style: TextStyle(fontSize: 12, color: c.muted)),
+        ],
+      );
+    }),
+  );
+  if (ok != true) return null;
+  return repo.saveNode(node == null
+      ? SkillNode(skillId: skillId, name: name.text.trim(), sort: count)
+      : node.copyWith(name: name.text.trim()));
 }
