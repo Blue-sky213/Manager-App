@@ -12,7 +12,7 @@
 | เรื่อง | ค่า |
 |---|---|
 | Framework | Flutter (Dart SDK `^3.13.7`) · Material 3 |
-| ฐานข้อมูล | SQLite — `sqflite` (Android/iOS), `sqflite_common_ffi` (Windows) · schema **v21** |
+| ฐานข้อมูล | SQLite — `sqflite` (Android/iOS), `sqflite_common_ffi` (Windows) · schema **v22** |
 | Migration | `onUpgrade` + `addColumnIfMissing` — ห้ามแก้ migration เก่า เพิ่มเวอร์ชันใหม่เท่านั้น |
 | แพลตฟอร์ม | Windows (หลัก) · Android · iPhone/iPad (ติดตั้งเทสเอง ไม่ขึ้น App Store) |
 | ฟอนต์ | IBM Plex Sans Thai (`assets/fonts/`) |
@@ -21,9 +21,9 @@
 
 | โฟลเดอร์ `lib/` | มีอะไร |
 |---|---|
-| `shell/` | โครงแอป + เมนู 8 หน้า เป็นกลุ่ม (ทุกวัน · พัฒนาตัวเอง · งาน & เงิน · ภาพรวม) · มือถือ 4 + ☰ |
+| `shell/` | โครงแอป + เมนู 8 หน้า เป็นกลุ่ม (ทุกวัน · พัฒนาตัวเอง · งาน & เงิน · สรุป) · มือถือ 4 + ☰ |
 | `pages/` | วันนี้ · ปฏิทิน · การเรียน · งาน · เงิน · สถิติ · ไฟล์ |
-| `skills/` `work/` | สกิล · โปรเจกต์ + การเงิน |
+| `skills/` `work/` | สกิล (แผนผัง สาย → สกิล → ทักษะย่อย) · โปรเจกต์ + การเงิน |
 | `calendar/` | model, repository, มุมมองสัปดาห์, เวลาชน, หาช่องว่าง, เทอม & วันหยุด |
 | `data/` | DB + migration, model วิชา, ข้อมูลตัวอย่างแผน 4 ปี |
 | `study/` | แผนผังหลักสูตร, mastery, กฎ Advanced, รอบติว, สีวิชา |
