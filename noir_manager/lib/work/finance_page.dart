@@ -16,10 +16,18 @@ import '../widgets/toast.dart';
 import 'money_calc.dart';
 import 'money_forms.dart';
 import 'money_models.dart';
+import 'project_calc.dart' show pendingPayments;
+import 'project_forms.dart' show togglePaymentReceived;
+import 'project_models.dart';
 import 'work_repository.dart';
 
+/// แท็บของเมนูเงิน (รอบ 9C) · เดือนนี้ = ภาพรวม (ต้องจัดการขึ้นก่อน)
+enum MoneyView { overview, entries, subs, invest }
+
 class FinancePage extends StatefulWidget {
-  const FinancePage({super.key});
+  const FinancePage({super.key, this.view = MoneyView.overview});
+
+  final MoneyView view;
 
   @override
   State<FinancePage> createState() => _FinancePageState();
@@ -33,6 +41,7 @@ class _FinancePageState extends State<FinancePage> {
   List<Subscription> _subs = const [];
   List<Investment> _invs = const [];
   double? _budget;
+  List<(Project, ProjectPayment)> _pending = const []; // งวดงานรอรับ (ไหลมาจากโปรเจกต์)
 
   @override
   void didChangeDependencies() {
@@ -62,12 +71,15 @@ class _FinancePageState extends State<FinancePage> {
     final subs = await repo.subscriptions();
     final invs = await repo.investments();
     final budget = double.tryParse(await _cal!.getSetting(subBudgetKey) ?? '');
+    final projects = await repo.projects();
+    final pays = {for (final pj in projects) pj.id: await repo.payments(pj.id)};
     if (!mounted) return;
     setState(() {
       _all = [for (final e in all) if (!e.day.isBefore(from) && !e.day.isAfter(to) || e.investmentId != null) e];
       _subs = subs;
       _invs = invs;
       _budget = budget;
+      _pending = pendingPayments(projects, pays);
     });
   }
 
@@ -116,7 +128,10 @@ class _FinancePageState extends State<FinancePage> {
     final sum = monthSummary(_all, _month);
     final monthRows = [for (final e in _all) if (e.day.year == _month.year && e.day.month == _month.month) e];
     final today = DateTime.now();
+    final view = widget.view;
+    final withMonth = view == MoneyView.overview || view == MoneyView.entries;
     return ListView(padding: const EdgeInsets.fromLTRB(16, 12, 24, 32), children: [
+      if (withMonth) ...[
       // จอแคบ: ปุ่มจดรายการตกไปบรรทัดล่าง แทนที่จะล้นขวา
       Wrap(alignment: WrapAlignment.spaceBetween, crossAxisAlignment: WrapCrossAlignment.center, runSpacing: 4, children: [
         Row(mainAxisSize: MainAxisSize.min, children: [
@@ -138,24 +153,17 @@ class _FinancePageState extends State<FinancePage> {
         ]),
       ]),
       const SizedBox(height: 8),
+      ],
+      if (view == MoneyView.overview) ...[
       Wrap(spacing: 12, runSpacing: 12, children: [
         _kpi(c, 'รายรับ', baht(sum.income), c.good, key: 'kpi-in'),
         _kpi(c, 'รายจ่าย', baht(sum.expense), c.bad, key: 'kpi-out'),
         _kpi(c, 'คงเหลือ', baht(sum.net), sum.net >= 0 ? c.text : c.bad, key: 'kpi-net'),
       ]),
       const SizedBox(height: 16),
-      LayoutBuilder(builder: (context, box) {
-        final two = box.maxWidth >= 760;
-        final subs = _subsCard(context, c, repo, today);
-        final invs = _invCard(context, c, repo, today);
-        return two
-            ? Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Expanded(child: subs),
-                const SizedBox(width: 12),
-                Expanded(child: invs),
-              ])
-            : Column(children: [subs, const SizedBox(height: 12), invs]);
-      }),
+      _todoCard(context, c, repo, today),
+      const SizedBox(height: 16),
+      _catCard(c, sum),
       const SizedBox(height: 16),
       Card(
         child: Padding(
@@ -164,20 +172,100 @@ class _FinancePageState extends State<FinancePage> {
             Text('6 เดือนล่าสุด', style: TextStyle(fontWeight: FontWeight.w600, color: c.text)),
             const SizedBox(height: 8),
             SizedBox(height: 120, child: CustomPaint(painter: _Bars(lastMonths(_all, _month), c.good, c.bad, c.muted))),
-            if (sum.byCategory.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              Text('จ่ายมากสุด: ${sum.byCategory.take(3).map((e) => '${e.$1} ${baht(e.$2)}').join(' · ')}',
-                  style: TextStyle(fontSize: 12, color: c.muted)),
-            ],
           ]),
         ),
       ),
-      const SizedBox(height: 16),
-      Text('รายการเดือนนี้', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: c.text)),
+      ],
+      if (view == MoneyView.entries) ...[
+      Text('รายการเดือนนี้ · ${monthRows.length}', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: c.text)),
       const SizedBox(height: 4),
       if (monthRows.isEmpty) Text('ยังไม่มี · กด "จดรายการ"', style: TextStyle(fontSize: 12, color: c.muted)),
       for (final e in monthRows) _entryRow(context, c, repo, e),
+      ],
+      if (view == MoneyView.subs) _subsCard(context, c, repo, today),
+      if (view == MoneyView.invest) _invCard(context, c, repo, today),
     ]);
+  }
+
+  /// ต้องจัดการ: ค่าบริการเลย/ใกล้วันตัด · งวดงานที่ครบภายใน 14 วัน (หรือเลยแล้ว) · ติ๊กได้เลย
+  Widget _todoCard(BuildContext context, NoirColors c, WorkRepository repo, DateTime today) {
+    final thisMonth = DateTime(today.year, today.month);
+    final bills = billsToHandle(_subs, _all, thisMonth, today);
+    final soon = DateTime(today.year, today.month, today.day + 14);
+    final pays = [for (final x in _pending) if (x.$2.due != null && !x.$2.due!.isAfter(soon)) x];
+    Widget tag(String t, Color col) => Container(
+          width: 74,
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(color: col.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(99)),
+          child: Text(t, textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, color: col)),
+        );
+    return Card(
+      key: const Key('money-todo'),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Text('ต้องจัดการ', style: TextStyle(fontWeight: FontWeight.w600, color: c.text)),
+          if (bills.isEmpty && pays.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text('ไม่มีอะไรค้าง ✓', style: TextStyle(fontSize: 12, color: c.muted)),
+            ),
+          for (final (s, st) in bills)
+            Row(children: [
+              tag(st == BillState.overdue ? 'เลยวันตัด' : 'ใกล้ตัด', st == BillState.overdue ? c.bad : c.warn),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text('${s.name} · ตัดวันที่ ${billDateIn(s, thisMonth)!.day}',
+                    maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: c.text)),
+              ),
+              Text(s.amount == null ? '—' : baht(s.amount!), style: TextStyle(fontSize: 12, color: c.muted)),
+              Checkbox(key: ValueKey('todo-sub-${s.id}'), value: false, onChanged: (_) => payBill(context, repo, s, thisMonth)),
+            ]),
+          for (final (pj, x) in pays)
+            Row(children: [
+              tag('งวดงาน', c.accent),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text('${pj.name} · ${x.label} · ครบ ${thaiShortDate(x.due!)}',
+                    maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: x.due!.isBefore(DateTime(today.year, today.month, today.day)) ? c.bad : c.text)),
+              ),
+              Text(baht(x.amount), style: TextStyle(fontSize: 12, color: c.muted)),
+              Checkbox(key: ValueKey('todo-pay-${x.id}'), value: false, onChanged: (_) => togglePaymentReceived(repo, pj, x, true)),
+            ]),
+        ]),
+      ),
+    );
+  }
+
+  /// จ่ายไปกับอะไร (5 หมวดแรก)
+  Widget _catCard(NoirColors c, MonthSummary sum) {
+    final top = sum.byCategory.take(5).toList();
+    final max = top.isEmpty ? 1.0 : top.first.$2;
+    final colors = [c.bad, c.warn, c.accent, c.good, c.muted];
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Text('จ่ายไปกับอะไร', style: TextStyle(fontWeight: FontWeight.w600, color: c.text)),
+          if (top.isEmpty) Text('ยังไม่มีรายจ่ายเดือนนี้', style: TextStyle(fontSize: 12, color: c.muted)),
+          for (final (i, (cat, v)) in top.indexed)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Row(children: [
+                SizedBox(width: 96, child: Text(cat, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, color: c.text))),
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(value: v / max, minHeight: 8, backgroundColor: c.surface2, color: colors[i]),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                SizedBox(width: 76, child: Text(baht(v), textAlign: TextAlign.right, style: TextStyle(fontSize: 12, color: c.muted))),
+              ]),
+            ),
+        ]),
+      ),
+    );
   }
 
   Widget _kpi(NoirColors c, String k, String v, Color color, {required String key}) => Container(

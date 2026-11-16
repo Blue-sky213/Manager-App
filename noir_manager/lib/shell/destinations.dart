@@ -5,7 +5,7 @@ import '../pages/files_page.dart';
 import '../pages/learn_page.dart';
 import '../pages/money_page.dart';
 import '../pages/skill_menu_page.dart';
-import '../pages/stats_page.dart';
+import '../pages/stats_tabs.dart';
 import '../pages/today_page.dart';
 import '../pages/work_page.dart';
 

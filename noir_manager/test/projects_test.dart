@@ -88,6 +88,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('งาน').first);
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('tab-บอร์ด'))); // รอบ 9C: แท็บแรก = ภาพรวม
+    await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(const Key('pj-add')));
     await tester.pumpAndSettle();
