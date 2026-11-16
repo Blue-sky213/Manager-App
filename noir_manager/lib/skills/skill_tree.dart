@@ -138,7 +138,7 @@ class TreeDot {
 }
 
 /// ขนาดพื้นที่วาด (จุดศูนย์กลางอยู่กลาง)
-const treeCanvas = (w: 1100.0, h: 820.0);
+const treeCanvas = (w: 1300.0, h: 1000.0);
 
 /// สาย "ยังไม่จัดสาย" สำหรับสกิลที่ไม่มีสาย
 const unsortedBranch = SkillBranch(id: -1, name: 'ยังไม่จัดสาย', icon: '📦', colorKey: 'gray');

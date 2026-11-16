@@ -170,8 +170,11 @@ class _SkillTreeViewState extends State<SkillTreeView> {
           ctxItem('branch', Icons.account_tree_outlined, 'เพิ่มสาย'),
           ctxItem('skill', Icons.add, 'เพิ่มสกิล'),
         ]);
-        if (v == 'branch') await _addBranch();
-        if (v == 'skill') await _addSkill();
+        if (v == 'branch') {
+          await _addBranch();
+        } else if (v == 'skill') {
+          await _addSkill();
+        }
       case DotKind.branch:
         final b = _branches.where((b) => b.id == d.id).firstOrNull;
         final v = await showContextMenuAt<String>(context, at, [
@@ -180,15 +183,15 @@ class _SkillTreeViewState extends State<SkillTreeView> {
           if (b != null) ctxItem('delete', Icons.delete_outline, 'ลบสาย', danger: true),
         ]);
         if (!mounted) return;
-        if (v == 'skill') await _addSkill(b?.id);
-        if (v == 'edit') await editBranchForm(context, repo, branch: b);
-        if (v == 'delete' &&
-            await confirmMini(context,
-                title: 'ลบสาย',
-                message: 'ลบสาย "${b!.name}"? สกิลในสายไม่หาย (ย้ายไป "ยังไม่จัดสาย")',
-                okLabel: 'ลบ',
-                danger: true)) {
-          await repo.deleteBranch(b.id);
+        switch (v) {
+          case 'skill':
+            await _addSkill(b?.id);
+          case 'edit':
+            await editBranchForm(context, repo, branch: b);
+          case 'delete':
+            final ok = await confirmMini(context,
+                title: 'ลบสาย', message: 'ลบสาย "${b!.name}"? สกิลในสายไม่หาย (ย้ายไป "ยังไม่จัดสาย")', okLabel: 'ลบ', danger: true);
+            if (ok) await repo.deleteBranch(b.id);
         }
       case DotKind.skill:
         final s = _skills.firstWhere((s) => s.id == d.id);
@@ -226,10 +229,16 @@ class _SkillTreeViewState extends State<SkillTreeView> {
           ctxItem('delete', Icons.delete_outline, 'ลบ', danger: true),
         ]);
         if (!mounted) return;
-        if (v == 'toggle') await _toggleNode(n);
-        if (v == 'edit') await editNodeForm(context, repo, n.skillId, node: n);
-        if (v == 'up') await _moveNodeUp(n);
-        if (v == 'delete') await repo.deleteNode(n.id);
+        switch (v) {
+          case 'toggle':
+            await _toggleNode(n);
+          case 'edit':
+            await editNodeForm(context, repo, n.skillId, node: n);
+          case 'up':
+            await _moveNodeUp(n);
+          case 'delete':
+            await repo.deleteNode(n.id);
+        }
     }
   }
 
@@ -443,10 +452,13 @@ class _SkillTreeViewState extends State<SkillTreeView> {
   Widget _panel(NoirColors c) {
     final d = _selDot;
     final small = TextStyle(fontSize: 12, color: c.muted);
-    Widget tag(String t, Color col) => Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-          decoration: BoxDecoration(color: col.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(99)),
-          child: Text(t, style: TextStyle(fontSize: 11, color: col)),
+    // ป้ายยาว (ต้องผ่าน ... ก่อน) หดได้ ไม่ดันแผงล้น
+    Widget tag(String t, Color col) => Flexible(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(color: col.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(99)),
+            child: Text(t, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, color: col)),
+          ),
         );
     Widget btn(String key, String label, VoidCallback on, {bool filled = false}) => filled
         ? FilledButton(key: Key(key), onPressed: on, style: FilledButton.styleFrom(visualDensity: VisualDensity.compact), child: Text(label))
