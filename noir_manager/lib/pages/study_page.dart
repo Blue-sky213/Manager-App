@@ -32,8 +32,44 @@ import '../widgets/toast.dart';
 
 /// หน้า "วิชา": Study Tree + Mastery Score
 /// วิชา → บท → หัวข้อย่อย · แตะหัวข้อย่อยเพื่อบันทึกคะแนน / ติดธง / ลบ
+/// แผน 4 ปี (true) หรือ รายวิชา (false) ที่โชว์อยู่ · แท็บของหน้าการเรียนอ่านค่านี้ (รอบ 9A)
+final studyMapView = ValueNotifier<bool>(true);
+
+/// หน้าการเรียนขอสลับ แผน 4 ปี ↔ รายวิชา
+class StudyViewRequest extends ChangeNotifier {
+  bool map = true;
+
+  /// เปิดวิชานี้ (จากแท็บภาพรวม / ตารางเรียน) · [from] = ปุ่มกลับไปไหน
+  int? subjectId;
+  String from = 'map';
+
+  void go(bool m) {
+    map = m;
+    subjectId = null;
+    notifyListeners();
+  }
+
+  void open(int id, {required String from}) {
+    map = false;
+    subjectId = id;
+    this.from = from;
+    notifyListeners();
+  }
+}
+
+final studyViewRequest = StudyViewRequest();
+
 class StudyPage extends StatefulWidget {
-  const StudyPage({super.key});
+  const StudyPage({super.key, this.embedded = false, this.onOpenWeek, this.onOverview});
+
+  /// ในหน้าการเรียน: "กลับภาพรวม"
+  final VoidCallback? onOverview;
+
+  /// ในหน้าการเรียน: "กลับตารางเรียน" = สลับไปแท็บตารางเรียน (ไม่เปิดหน้าซ้อน)
+  final VoidCallback? onOpenWeek;
+
+  /// อยู่ในหน้าการเรียน (มีแท็บด้านบนแล้ว) → ซ่อนปุ่มสลับ / ตารางเรียน / เกรดของหน้านี้
+  final bool embedded;
 
   @override
   State<StudyPage> createState() => _StudyPageState();
@@ -103,12 +139,25 @@ class _StudyPageState extends State<StudyPage> {
   void initState() {
     super.initState();
     subjectJump.addListener(_onSubjectJump);
+    studyViewRequest.addListener(_onViewRequest);
     appBack.add(_onAppBack);
+  }
+
+  void _onViewRequest() {
+    if (!mounted || _loading) return;
+    final id = studyViewRequest.subjectId;
+    final s = id == null ? null : _subjects.where((x) => x.id == id).firstOrNull;
+    if (s != null) {
+      _openSubject(s, from: studyViewRequest.from);
+    } else {
+      _setMapView(studyViewRequest.map);
+    }
   }
 
   @override
   void dispose() {
     subjectJump.removeListener(_onSubjectJump);
+    studyViewRequest.removeListener(_onViewRequest);
     appBack.remove(_onAppBack);
     super.dispose();
   }
@@ -927,6 +976,9 @@ class _StudyPageState extends State<StudyPage> {
     } else if (to == 'week') {
       setState(() {});
       _openWeek();
+    } else if (to == 'overview') {
+      setState(() {});
+      widget.onOverview?.call();
     } else {
       final id = _subjectId;
       _setMapView(true);
@@ -1206,7 +1258,18 @@ class _StudyPageState extends State<StudyPage> {
       _collapsed.contains(key) ? ({..._collapsed}..remove(key)) : {..._collapsed, key});
 
   /// สลับ แผนผัง ↔ รายวิชา
-  Widget _viewSwitch() => Wrap(
+  Widget _viewSwitch() => widget.embedded
+      ? (!_mapView && _returnTo != null
+          ? Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: _goBack,
+                icon: const Icon(Icons.arrow_back),
+                label: Text(switch (_returnTo) { 'week' => 'กลับตารางเรียน', 'jump' => 'กลับหน้าเดิม', 'overview' => 'กลับภาพรวม', _ => 'กลับแผน 4 ปี' }),
+              ),
+            )
+          : const SizedBox.shrink())
+      : Wrap(
         spacing: 12,
         runSpacing: 8,
         crossAxisAlignment: WrapCrossAlignment.center,
@@ -1215,7 +1278,7 @@ class _StudyPageState extends State<StudyPage> {
             TextButton.icon(
               onPressed: _goBack,
               icon: const Icon(Icons.arrow_back),
-              label: Text(switch (_returnTo) { 'week' => 'กลับตารางเรียน', 'jump' => 'กลับหน้าเดิม', _ => 'กลับแผน 4 ปี' }),
+              label: Text(switch (_returnTo) { 'week' => 'กลับตารางเรียน', 'jump' => 'กลับหน้าเดิม', 'overview' => 'กลับภาพรวม', _ => 'กลับแผน 4 ปี' }),
             ),
           SegmentedButton<bool>(
           style: const ButtonStyle(visualDensity: VisualDensity.compact),
@@ -1263,6 +1326,7 @@ class _StudyPageState extends State<StudyPage> {
 
   /// ตารางเรียนของทุกวิชา · "เปิดวิชา" จากคาบ → กลับมาหน้ารายวิชาของวิชานั้น
   void _openWeek() {
+    if (widget.onOpenWeek != null) return widget.onOpenWeek!();
     Navigator.of(context).push(MaterialPageRoute<void>(
       builder: (ctx) => WeekTimetablePage(
         onOpenSubject: (s) {
@@ -1284,12 +1348,9 @@ class _StudyPageState extends State<StudyPage> {
           children: [
             Expanded(
               child: Text(
-                  _mapYear == null
-                      ? 'การเรียน'
-                      : _mapTerm == null
-                          ? 'การเรียน · ปี $_mapYear'
-                          : 'การเรียน · ปี $_mapYear · ${_mapTerm == 3 ? 'ฤดูร้อน' : 'ภาค $_mapTerm'}',
-                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.w600, color: c.text)),
+                  // ในหน้าการเรียน (มีหัวแล้ว) → หัวเล็ก "แผน 4 ปี"
+                  '${widget.embedded ? 'แผน 4 ปี' : 'การเรียน'}${_mapYear == null ? '' : _mapTerm == null ? ' · ปี $_mapYear' : ' · ปี $_mapYear · ${_mapTerm == 3 ? 'ฤดูร้อน' : 'ภาค $_mapTerm'}'}',
+                  style: TextStyle(fontSize: widget.embedded ? 20 : 28, fontWeight: FontWeight.w600, color: c.text)),
             ),
             FilledButton.icon(
               onPressed: _addSubject,
@@ -1365,6 +1426,10 @@ class _StudyPageState extends State<StudyPage> {
       return const Center(child: CircularProgressIndicator());
     }
 
+    if (studyMapView.value != _mapView) {
+      final v = _mapView;
+      WidgetsBinding.instance.addPostFrameCallback((_) => studyMapView.value = v);
+    }
     if (_mapView) return _buildMap(context);
     return _buildDetail(context, c);
   }

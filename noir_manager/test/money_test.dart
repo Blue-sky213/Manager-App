@@ -115,9 +115,7 @@ void main() {
     final cal = MemoryCalendarRepository();
     await tester.pumpWidget(NoirManagerApp(studyRepository: MemoryStudyRepository.seeded(), calendarRepository: cal));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('งาน').first);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('การเงิน').first); // รอบ 8E: เปิดมาที่โปรเจกต์
+    await tester.tap(find.text('เงิน').first); // รอบ 9A: เมนูของตัวเอง
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('money-add')), findsOneWidget);
 
@@ -146,14 +144,14 @@ void main() {
     final rows = await cal.workRepo.entries(DateTime(now.year, now.month, 1), DateTime(now.year, now.month + 1, 0));
     expect(rows.where((r) => r.subscriptionId == sub.id), hasLength(1));
 
-    // ตั้งค่า › ปิดเมนู "งาน" → หายจากแถบเมนู · กลับหน้าแรก
-    hiddenMenus.value = {'งาน'};
+    // ตั้งค่า › ปิดเมนู "เงิน" (เปิดอยู่) → หายจากแถบเมนู · กลับหน้าแรก
+    hiddenMenus.value = {'เงิน'};
     await tester.pumpAndSettle();
-    expect(find.text('งาน'), findsNothing);
+    expect(find.text('เงิน'), findsNothing);
     expect(currentTab.value, 'วันนี้');
     hiddenMenus.value = const {};
     await tester.pumpAndSettle();
-    expect(find.text('งาน'), findsWidgets);
+    expect(find.text('เงิน'), findsWidgets);
     expect(tester.takeException(), isNull);
   });
 }

@@ -74,4 +74,4 @@ final hiddenMenus = ValueNotifier<Set<String>>(const {});
 const hiddenMenusKey = 'hidden_menus';
 
 /// เมนูที่ซ่อนได้ (เมนูหลักอื่นซ่อนไม่ได้)
-const hideableMenus = {'งาน'};
+const hideableMenus = {'งาน', 'เงิน'};

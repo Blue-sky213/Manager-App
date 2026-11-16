@@ -196,20 +196,26 @@ class _SettingsPageState extends State<SettingsPage> {
                       // รอบ 8D: เมนู "งาน" ซ่อนได้ (คนที่ใช้แค่เรียนไม่ต้องเห็น)
                       ValueListenableBuilder(
                         valueListenable: hiddenMenus,
-                        builder: (ctx, hidden, _) => MiniSwitchRow(
-                          key: const Key('menu-work'),
-                          icon: Icons.work_outline,
-                          label: 'เมนู "งาน"',
-                          detail: 'โปรเจกต์ · การเงิน',
-                          value: !hidden.contains('งาน'),
-                          last: true,
-                          onChanged: (v) {
-                            final next = {...hidden};
-                            v ? next.remove('งาน') : next.add('งาน');
-                            hiddenMenus.value = next;
-                            repo.setSetting(hiddenMenusKey, next.join(','));
-                          },
-                        ),
+                        builder: (ctx, hidden, _) => Column(children: [
+                          for (final (key, menu, icon, detail) in const [
+                            ('menu-work', 'งาน', Icons.work_outline, 'โปรเจกต์ · งวด · ทีม'),
+                            ('menu-money', 'เงิน', Icons.account_balance_wallet_outlined, 'รายรับ-จ่าย · ค่าบริการ · ลงทุน'),
+                          ])
+                            MiniSwitchRow(
+                              key: Key(key),
+                              icon: icon,
+                              label: 'เมนู "$menu"',
+                              detail: detail,
+                              value: !hidden.contains(menu),
+                              last: menu == 'เงิน',
+                              onChanged: (v) {
+                                final next = {...hidden};
+                                v ? next.remove(menu) : next.add(menu);
+                                hiddenMenus.value = next;
+                                repo.setSetting(hiddenMenusKey, next.join(','));
+                              },
+                            ),
+                        ]),
                       ),
                     ]),
                     const SizedBox(height: 14),

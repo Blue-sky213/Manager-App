@@ -129,6 +129,33 @@ class _AppShellState extends State<AppShell> {
     super.dispose();
   }
 
+  /// ☰ เพิ่มเติม (มือถือ): เมนูที่ไม่อยู่บนแถบล่าง + ตั้งค่า
+  Future<void> _openMore(BuildContext context, List<int> more) async {
+    final i = await showModalBottomSheet<int>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          for (final k in more)
+            ListTile(
+              leading: Icon(k == _index ? appDestinations[k].selectedIcon : appDestinations[k].icon),
+              title: Text(appDestinations[k].label),
+              subtitle: Text(appDestinations[k].group),
+              selected: k == _index,
+              onTap: () => Navigator.pop(ctx, k),
+            ),
+          ListTile(leading: const Icon(Icons.settings_outlined), title: const Text('ตั้งค่า'), onTap: () => Navigator.pop(ctx, -1)),
+        ]),
+      ),
+    );
+    if (i == null || !mounted) return;
+    if (i < 0) {
+      _openSettings();
+    } else {
+      _userSelect(i);
+    }
+  }
+
   void _openSettings() {
     Navigator.of(context).push(MaterialPageRoute<void>(
       builder: (_) => SettingsPage(themeId: widget.themeId, onTheme: widget.onTheme, backup: widget.backup),
@@ -180,18 +207,29 @@ class _AppShellState extends State<AppShell> {
             ],
           ),
           body: body,
-          bottomNavigationBar: NavigationBar(
-            selectedIndex: _visible.indexOf(_index).clamp(0, _visible.length - 1),
-            onDestinationSelected: (k) => _userSelect(_visible[k]),
-            destinations: [
-              for (final d in [for (final i in _visible) appDestinations[i]])
+          // มือถือ: 4 เมนูหลัก + ☰ เพิ่มเติม (รอบ 9A · แถบล่างได้ 5 ช่อง)
+          bottomNavigationBar: Builder(builder: (context) {
+            final bar = [for (final i in _visible) if (phoneBarMenus.contains(appDestinations[i].label)) i];
+            final more = [for (final i in _visible) if (!bar.contains(i)) i];
+            final sel = bar.indexOf(_index);
+            return NavigationBar(
+              selectedIndex: sel < 0 ? bar.length : sel,
+              onDestinationSelected: (k) => k < bar.length ? _userSelect(bar[k]) : _openMore(context, more),
+              destinations: [
+                for (final i in bar)
+                  NavigationDestination(
+                    icon: Icon(appDestinations[i].icon),
+                    selectedIcon: Icon(appDestinations[i].selectedIcon),
+                    label: appDestinations[i].label,
+                  ),
                 NavigationDestination(
-                  icon: Icon(d.icon),
-                  selectedIcon: Icon(d.selectedIcon),
-                  label: d.label,
+                  key: const Key('nav-more'),
+                  icon: const Icon(Icons.menu),
+                  label: 'เพิ่มเติม',
                 ),
-            ],
-          ),
+              ],
+            );
+          }),
         );
       },
     );
@@ -245,12 +283,19 @@ class _Sidebar extends StatelessWidget {
               ),
             ),
           ),
-          for (final i in visible)
+          // จัดเป็นกลุ่ม (รอบ 9A): ทุกวัน · พัฒนาตัวเอง · งาน & เงิน · ภาพรวม
+          for (final (k, i) in visible.indexed) ...[
+            if (k == 0 || appDestinations[visible[k - 1]].group != appDestinations[i].group)
+              Padding(
+                padding: EdgeInsets.fromLTRB(12, k == 0 ? 0 : 10, 12, 4),
+                child: Text(appDestinations[i].group, style: TextStyle(fontSize: 11, color: c.muted, letterSpacing: 0.3)),
+              ),
             _SidebarItem(
               destination: appDestinations[i],
               selected: i == selectedIndex,
               onTap: () => onSelect(i),
             ),
+          ],
           const Spacer(), // ดันปุ่มตั้งค่า + สลับธีมลงไปล่างสุด
           OutlinedButton.icon(
             onPressed: onSettings,
@@ -300,7 +345,7 @@ class _SidebarItem extends StatelessWidget {
     final fg = selected ? c.navText : c.muted;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.only(bottom: 2),
       child: Material(
         color: selected ? c.navBg : Colors.transparent,
         borderRadius: BorderRadius.circular(8),
@@ -308,7 +353,7 @@ class _SidebarItem extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             child: Row(
               children: [
                 Icon(

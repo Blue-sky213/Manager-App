@@ -311,6 +311,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('การเรียน').first);
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('tab-แผน 4 ปี')));
+    await tester.pumpAndSettle();
 
     expect(find.text('การเรียน'), findsWidgets);
     await tester.tap(find.byTooltip('ตัวเลือก'));
@@ -372,6 +374,8 @@ void main() {
     await tester.pumpWidget(buildApp());
     await tester.pumpAndSettle();
     await tester.tap(find.text('การเรียน').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('tab-แผน 4 ปี'))); // รอบ 9A: เปิดมาที่ภาพรวม
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('ตัวเลือก'));
     await tester.pumpAndSettle();
@@ -522,6 +526,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('การเรียน').first);
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('tab-แผน 4 ปี'))); // รอบ 9A: เปิดมาที่ภาพรวม
+    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('ตัวเลือก'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('ใส่ตัวอย่าง: แผน 4 ปี'));
@@ -604,6 +610,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('การเรียน').first);
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('tab-แผน 4 ปี'))); // รอบ 9A: เปิดมาที่ภาพรวม
+    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('ตัวเลือก'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('ใส่ตัวอย่าง: แผน 4 ปี'));
@@ -657,7 +665,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('รายวิชา'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('เกรด'));
+    await tester.tap(find.text('เกรด').last); // แท็บในวิชา (แท็บบนสุดของหน้าก็ชื่อ "เกรด")
     await tester.pumpAndSettle();
     expect(find.text('ช่วงเกรด'), findsOneWidget);
     expect(find.text('60 / 80 คะแนน'), findsOneWidget);
