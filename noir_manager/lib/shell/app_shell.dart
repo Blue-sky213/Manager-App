@@ -134,8 +134,10 @@ class _AppShellState extends State<AppShell> {
     final i = await showModalBottomSheet<int>(
       context: context,
       showDragHandle: true,
+      isScrollControlled: true,
       builder: (ctx) => SafeArea(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
+        // จอเตี้ย (มือถือแนวนอน) รายการยาวกว่าจอ → เลื่อนได้
+        child: ListView(shrinkWrap: true, children: [
           for (final k in more)
             ListTile(
               leading: Icon(k == _index ? appDestinations[k].selectedIcon : appDestinations[k].icon),

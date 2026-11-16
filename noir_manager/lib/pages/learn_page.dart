@@ -23,6 +23,9 @@ class LearnPage extends StatefulWidget {
 class _LearnPageState extends State<LearnPage> {
   LearnTab _tab = LearnTab.overview;
 
+  // ภาพรวม / เกรด โหลดข้อมูลตอนสร้าง → สร้างใหม่ทุกครั้งที่กลับมา จะได้เห็นคะแนนล่าสุด
+  int _fresh = 0;
+
   @override
   void initState() {
     super.initState();
@@ -55,7 +58,10 @@ class _LearnPageState extends State<LearnPage> {
   }
 
   void _go(LearnTab t) {
-    setState(() => _tab = t);
+    setState(() {
+      if (t != _tab && (t == LearnTab.overview || t == LearnTab.grades)) _fresh++;
+      _tab = t;
+    });
     if (t == LearnTab.subjects || t == LearnTab.plan) studyViewRequest.go(t == LearnTab.plan);
   }
 
@@ -86,14 +92,14 @@ class _LearnPageState extends State<LearnPage> {
       ),
       Expanded(
         child: IndexedStack(index: index, children: [
-          TermOverview(onOpenSubject: (s) => _open(s.id, 'overview')),
+          TermOverview(key: ValueKey('ov$_fresh'), onOpenSubject: (s) => _open(s.id, 'overview')),
           StudyPage(
             embedded: true,
             onOpenWeek: () => _go(LearnTab.week),
             onOverview: () => _go(LearnTab.overview),
           ),
           WeekTimetablePage(embedded: true, onOpenSubject: (s) => _open(s.id, 'week')),
-          const GpaPage(embedded: true),
+          GpaPage(key: ValueKey('gpa$_fresh'), embedded: true),
         ]),
       ),
     ]);
