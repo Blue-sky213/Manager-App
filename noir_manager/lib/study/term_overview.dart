@@ -124,7 +124,7 @@ class _TermOverviewState extends State<TermOverview> {
     for (final s in subjects) {
       for (final a in await cal.activitiesForSubject(s.id)) {
         if (a.kind != ActivityKind.exam) continue;
-        final at = a.startMinute == null ? a.day : atMinute(a.day, a.startMinute!);
+        final at = a.startMinute == null ? a.startDate : atMinute(a.startDate, a.startMinute!);
         if (at.isBefore(today)) continue;
         if (exam == null || at.isBefore(exam.$2)) exam = (a, at);
       }
