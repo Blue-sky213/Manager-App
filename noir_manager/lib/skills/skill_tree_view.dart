@@ -509,7 +509,7 @@ class _SkillTreeViewState extends State<SkillTreeView> {
         const SizedBox(height: 8),
         Wrap(spacing: 6, runSpacing: 6, children: [
           for (final s in list)
-            ActionChip(label: Text('${s.icon} ${s.name}'), onPressed: () => setState(() => _sel = 'skill-${s.id}')),
+            ActionChip(label: Text('${s.icon} ${s.name}', overflow: TextOverflow.ellipsis), onPressed: () => setState(() => _sel = 'skill-${s.id}')),
         ]),
         const SizedBox(height: 8),
         btn('tree-add-skill', '＋ สกิลในสายนี้', () => _addSkill(d.id < 0 ? null : d.id)),

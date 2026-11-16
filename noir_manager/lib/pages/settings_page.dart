@@ -25,6 +25,7 @@ import '../shell/app_nav.dart' show hiddenMenus, hiddenMenusKey;
 import '../widgets/mini_form.dart';
 import '../widgets/mini_segments.dart';
 import '../widgets/toast.dart';
+import 'test_checklist.dart';
 
 /// โหมดแอป: เรียน / ทำงาน / ทั้งคู่ (เก็บใน setting key = app_mode)
 const appModeKey = 'app_mode';
@@ -310,12 +311,19 @@ class _SettingsPageState extends State<SettingsPage> {
                       ValueListenableBuilder(
                         valueListenable: demoMode,
                         builder: (context, on, _) => MiniSwitchRow(
-                          label: 'ใช้ข้อมูลตัวอย่าง 1 ปี',
-                          detail: 'อยู่ในหน่วยความจำ · ไม่แตะข้อมูลจริง',
+                          label: 'ใช้ข้อมูลตัวอย่างทั้งหมด (1 ปี · ทุกเมนู)',
+                          detail: 'อยู่ในหน่วยความจำ · ไม่แตะข้อมูลจริง · ปิด = หายทั้งชุด',
                           value: on,
-                          last: true,
                           onChanged: (v) => demoMode.value = v,
                         ),
+                      ),
+                      MiniRow(
+                        key: const Key('open-checklist'),
+                        icon: Icons.checklist,
+                        label: 'เช็กลิสต์ทดสอบ (สร้าง · แก้ · ลบ · ขอบ ๆ)',
+                        last: true,
+                        onTap: () => Navigator.of(context)
+                            .push(MaterialPageRoute<void>(builder: (_) => const TestChecklistPage())),
                       ),
                     ]),
                     const SizedBox(height: 14),

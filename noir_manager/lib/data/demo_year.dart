@@ -18,6 +18,7 @@ import '../calendar/calendar_models.dart';
 import '../calendar/calendar_repository.dart';
 import '../calendar/memory_calendar_repository.dart';
 import '../study/timetable_sim.dart';
+import 'demo_life.dart';
 import 'demo_term.dart';
 import 'memory_study_repository.dart';
 import 'study_repository.dart';
@@ -156,6 +157,8 @@ Future<DemoYear> buildDemoYear({DateTime? today, int seed = 2569}) async {
       await cal.stickDay(d, stickers[rnd.nextInt(stickers.length)].id);
     }
   }
+  // รอบ 9D: สกิล · งาน · เงิน · ชีวิต (ทุกเมนูมีข้อมูล)
+  await fillDemoLife(cal, now, seed: seed);
   return DemoYear(study, cal, sessions, now);
 }
 

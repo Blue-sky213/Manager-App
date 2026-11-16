@@ -192,7 +192,7 @@ class _WorkOverviewState extends State<WorkOverview> with _WorkData<WorkOverview
           ActionChip(
             key: ValueKey('ov-pj-${p.id}'),
             avatar: Text(projectType(p.type).$2),
-            label: Text('${p.name} · ${projectStatusText(p.status)}'),
+            label: Text('${p.name} · ${projectStatusText(p.status)}', overflow: TextOverflow.ellipsis),
             onPressed: () => widget.onOpenProject(p.id),
           ),
       ]),
