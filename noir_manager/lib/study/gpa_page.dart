@@ -44,7 +44,10 @@ Future<List<GpaRow>> loadGpaRows(BuildContext context) async {
 
 /// หน้า "เกรดและหน่วยกิต": GPA ต่อเทอม · GPAX สะสม · หน่วยกิตทั้งหลักสูตร
 class GpaPage extends StatefulWidget {
-  const GpaPage({super.key, this.initialTerm});
+  const GpaPage({super.key, this.initialTerm, this.embedded = false});
+
+  /// อยู่เป็นแท็บในหน้าการเรียน (รอบ 9A) → ไม่มีแถบหัว
+  final bool embedded;
 
   /// (ปี, ภาค) ที่เปิดก่อน · null = เทอมแรกที่มีวิชา
   final (int, int)? initialTerm;
@@ -134,7 +137,7 @@ class _GpaPageState extends State<GpaPage> {
         };
 
     return Scaffold(
-      appBar: AppBar(title: const Text('เกรดและหน่วยกิต')),
+      appBar: widget.embedded ? null : AppBar(title: const Text('เกรดและหน่วยกิต')),
       body: !_loaded
           ? const Center(child: CircularProgressIndicator())
           : ListView(

@@ -1,43 +1,17 @@
-/// เมนู "งาน" (รอบ 8D/8E): สลับ โปรเจกต์ | การเงิน · ซ่อนเมนูนี้ได้ในตั้งค่า (คนที่ใช้แค่เรียน)
+/// เมนู "งาน" (รอบ 9A): โปรเจกต์ · เงินแยกไปเมนูของตัวเอง
 library;
 
 import 'package:flutter/material.dart';
 
-import '../widgets/mini_segments.dart';
-import '../work/finance_page.dart';
+import '../widgets/menu_header.dart';
 import '../work/projects_page.dart';
 
-class WorkPage extends StatefulWidget {
+class WorkPage extends StatelessWidget {
   const WorkPage({super.key});
 
   @override
-  State<WorkPage> createState() => _WorkPageState();
-}
-
-class _WorkPageState extends State<WorkPage> {
-  bool _money = false; // เปิดมาที่โปรเจกต์ (รอบ 8E)
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Padding(
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-        child: Align(
-          alignment: Alignment.centerLeft,
-          child: SizedBox(
-            width: 240,
-            child: MiniSegments<bool>(
-              key: const Key('work-switch'),
-              value: _money,
-              items: const [(false, 'โปรเจกต์'), (true, 'การเงิน')],
-              onChanged: (v) => setState(() => _money = v),
-            ),
-          ),
-        ),
-      ),
-      Expanded(
-        child: IndexedStack(index: _money ? 1 : 0, children: const [ProjectsPage(), FinancePage()]),
-      ),
-    ]);
-  }
+  Widget build(BuildContext context) => const Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        MenuHeader(group: 'งาน & เงิน', title: 'งาน'),
+        Expanded(child: ProjectsPage()),
+      ]);
 }

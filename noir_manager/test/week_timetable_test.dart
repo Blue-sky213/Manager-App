@@ -121,7 +121,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('การเรียน').first);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('ตารางเรียนทั้งสัปดาห์'));
+    await tester.tap(find.byKey(const ValueKey('tab-ตารางเรียน'))); // รอบ 9A: แท็บในหน้าการเรียน
     await tester.pumpAndSettle();
 
     expect(find.text('2 คาบ · 1 วิชา'), findsOneWidget);

@@ -91,7 +91,10 @@ Set<WeekSlot> findWeekClashes(List<WeekSlot> slots) {
 
 /// หน้า "ตารางเรียนทั้งสัปดาห์": คาบของทุกวิชาบนตารางเดียว · เพิ่มคาบ · ขอบแดงเมื่อชน · ตรวจหน่วยกิต
 class WeekTimetablePage extends StatefulWidget {
-  const WeekTimetablePage({super.key, this.onOpenSubject});
+  const WeekTimetablePage({super.key, this.onOpenSubject, this.embedded = false});
+
+  /// อยู่เป็นแท็บในหน้าการเรียน (รอบ 9A) → ไม่มีแถบหัว · ปุ่มย้ายลงมาในหน้า
+  final bool embedded;
 
   /// แตะ "เปิดวิชา" ในคาบ → ไปหน้ารายวิชา
   final ValueChanged<Subject>? onOpenSubject;
@@ -285,33 +288,37 @@ class _WeekTimetablePageState extends State<WeekTimetablePage> with CalendarList
     final creditSlots = _week == null ? buildWeekSlots(_bySubject, week: _creditWeek) : slots;
     final thisWeek = mondayOf(DateTime.now());
     String range(DateTime m) => '${thaiShortDate(m)} – ${thaiShortDate(m.add(const Duration(days: 6)))}';
-    return Scaffold(
-      backgroundColor: c.bg,
-      appBar: AppBar(
-        backgroundColor: c.bg,
-        title: const Text('ตารางเรียนทั้งสัปดาห์'),
-        actions: [
-          FilledButton.icon(onPressed: _add, icon: const Icon(Icons.add), label: const Text('เพิ่มคาบ')),
-          PopupMenuButton<String>(
-            tooltip: 'ตัวเลือก',
-            onSelected: (v) => v == 'sim' ? _simulate() : _clearSim(),
-            itemBuilder: (_) => [
-              const PopupMenuItem(value: 'sim', child: Text('จำลองตารางเรียน (ทดสอบ)')),
-              PopupMenuItem(
-                value: 'clear',
-                enabled: _simIds.isNotEmpty,
-                child: Text('ลบตารางจำลอง (${_simIds.length} คาบ)'),
-              ),
-            ],
+    final actions = [
+      FilledButton.icon(onPressed: _add, icon: const Icon(Icons.add), label: const Text('เพิ่มคาบ')),
+      PopupMenuButton<String>(
+        tooltip: 'ตัวเลือก',
+        onSelected: (v) => v == 'sim' ? _simulate() : _clearSim(),
+        itemBuilder: (_) => [
+          const PopupMenuItem(value: 'sim', child: Text('จำลองตารางเรียน (ทดสอบ)')),
+          PopupMenuItem(
+            value: 'clear',
+            enabled: _simIds.isNotEmpty,
+            child: Text('ลบตารางจำลอง (${_simIds.length} คาบ)'),
           ),
-          const SizedBox(width: 8),
         ],
       ),
+      const SizedBox(width: 8),
+    ];
+    return Scaffold(
+      backgroundColor: c.bg,
+      appBar: widget.embedded
+          ? null
+          : AppBar(
+              backgroundColor: c.bg,
+              title: const Text('ตารางเรียนทั้งสัปดาห์'),
+              actions: actions,
+            ),
       body: !_loaded
           ? const Center(child: CircularProgressIndicator())
           : ListView(
               padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
               children: [
+                if (widget.embedded) Row(mainAxisAlignment: MainAxisAlignment.end, children: actions),
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,

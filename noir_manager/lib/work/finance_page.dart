@@ -117,18 +117,25 @@ class _FinancePageState extends State<FinancePage> {
     final monthRows = [for (final e in _all) if (e.day.year == _month.year && e.day.month == _month.month) e];
     final today = DateTime.now();
     return ListView(padding: const EdgeInsets.fromLTRB(16, 12, 24, 32), children: [
-      Row(children: [
-        IconButton(tooltip: 'เดือนก่อน', onPressed: () => _shift(-1), icon: const Icon(Icons.chevron_left)),
-        Text(thaiMonthYear(_month), style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: c.text)),
-        IconButton(tooltip: 'เดือนถัดไป', onPressed: () => _shift(1), icon: const Icon(Icons.chevron_right)),
-        const Spacer(),
-        IconButton(tooltip: 'ส่งออก CSV', onPressed: _export, icon: const Icon(Icons.file_download_outlined)),
-        FilledButton.icon(
-          key: const Key('money-add'),
-          onPressed: () => editEntryForm(context, repo, day: _month.month == today.month && _month.year == today.year ? today : _month),
-          icon: const Icon(Icons.add, size: 18),
-          label: const Text('จดรายการ'),
-        ),
+      // จอแคบ: ปุ่มจดรายการตกไปบรรทัดล่าง แทนที่จะล้นขวา
+      Wrap(alignment: WrapAlignment.spaceBetween, crossAxisAlignment: WrapCrossAlignment.center, runSpacing: 4, children: [
+        Row(mainAxisSize: MainAxisSize.min, children: [
+          IconButton(tooltip: 'เดือนก่อน', onPressed: () => _shift(-1), icon: const Icon(Icons.chevron_left)),
+          Flexible(
+            child: Text(thaiMonthYear(_month),
+                maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: c.text)),
+          ),
+          IconButton(tooltip: 'เดือนถัดไป', onPressed: () => _shift(1), icon: const Icon(Icons.chevron_right)),
+        ]),
+        Row(mainAxisSize: MainAxisSize.min, children: [
+          IconButton(tooltip: 'ส่งออก CSV', onPressed: _export, icon: const Icon(Icons.file_download_outlined)),
+          FilledButton.icon(
+            key: const Key('money-add'),
+            onPressed: () => editEntryForm(context, repo, day: _month.month == today.month && _month.year == today.year ? today : _month),
+            icon: const Icon(Icons.add, size: 18),
+            label: const Text('จดรายการ'),
+          ),
+        ]),
       ]),
       const SizedBox(height: 8),
       Wrap(spacing: 12, runSpacing: 12, children: [

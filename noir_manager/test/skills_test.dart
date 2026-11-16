@@ -129,9 +129,7 @@ void main() {
     final cal = MemoryCalendarRepository();
     await tester.pumpWidget(NoirManagerApp(studyRepository: MemoryStudyRepository.seeded(), calendarRepository: cal));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('การเรียน').first);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('สกิล').first);
+    await tester.tap(find.text('สกิล').first); // รอบ 9A: เมนูของตัวเอง
     await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(const Key('skill-add-empty')));

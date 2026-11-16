@@ -62,7 +62,7 @@ void main() {
 
     expect(find.text('DaVinci Resolve'), findsWidgets);
     // หน้าวิชาเปิดที่แท็บภาพรวม → ไปแท็บบทเรียน
-    expect(find.text('ภาพรวม'), findsOneWidget);
+    expect(find.text('ภาพรวม'), findsNWidgets(2)); // แท็บบนสุดของหน้า + แท็บในวิชา (รอบ 9A)
     await tester.tap(find.text('บทเรียน').first);
     await tester.pumpAndSettle();
     expect(find.text('บท 1 · Interface & Media'), findsOneWidget);
@@ -79,7 +79,7 @@ void main() {
     expect(find.text('ประเมินแล้ว 1/4 หัวข้อ'), findsOneWidget);
     expect(find.text('เช็กซ้ำ'), findsOneWidget); // ต่ำกว่า 60 → ป้ายเช็กซ้ำ
     // แท็บภาพรวม: กล่องทวน
-    await tester.tap(find.text('ภาพรวม'));
+    await tester.tap(find.text('ภาพรวม').last); // แท็บในวิชา
     await tester.pumpAndSettle();
     expect(find.text('ต้องทวนก่อนสอบ · 1 หัวข้อ'), findsOneWidget);
     expect(find.text('1.4 Keyboard Shortcut'), findsOneWidget);
@@ -311,6 +311,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('การเรียน').first);
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('tab-แผน 4 ปี')));
+    await tester.pumpAndSettle();
 
     expect(find.text('การเรียน'), findsWidgets);
     await tester.tap(find.byTooltip('ตัวเลือก'));
@@ -373,6 +375,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('การเรียน').first);
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('tab-แผน 4 ปี'))); // รอบ 9A: เปิดมาที่ภาพรวม
+    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('ตัวเลือก'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('ใส่ตัวอย่าง: แผน 4 ปี'));
@@ -381,7 +385,7 @@ void main() {
     // หัวปี → ปี 2 อย่างเดียว เห็นทั้ง 2 เทอม ไม่มีวิชาปี 1
     await tester.tap(find.text('ปีการศึกษาที่ 2'));
     await tester.pumpAndSettle();
-    expect(find.text('การเรียน · ปี 2'), findsOneWidget);
+    expect(find.text('แผน 4 ปี · ปี 2'), findsOneWidget);
     expect(find.textContaining('ปีการศึกษาที่ 2 ·'), findsOneWidget);
     expect(find.text('ปีการศึกษาที่ 1'), findsNothing);
     expect(find.text('ภาคเรียนที่ 1'), findsOneWidget);
@@ -399,7 +403,7 @@ void main() {
     // ในปี 2 แตะหัวภาค 2 → เหลือภาค 2 อย่างเดียว
     await tester.tap(find.text('ภาคเรียนที่ 2'));
     await tester.pumpAndSettle();
-    expect(find.text('การเรียน · ปี 2 · ภาค 2'), findsOneWidget);
+    expect(find.text('แผน 4 ปี · ปี 2 · ภาค 2'), findsOneWidget);
     expect(find.text('คณิตศาสตร์วิศวกรรม 2'), findsOneWidget);
     // คณิต 1 (ภาค 1) เหลือแค่กล่องเงาบอกว่าอยู่ภาคไหน
     expect(find.text('ปี 2 · ภาค 1'), findsWidgets);
@@ -408,7 +412,7 @@ void main() {
     // ชิป "ทั้งปี" → กลับมาเห็น 2 ภาค
     await tester.tap(find.widgetWithText(ChoiceChip, 'ทั้งปี'));
     await tester.pumpAndSettle();
-    expect(find.text('การเรียน · ปี 2'), findsOneWidget);
+    expect(find.text('แผน 4 ปี · ปี 2'), findsOneWidget);
     expect(find.text('คณิตศาสตร์วิศวกรรม 1'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
@@ -416,7 +420,7 @@ void main() {
     await tester.tap(find.text('การฝึกงาน'));
     await tester.pump(const Duration(milliseconds: 400));
     await tester.pumpAndSettle();
-    expect(find.text('การเรียน · ปี 3'), findsOneWidget);
+    expect(find.text('แผน 4 ปี · ปี 3'), findsOneWidget);
 
     // กลับทุกปี → แตะหัวภาคแรกสุด (ปี 1 ภาค 1) → ไปภาคนั้นตรง ๆ
     await tester.tap(find.widgetWithText(ChoiceChip, 'ทุกปี'));
@@ -424,7 +428,7 @@ void main() {
     expect(find.text('ปีการศึกษาที่ 4'), findsOneWidget);
     await tester.tap(find.text('ภาคเรียนที่ 1').first);
     await tester.pumpAndSettle();
-    expect(find.text('การเรียน · ปี 1 · ภาค 1'), findsOneWidget);
+    expect(find.text('แผน 4 ปี · ปี 1 · ภาค 1'), findsOneWidget);
     expect(find.text('การเขียนโปรแกรมคอมพิวเตอร์'), findsOneWidget);
     expect(find.text('การแก้ปัญหาและขั้นตอนวิธี'), findsNothing); // ปี 1 ภาค 2
 
@@ -434,7 +438,7 @@ void main() {
     expect(tester.widget<MiniDropdown<int>>(find.byType(MiniDropdown<int>)).value, 1);
     await tester.tap(find.text('กลับแผน 4 ปี'));
     await tester.pumpAndSettle();
-    expect(find.text('การเรียน · ปี 1 · ภาค 1'), findsOneWidget);
+    expect(find.text('แผน 4 ปี · ปี 1 · ภาค 1'), findsOneWidget);
   });
 
   testWidgets('แตะวันสอบในหน้าวิชา → ไปวันนั้นในปฏิทิน', (tester) async {
@@ -522,6 +526,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('การเรียน').first);
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('tab-แผน 4 ปี'))); // รอบ 9A: เปิดมาที่ภาพรวม
+    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('ตัวเลือก'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('ใส่ตัวอย่าง: แผน 4 ปี'));
@@ -604,6 +610,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('การเรียน').first);
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('tab-แผน 4 ปี'))); // รอบ 9A: เปิดมาที่ภาพรวม
+    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('ตัวเลือก'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('ใส่ตัวอย่าง: แผน 4 ปี'));
@@ -635,7 +643,7 @@ void main() {
 
     // 4 แท็บ
     for (final tab in ['บทเรียน', 'เวลาเรียน', 'ติว', 'ภาพรวม']) {
-      await tester.tap(find.text(tab).first);
+      await tester.tap(find.text(tab).last); // แท็บในวิชา (แท็บบนสุดของหน้าก็มี "ภาพรวม")
       await tester.pumpAndSettle();
     }
     expect(find.text('หน่วยกิต'), findsOneWidget); // ช่องสรุปในภาพรวม
@@ -657,7 +665,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('รายวิชา'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('เกรด'));
+    await tester.tap(find.text('เกรด').last); // แท็บในวิชา (แท็บบนสุดของหน้าก็ชื่อ "เกรด")
     await tester.pumpAndSettle();
     expect(find.text('ช่วงเกรด'), findsOneWidget);
     expect(find.text('60 / 80 คะแนน'), findsOneWidget);
@@ -680,7 +688,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // หน้าเกรดและหน่วยกิต: C+ × 3 หน่วยกิต → GPA 2.50
-    await tester.tap(find.text('เกรดและหน่วยกิต'));
+    await tester.tap(find.byKey(const ValueKey('tab-เกรด'))); // รอบ 9A: แท็บในหน้าการเรียน
     await tester.pumpAndSettle();
     expect(find.text('ปี 1 · ภาค 1'), findsWidgets);
     expect(find.text('2.50'), findsOneWidget);

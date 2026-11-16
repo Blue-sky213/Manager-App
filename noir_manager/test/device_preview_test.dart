@@ -28,9 +28,8 @@ void main() {
         expect(MediaQuery.sizeOf(tester.element(find.byType(Scaffold).first)), size);
         expect(Theme.of(tester.element(find.byType(Scaffold).first)).platform,
             d.ios ? TargetPlatform.iOS : TargetPlatform.android);
-        for (final p in ['วันนี้', 'ปฏิทิน', 'การเรียน', 'ไฟล์', 'สถิติ']) {
-          await tester.tap(find.text(p).last);
-          await tester.pumpAndSettle();
+        for (final p in ['วันนี้', 'ปฏิทิน', 'การเรียน', 'สกิล', 'งาน', 'เงิน', 'สถิติ', 'ไฟล์']) {
+          await openMenu(tester, p);
           expect(tester.takeException(), isNull, reason: 'หน้า $p บน ${d.name}');
         }
       });
@@ -94,7 +93,7 @@ void main() {
 
     final tabs = ['ภาพรวม', 'บทเรียน', 'เวลาเรียน', 'ติว', 'เกรด'];
     // แต่ละแท็บต้องมีอย่างน้อย 1 ตัวที่อยู่แถวเดียวกับ "ภาพรวม" (ข้อความเดียวกันอาจอยู่ที่อื่นในหน้าได้)
-    final y = tester.getCenter(find.text('ภาพรวม').first).dy.round();
+    final y = tester.getCenter(find.text('ภาพรวม').last).dy.round(); // แท็บในวิชา (อันแรกคือแท็บบนสุดของหน้า)
     for (final t in tabs) {
       final ys = find.text(t).evaluate().map((e) => tester.getCenter(find.byWidget(e.widget)).dy.round());
       expect(ys.any((v) => (v - y).abs() <= 3), isTrue, reason: 'แท็บ $t ต้องอยู่แถวเดียวกับภาพรวม');
@@ -104,4 +103,15 @@ void main() {
     final widths = {for (final l in ['บทเรียน', 'หน่วยกิต', 'รอบติว']) tester.getSize(card(l)).width};
     expect(widths.length, 1, reason: 'การ์ดภาพรวมต้องกว้างเท่ากัน');
   });
+}
+
+/// เปิดเมนู: มือถือ = เมนูที่ไม่อยู่บนแถบล่างอยู่ใน ☰ เพิ่มเติม (รอบ 9A)
+Future<void> openMenu(WidgetTester tester, String p) async {
+  if (find.text(p).evaluate().isEmpty) {
+    await tester.tap(find.byKey(const Key('nav-more')));
+    await tester.pumpAndSettle();
+  }
+  await tester.ensureVisible(find.text(p).last); // แถบซ้ายเลื่อนได้บนจอเตี้ย
+  await tester.tap(find.text(p).last);
+  await tester.pumpAndSettle();
 }

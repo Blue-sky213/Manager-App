@@ -121,7 +121,7 @@ class _ProjectsPageState extends State<ProjectsPage> {
     final pj = _project;
     return ListView(padding: const EdgeInsets.fromLTRB(16, 12, 24, 32), children: [
       Row(children: [
-        Expanded(child: Text('โปรเจกต์', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: c.text))),
+        Expanded(child: Text('บอร์ดโปรเจกต์', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: c.text))),
         FilledButton.icon(
           key: const Key('pj-add'),
           onPressed: () async {

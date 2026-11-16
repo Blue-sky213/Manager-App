@@ -17,7 +17,19 @@ const sizes = {
   'จอยาวมาก 3440×1440': Size(3440, 1440),
 };
 
-const pages = ['วันนี้', 'ปฏิทิน', 'การเรียน', 'ไฟล์', 'สถิติ'];
+const pages = ['วันนี้', 'ปฏิทิน', 'การเรียน', 'สกิล', 'งาน', 'เงิน', 'สถิติ', 'ไฟล์'];
+
+/// เปิดเมนู: มือถือ = เมนูที่ไม่อยู่บนแถบล่างอยู่ใน ☰ เพิ่มเติม (รอบ 9A)
+Future<void> openMenu(WidgetTester tester, String p) async {
+  if (find.text(p).evaluate().isEmpty) {
+    await tester.tap(find.byKey(const Key('nav-more')));
+    await tester.pumpAndSettle();
+  }
+  await tester.ensureVisible(find.text(p).last); // แถบซ้ายเลื่อนได้บนจอเตี้ย
+  await tester.tap(find.text(p).last);
+  await tester.pumpAndSettle();
+}
+
 
 void main() {
   for (final MapEntry(key: name, value: size) in sizes.entries) {
@@ -31,13 +43,14 @@ void main() {
       ));
       await tester.pumpAndSettle();
       for (final p in pages) {
-        await tester.tap(find.text(p).last);
-        await tester.pumpAndSettle();
+        await openMenu(tester, p);
         expect(tester.takeException(), isNull, reason: 'หน้า $p ที่ $name');
       }
       // หน้าตั้งค่า (ปุ่มในเมนูซ้าย หรือไอคอนบนแถบหัวตอนจอแคบ)
       final settings = find.text('ตั้งค่า');
-      await tester.tap(settings.evaluate().isNotEmpty ? settings.first : find.byTooltip('ตั้งค่า'));
+      final target = settings.evaluate().isNotEmpty ? settings.first : find.byTooltip('ตั้งค่า');
+      await tester.ensureVisible(target);
+      await tester.tap(target);
       await tester.pumpAndSettle();
       expect(find.text('หน้าตา'), findsOneWidget); // หัวข้อแรก (ข้อถัดไปอาจอยู่ใต้จอเตี้ย)
       expect(tester.takeException(), isNull, reason: 'หน้าตั้งค่าที่ $name');
