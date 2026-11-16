@@ -542,12 +542,17 @@ class _StudyPageState extends State<StudyPage> {
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Icon(Icons.swap_horiz, size: 18, color: c.muted),
           const SizedBox(width: 6),
-          Text(
-              subject?.planYear == null
-                  ? 'เปลี่ยนวิชา · ${_subjects.length} วิชา'
-                  : 'เปลี่ยนวิชา · ปี ${subject!.planYear} · '
-                      '${_subjects.where((s) => s.planYear == subject.planYear).length} วิชา',
-              style: TextStyle(fontSize: 14, color: c.muted)),
+          // มือถือจอแคบ: ข้อความยาวหดเป็น … แทนล้นขวา
+          Flexible(
+            child: Text(
+                subject?.planYear == null
+                    ? 'เปลี่ยนวิชา · ${_subjects.length} วิชา'
+                    : 'เปลี่ยนวิชา · ปี ${subject!.planYear} · '
+                        '${_subjects.where((s) => s.planYear == subject.planYear).length} วิชา',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 14, color: c.muted)),
+          ),
           Icon(Icons.expand_more, size: 18, color: c.muted),
         ]),
       ),
