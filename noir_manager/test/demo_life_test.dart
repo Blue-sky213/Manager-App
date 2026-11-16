@@ -7,7 +7,6 @@ import 'package:noir_manager/calendar/calendar_models.dart';
 import 'package:noir_manager/calendar/memory_calendar_repository.dart';
 import 'package:noir_manager/data/demo_life.dart';
 import 'package:noir_manager/data/demo_year.dart';
-import 'package:noir_manager/data/memory_study_repository.dart';
 import 'package:noir_manager/skills/skill_models.dart';
 import 'package:noir_manager/skills/skill_tree.dart';
 import 'package:noir_manager/work/money_models.dart';
@@ -161,6 +160,13 @@ void main() {
       addTearDown(tester.view.reset);
       late DemoYear y;
       await tester.runAsync(() async => y = await buildDemoYear(today: DateTime.now()));
+      // ล้นจอ → บอกตำแหน่งในโค้ดด้วย (ไฟล์ lib:บรรทัด) จะได้แก้ตรงจุด
+      final where = <String>[];
+      final old = FlutterError.onError;
+      FlutterError.onError = (d) {
+        where.add(RegExp(r'lib/[\w/]+\.dart:\d+').allMatches(d.toString()).map((m) => m.group(0)).take(2).join(' '));
+        old?.call(d);
+      };
       await tester.pumpWidget(NoirManagerApp(studyRepository: y.study, calendarRepository: y.calendar));
       await tester.pumpAndSettle();
       const tabs = {
@@ -185,10 +191,11 @@ void main() {
           await tester.ensureVisible(k);
           await tester.tap(k);
           await tester.pumpAndSettle();
-          expect(tester.takeException(), isNull, reason: '$menu › $t');
+          expect(tester.takeException(), isNull, reason: '$menu › $t ${where.join(' | ')}');
         }
-        expect(tester.takeException(), isNull, reason: menu);
+        expect(tester.takeException(), isNull, reason: '$menu ${where.join(' | ')}');
       }
+      FlutterError.onError = old;
     });
   }
 }
