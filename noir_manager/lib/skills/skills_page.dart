@@ -141,7 +141,7 @@ class _SkillsPageState extends State<SkillsPage> {
   Widget _empty(BuildContext context) {
     final c = context.noir;
     return Center(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           const Text('🎯', style: TextStyle(fontSize: 40)),

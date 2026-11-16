@@ -173,8 +173,7 @@ class _TermOverviewState extends State<TermOverview> {
       ]),
       const SizedBox(height: 18),
       Row(children: [
-        Text('วิชา · $_termLabel', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: c.text)),
-        const Spacer(),
+        Expanded(child: Text('วิชา · $_termLabel', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: c.text))),
         Text('คลิก = เปิดวิชา', style: TextStyle(fontSize: 12, color: c.muted)),
       ]),
       const SizedBox(height: 8),

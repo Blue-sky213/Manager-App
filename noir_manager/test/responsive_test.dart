@@ -25,6 +25,7 @@ Future<void> openMenu(WidgetTester tester, String p) async {
     await tester.tap(find.byKey(const Key('nav-more')));
     await tester.pumpAndSettle();
   }
+  await tester.ensureVisible(find.text(p).last); // แถบซ้ายเลื่อนได้บนจอเตี้ย
   await tester.tap(find.text(p).last);
   await tester.pumpAndSettle();
 }
@@ -47,7 +48,9 @@ void main() {
       }
       // หน้าตั้งค่า (ปุ่มในเมนูซ้าย หรือไอคอนบนแถบหัวตอนจอแคบ)
       final settings = find.text('ตั้งค่า');
-      await tester.tap(settings.evaluate().isNotEmpty ? settings.first : find.byTooltip('ตั้งค่า'));
+      final target = settings.evaluate().isNotEmpty ? settings.first : find.byTooltip('ตั้งค่า');
+      await tester.ensureVisible(target);
+      await tester.tap(target);
       await tester.pumpAndSettle();
       expect(find.text('หน้าตา'), findsOneWidget); // หัวข้อแรก (ข้อถัดไปอาจอยู่ใต้จอเตี้ย)
       expect(tester.takeException(), isNull, reason: 'หน้าตั้งค่าที่ $name');

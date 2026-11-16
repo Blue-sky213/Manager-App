@@ -43,8 +43,8 @@ const List<AppDestination> appDestinations = [
       icon: Icons.account_balance_wallet_outlined,
       selectedIcon: Icons.account_balance_wallet,
       page: MoneyPage()),
-  AppDestination(label: 'สถิติ', group: 'ภาพรวม', icon: Icons.insights_outlined, selectedIcon: Icons.insights, page: StatsPage()),
-  AppDestination(label: 'ไฟล์', group: 'ภาพรวม', icon: Icons.folder_outlined, selectedIcon: Icons.folder, page: FilesPage()),
+  AppDestination(label: 'สถิติ', group: 'สรุป', icon: Icons.insights_outlined, selectedIcon: Icons.insights, page: StatsPage()),
+  AppDestination(label: 'ไฟล์', group: 'สรุป', icon: Icons.folder_outlined, selectedIcon: Icons.folder, page: FilesPage()),
 ];
 
 /// มือถือ: แถบล่างได้ 4 เมนู + ☰ เพิ่มเติม (ที่เหลือ)

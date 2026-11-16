@@ -72,6 +72,8 @@ void main() {
     await tester.pumpWidget(
         NoirManagerApp(studyRepository: MemoryStudyRepository.seeded(), calendarRepository: MemoryCalendarRepository()));
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('nav-more'))); // มือถือ: สถิติอยู่ใน ☰ (รอบ 9A)
+    await tester.pumpAndSettle();
     await tester.tap(find.text('สถิติ').last);
     await tester.pumpAndSettle();
     expect(find.text('ทำตามแผนรายวัน'), findsOneWidget);

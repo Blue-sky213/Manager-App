@@ -93,7 +93,7 @@ void main() {
 
     final tabs = ['ภาพรวม', 'บทเรียน', 'เวลาเรียน', 'ติว', 'เกรด'];
     // แต่ละแท็บต้องมีอย่างน้อย 1 ตัวที่อยู่แถวเดียวกับ "ภาพรวม" (ข้อความเดียวกันอาจอยู่ที่อื่นในหน้าได้)
-    final y = tester.getCenter(find.text('ภาพรวม').first).dy.round();
+    final y = tester.getCenter(find.text('ภาพรวม').last).dy.round(); // แท็บในวิชา (อันแรกคือแท็บบนสุดของหน้า)
     for (final t in tabs) {
       final ys = find.text(t).evaluate().map((e) => tester.getCenter(find.byWidget(e.widget)).dy.round());
       expect(ys.any((v) => (v - y).abs() <= 3), isTrue, reason: 'แท็บ $t ต้องอยู่แถวเดียวกับภาพรวม');
@@ -111,6 +111,7 @@ Future<void> openMenu(WidgetTester tester, String p) async {
     await tester.tap(find.byKey(const Key('nav-more')));
     await tester.pumpAndSettle();
   }
+  await tester.ensureVisible(find.text(p).last); // แถบซ้ายเลื่อนได้บนจอเตี้ย
   await tester.tap(find.text(p).last);
   await tester.pumpAndSettle();
 }
