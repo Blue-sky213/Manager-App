@@ -33,6 +33,7 @@ class SqliteSkillRepository extends SkillRepository {
         for (final r in await _db.query('skill', orderBy: 'id'))
           Skill(
             id: r['id'] as int,
+            branchId: r['branch_id'] as int?,
             name: r['name'] as String,
             icon: r['icon'] as String? ?? '🎯',
             colorKey: r['color_key'] as String? ?? 'purple',
@@ -45,6 +46,7 @@ class SqliteSkillRepository extends SkillRepository {
 
   @override
   Future<int> saveSkill(Skill s) => _save('skill', s.id, {
+        'branch_id': s.branchId,
         'name': s.name,
         'icon': s.icon,
         'color_key': s.colorKey,
@@ -192,4 +194,64 @@ class SqliteSkillRepository extends SkillRepository {
   Future<List<int>> activitiesOf(int skillId) async => [
         for (final r in await _db.query('skill_activity', where: 'skill_id = ?', whereArgs: [skillId])) r['activity_id'] as int,
       ];
+
+  // ---- แผนผัง (v22) ----
+  @override
+  Future<List<SkillBranch>> branches() async => [
+        for (final r in await _db.query('skill_branch', orderBy: 'sort, id'))
+          SkillBranch(
+            id: r['id'] as int,
+            name: r['name'] as String,
+            icon: r['icon'] as String? ?? '🌟',
+            colorKey: r['color_key'] as String? ?? 'purple',
+            sort: r['sort'] as int? ?? 0,
+          ),
+      ];
+
+  @override
+  Future<int> saveBranch(SkillBranch b) =>
+      _save('skill_branch', b.id, {'name': b.name, 'icon': b.icon, 'color_key': b.colorKey, 'sort': b.sort});
+
+  @override
+  Future<void> deleteBranch(int id) async {
+    // สกิลในสายยังอยู่ (FK ON DELETE SET NULL ใช้กับคอลัมน์ที่เพิ่มทีหลังไม่ได้ → ล้างเอง)
+    await _db.update('skill', {'branch_id': null}, where: 'branch_id = ?', whereArgs: [id]);
+    await _delete('skill_branch', id);
+  }
+
+  @override
+  Future<List<SkillNode>> nodes() async => [
+        for (final r in await _db.query('skill_node', orderBy: 'sort, id'))
+          SkillNode(
+            id: r['id'] as int,
+            skillId: r['skill_id'] as int,
+            name: r['name'] as String,
+            sort: r['sort'] as int? ?? 0,
+            done: (r['done'] as int? ?? 0) == 1,
+          ),
+      ];
+
+  @override
+  Future<int> saveNode(SkillNode n) =>
+      _save('skill_node', n.id, {'skill_id': n.skillId, 'name': n.name, 'sort': n.sort, 'done': n.done ? 1 : 0});
+
+  @override
+  Future<void> deleteNode(int id) => _delete('skill_node', id);
+
+  @override
+  Future<List<SkillNeed>> needs() async => [
+        for (final r in await _db.query('skill_need')) SkillNeed(r['skill_id'] as int, r['need_id'] as int),
+      ];
+
+  @override
+  Future<void> addNeed(int skillId, int needId) async {
+    await _db.insert('skill_need', {'skill_id': skillId, 'need_id': needId}, conflictAlgorithm: ConflictAlgorithm.ignore);
+    notifyListeners();
+  }
+
+  @override
+  Future<void> removeNeed(int skillId, int needId) async {
+    await _db.delete('skill_need', where: 'skill_id = ? AND need_id = ?', whereArgs: [skillId, needId]);
+    notifyListeners();
+  }
 }

@@ -4,10 +4,10 @@ import '../pages/calendar_page.dart';
 import '../pages/files_page.dart';
 import '../pages/learn_page.dart';
 import '../pages/money_page.dart';
+import '../pages/skill_menu_page.dart';
 import '../pages/stats_page.dart';
 import '../pages/today_page.dart';
 import '../pages/work_page.dart';
-import '../skills/skills_page.dart';
 
 /// ข้อมูลของเมนู 1 ปุ่ม: ชื่อ + ไอคอน + หน้าที่จะเปิด + กลุ่ม (หัวข้อเล็กในแถบซ้าย)
 class AppDestination {
@@ -35,7 +35,7 @@ const List<AppDestination> appDestinations = [
   AppDestination(
       label: 'การเรียน', group: 'พัฒนาตัวเอง', icon: Icons.school_outlined, selectedIcon: Icons.school, page: LearnPage()),
   AppDestination(
-      label: 'สกิล', group: 'พัฒนาตัวเอง', icon: Icons.auto_awesome_outlined, selectedIcon: Icons.auto_awesome, page: SkillsPage()),
+      label: 'สกิล', group: 'พัฒนาตัวเอง', icon: Icons.auto_awesome_outlined, selectedIcon: Icons.auto_awesome, page: SkillMenuPage()),
   AppDestination(label: 'งาน', group: 'งาน & เงิน', icon: Icons.work_outline, selectedIcon: Icons.work, page: WorkPage()),
   AppDestination(
       label: 'เงิน',

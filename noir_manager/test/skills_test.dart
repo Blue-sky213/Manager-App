@@ -117,6 +117,7 @@ void main() {
         options: OpenDatabaseOptions(onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON')));
     await createSkillV19(db);
     await createSkillV19(db);
+    await createSkillTreeV22(db); // รอบ 9B: skill.branch_id
     await repoRules(SqliteSkillRepository(db));
     await db.close();
   });
@@ -130,6 +131,8 @@ void main() {
     await tester.pumpWidget(NoirManagerApp(studyRepository: MemoryStudyRepository.seeded(), calendarRepository: cal));
     await tester.pumpAndSettle();
     await tester.tap(find.text('สกิล').first); // รอบ 9A: เมนูของตัวเอง
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('tab-รายการ'))); // รอบ 9B: แท็บแรก = แผนผัง
     await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(const Key('skill-add-empty')));

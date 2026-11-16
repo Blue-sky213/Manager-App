@@ -35,6 +35,22 @@ abstract class SkillRepository extends ChangeNotifier {
   Future<void> linkActivity(int skillId, int activityId);
   Future<int?> skillOfActivity(int activityId);
   Future<List<int>> activitiesOf(int skillId);
+
+  // ---- แผนผัง (รอบ 9B · v22) ----
+  Future<List<SkillBranch>> branches();
+  Future<int> saveBranch(SkillBranch b);
+
+  /// ลบสาย · สกิลในสายไม่ถูกลบ (กลายเป็น "ยังไม่จัดสาย")
+  Future<void> deleteBranch(int id);
+
+  /// ทักษะย่อยทุกสกิล (เรียงตาม sort)
+  Future<List<SkillNode>> nodes();
+  Future<int> saveNode(SkillNode n);
+  Future<void> deleteNode(int id);
+
+  Future<List<SkillNeed>> needs();
+  Future<void> addNeed(int skillId, int needId);
+  Future<void> removeNeed(int skillId, int needId);
 }
 
 class MemorySkillRepository extends SkillRepository {
@@ -45,6 +61,9 @@ class MemorySkillRepository extends SkillRepository {
   final _files = <int, SkillFile>{};
   final _reviews = <String, SkillReview>{};
   final _links = <int, int>{}; // activityId → skillId
+  final _branches = <int, SkillBranch>{};
+  final _nodes = <int, SkillNode>{};
+  final _needs = <SkillNeed>[];
 
   T _done<T>(T v) {
     notifyListeners();
@@ -58,7 +77,15 @@ class MemorySkillRepository extends SkillRepository {
   Future<int> saveSkill(Skill s) async {
     final id = s.id == 0 ? _next++ : s.id;
     _skills[id] = Skill(
-        id: id, name: s.name, icon: s.icon, colorKey: s.colorKey, why: s.why, status: s.status, startedAt: s.startedAt, doneAt: s.doneAt);
+        id: id,
+        branchId: s.branchId,
+        name: s.name,
+        icon: s.icon,
+        colorKey: s.colorKey,
+        why: s.why,
+        status: s.status,
+        startedAt: s.startedAt,
+        doneAt: s.doneAt);
     return _done(id);
   }
 
@@ -70,6 +97,8 @@ class MemorySkillRepository extends SkillRepository {
     _files.removeWhere((_, f) => f.skillId == id);
     _reviews.removeWhere((_, r) => r.skillId == id);
     _links.removeWhere((_, s) => s == id);
+    _nodes.removeWhere((_, n) => n.skillId == id);
+    _needs.removeWhere((n) => n.skillId == id || n.needId == id);
     notifyListeners();
   }
 
@@ -173,4 +202,57 @@ class MemorySkillRepository extends SkillRepository {
 
   @override
   Future<List<int>> activitiesOf(int skillId) async => [for (final e in _links.entries) if (e.value == skillId) e.key];
+
+  @override
+  Future<List<SkillBranch>> branches() async =>
+      _branches.values.toList()..sort((a, b) => a.sort != b.sort ? a.sort - b.sort : a.id - b.id);
+
+  @override
+  Future<int> saveBranch(SkillBranch b) async {
+    final id = b.id == 0 ? _next++ : b.id;
+    _branches[id] = SkillBranch(id: id, name: b.name, icon: b.icon, colorKey: b.colorKey, sort: b.sort);
+    return _done(id);
+  }
+
+  @override
+  Future<void> deleteBranch(int id) async {
+    _branches.remove(id);
+    for (final s in _skills.values.where((s) => s.branchId == id).toList()) {
+      _skills[s.id] = s.copyWith(clearBranch: true);
+    }
+    notifyListeners();
+  }
+
+  @override
+  Future<List<SkillNode>> nodes() async =>
+      _nodes.values.toList()..sort((a, b) => a.sort != b.sort ? a.sort - b.sort : a.id - b.id);
+
+  @override
+  Future<int> saveNode(SkillNode n) async {
+    final id = n.id == 0 ? _next++ : n.id;
+    _nodes[id] = SkillNode(id: id, skillId: n.skillId, name: n.name, sort: n.sort, done: n.done);
+    return _done(id);
+  }
+
+  @override
+  Future<void> deleteNode(int id) async {
+    _nodes.remove(id);
+    notifyListeners();
+  }
+
+  @override
+  Future<List<SkillNeed>> needs() async => List.of(_needs);
+
+  @override
+  Future<void> addNeed(int skillId, int needId) async {
+    if (_needs.any((n) => n.skillId == skillId && n.needId == needId)) return;
+    _needs.add(SkillNeed(skillId, needId));
+    notifyListeners();
+  }
+
+  @override
+  Future<void> removeNeed(int skillId, int needId) async {
+    _needs.removeWhere((n) => n.skillId == skillId && n.needId == needId);
+    notifyListeners();
+  }
 }

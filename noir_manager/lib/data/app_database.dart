@@ -12,7 +12,7 @@ import 'seed_data.dart';
 import 'study_repository.dart';
 
 /// เวอร์ชันโครงตาราง: ถ้าวันหลังเพิ่มตาราง/คอลัมน์ ให้เพิ่มเลขนี้ + เขียน onUpgrade
-const int _schemaVersion = 21;
+const int _schemaVersion = 22;
 
 /// เลขเวอร์ชันฐานข้อมูล (โชว์ในหน้าตั้งค่า)
 const int appSchemaVersion = _schemaVersion; // v2 setting · v3 cleared_at · v4 ปฏิทิน · v5 Preset · v6 วิชาง่าย 2 รอบ · v7 คาบผูกวิชา + เวลาจริง · v8 แผนการเรียน · v9 เรียน/ติว + ประเภท/สถานะบท · v10 เทอม/วันหยุด/บันทึกติว + ย้ายค่าวิชาออกจาก setting · v11 ประเภทคาบ/ห้อง/กลุ่ม · v12 เส้นความสัมพันธ์วิชา · v13 คะแนนเก็บ/เกรด · v14 จำนวนขาดเรียน + บันทึกคาบเรียน · v15 หัวข้อ + งานที่สั่งในคาบ · v16 สติกเกอร์อารมณ์ · v17 รอบ 7 · v18 สติกเกอร์พอดี · v19 สกิล · v20 การเงิน · v21 โปรเจกต์
@@ -63,6 +63,7 @@ Future<Database> openAppDatabase() async {
       await createSkillV19(db);
       await createMoneyV20(db);
       await createProjectV21(db);
+      await createSkillTreeV22(db);
       await seedStudyData(db);
     },
     // เครื่องที่มีไฟล์ v1 อยู่แล้ว (เครื่องนัวร์): เพิ่มเฉพาะส่วนที่ขาด ข้อมูลเดิมไม่หาย
@@ -93,6 +94,7 @@ Future<Database> openAppDatabase() async {
       if (oldVersion < 19) await createSkillV19(db);
       if (oldVersion < 20) await createMoneyV20(db);
       if (oldVersion < 21) await createProjectV21(db);
+      if (oldVersion < 22) await createSkillTreeV22(db);
     },
   );
 }
@@ -345,6 +347,34 @@ Future<void> createStickerV16(DatabaseExecutor db) async {
       await db.insert('sticker', {'pack_id': pack, 'name': n, 'emoji': e, 'sort': i});
     }
   }
+}
+
+/// v22 (รอบ 9B): แผนผังสกิล · สาย → สกิล → ทักษะย่อย + "ต้องผ่านก่อน" · เพิ่มอย่างเดียว ไม่แตะข้อมูลเดิม
+Future<void> createSkillTreeV22(DatabaseExecutor db) async {
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS skill_branch (
+      id        INTEGER PRIMARY KEY AUTOINCREMENT,
+      name      TEXT NOT NULL,
+      icon      TEXT,
+      color_key TEXT,
+      sort      INTEGER NOT NULL DEFAULT 0
+    )''');
+  // null = ยังไม่จัดสาย · ลบสาย → ล้างค่าเองใน repository
+  await addColumnIfMissing(db, 'skill', 'branch_id', 'INTEGER');
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS skill_node (
+      id       INTEGER PRIMARY KEY AUTOINCREMENT,
+      skill_id INTEGER NOT NULL REFERENCES skill(id) ON DELETE CASCADE,
+      name     TEXT NOT NULL,
+      sort     INTEGER NOT NULL DEFAULT 0,
+      done     INTEGER NOT NULL DEFAULT 0
+    )''');
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS skill_need (
+      skill_id INTEGER NOT NULL REFERENCES skill(id) ON DELETE CASCADE,
+      need_id  INTEGER NOT NULL REFERENCES skill(id) ON DELETE CASCADE,
+      PRIMARY KEY (skill_id, need_id)
+    )''');
 }
 
 /// v21 (รอบ 8E): โปรเจกต์ · ตารางใหม่ทั้งหมด · money_entry.project_id มีตั้งแต่ v20
