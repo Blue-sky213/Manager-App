@@ -48,7 +48,34 @@ void main() {
     }
     // ignore: avoid_print
     print('PERF month cold=$cold warm=$warm');
-    expect(warm.reduce((a, b) => a > b ? a : b), lessThan(3000));
+    // ก่อนแก้ (17 พ.ย.): ~950 ms/เดือน ทั้งครั้งแรกและดูซ้ำ
+    expect(warm.reduce((a, b) => a > b ? a : b), lessThan(250));
+
+    // แคชต้องไม่ค้าง: เพิ่มงานใหม่ → เดือนเดิมเห็นทันที
+    final cat = (await repo.categories()).first.id;
+    await repo.addActivity(NewActivity(
+        name: 'งานใหม่ทุกวันอังคาร', categoryId: cat, importance: 2, timed: false, day: DateTime(2026, 12, 1),
+        repeat: RepeatKind.weekly, weekdays: {2}));
+    final dec = await repo.occurrencesBetween(DateTime(2026, 12, 1), DateTime(2026, 12, 31));
+    expect(dec.values.expand((l) => l).where((o) => o.title == 'งานใหม่ทุกวันอังคาร').length, 5);
     await db.close();
+  });
+
+  test('เลขครั้ง: คิดรอบเดียว (sessionIndex) = คิดทีละครั้ง (sessionCount) ทุกวัน', () {
+    for (final a in [
+      Activity(id: 1, name: 'w', categoryId: 1, importance: 2, timed: true, startMinute: 600, durationMin: 60,
+          startDate: DateTime(2026, 9, 1), repeat: RepeatKind.weekly, weekdays: const {1, 3, 5}, endDate: DateTime(2027, 2, 28)),
+      Activity(id: 2, name: 'd', categoryId: 1, importance: 2, timed: false, startMinute: null, durationMin: null,
+          startDate: DateTime(2026, 10, 3), repeat: RepeatKind.daily, weekdays: const {}),
+    ]) {
+      final skip = {DateTime(2026, 11, 4), DateTime(2026, 10, 10)};
+      final idx = sessionIndex(a, skipped: skip, upTo: DateTime(2027, 1, 31));
+      for (var d = DateTime(2026, 8, 25); d.isBefore(DateTime(2027, 1, 31)); d = DateTime(d.year, d.month, d.day + 1)) {
+        final want = sessionCount(a, d, skipped: skip);
+        final n = idx.n[d];
+        final got = n == null ? null : SessionCount(n, idx.total);
+        expect(got, want, reason: '${a.name} ${dayKey(d)}');
+      }
+    }
   });
 }

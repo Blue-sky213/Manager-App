@@ -140,6 +140,20 @@ class SqliteCalendarRepository extends CalendarRepository {
   late final WorkRepository workRepo = SqliteWorkRepository(_db);
   SqliteCalendarRepository(this._db);
 
+  // แคชตอนเปลี่ยนเดือน: วันที่สร้าง "ครั้ง" แล้ว · งาน · วันที่เลื่อนรอบ
+  // ล้างทุกครั้งที่ข้อมูลเปลี่ยน (ทุกการเขียนเรียก notifyListeners) → ไม่มีของเก่าค้าง
+  final _generated = <String>{};
+  final _activityCache = <int, Activity>{};
+  final _shiftedCache = <int, Set<DateTime>>{};
+
+  @override
+  void notifyListeners() {
+    _generated.clear();
+    _activityCache.clear();
+    _shiftedCache.clear();
+    super.notifyListeners();
+  }
+
   final Database _db;
 
   /// SELECT ที่ใช้ซ้ำ: งานแต่ละครั้ง + ชื่อ/หมวด/ความสำคัญจากกิจกรรมต้นแบบ
@@ -255,12 +269,14 @@ class SqliteCalendarRepository extends CalendarRepository {
 
   @override
   Future<Activity> activity(int activityId) async {
+    final hit = _activityCache[activityId];
+    if (hit != null) return hit;
     final row = (await _db.query('activity',
             where: 'id = ?', whereArgs: [activityId], limit: 1))
         .first;
     final dates = await _db.query('activity_date',
         where: 'activity_id = ?', whereArgs: [activityId], orderBy: 'day');
-    return Activity.fromRow(row, dates: {
+    return _activityCache[activityId] = Activity.fromRow(row, dates: {
       for (final d in dates)
         d['day'] as String: ScheduledDate(
           DateTime.parse(d['day'] as String),
@@ -405,6 +421,22 @@ class SqliteCalendarRepository extends CalendarRepository {
     if (days.isEmpty) return {};
     final ka = dayKey(a), kb = dayKey(b);
     // 1) สร้างครั้งของงานทุกวันในช่วง ใน batch เดียว (เหมือน occurrencesOn ทีละวัน)
+    //    วันที่สร้างไปแล้ว (และข้อมูลยังไม่เปลี่ยน) ข้ามได้ → กลับมาดูเดือนเดิมไม่ต้องเขียน DB
+    if (!days.every((d) => _generated.contains(dayKey(d)))) await _generate(days, ka, kb);
+    // 2) อ่านทั้งช่วงครั้งเดียว แล้วแยกตามวัน (ลำดับในวันเหมือน occurrencesOn)
+    final rows = await _db.rawQuery(
+        '$_occurrenceSelect WHERE o.day >= ? AND o.day <= ? '
+        'ORDER BY o.day, o.start_at IS NULL, o.start_at, o.id',
+        [ka, kb]);
+    final all = await attachSessions(rows.map(Occurrence.fromRow).toList());
+    final out = {for (final d in days) d: <Occurrence>[]};
+    for (final o in all) {
+      out[dayOnly(o.day)]?.add(o);
+    }
+    return out;
+  }
+
+  Future<void> _generate(List<DateTime> days, String ka, String kb) async {
     final acts = await _db.query('activity',
         where: "repeat = 'dates' OR (start_date <= ? AND (end_date IS NULL OR end_date >= ?))", whereArgs: [kb, ka]);
     final dateRows = await _db.query('activity_date', where: 'day >= ? AND day <= ?', whereArgs: [ka, kb]);
@@ -438,18 +470,7 @@ class SqliteCalendarRepository extends CalendarRepository {
       }
     }
     await batch.commit(noResult: true);
-
-    // 2) อ่านทั้งช่วงครั้งเดียว แล้วแยกตามวัน (ลำดับในวันเหมือน occurrencesOn)
-    final rows = await _db.rawQuery(
-        '$_occurrenceSelect WHERE o.day >= ? AND o.day <= ? '
-        'ORDER BY o.day, o.start_at IS NULL, o.start_at, o.id',
-        [ka, kb]);
-    final all = await attachSessions(rows.map(Occurrence.fromRow).toList());
-    final out = {for (final d in days) d: <Occurrence>[]};
-    for (final o in all) {
-      out[dayOnly(o.day)]?.add(o);
-    }
-    return out;
+    _generated.addAll(days.map(dayKey));
   }
 
   @override
@@ -663,10 +684,12 @@ class SqliteCalendarRepository extends CalendarRepository {
 
   @override
   Future<Set<DateTime>> shiftedDays(int activityId) async {
+    final hit = _shiftedCache[activityId];
+    if (hit != null) return hit;
     final rows = await _db.rawQuery(
         '$_occurrenceSelect WHERE o.activity_id = ? AND o.status = ?',
         [activityId, OccurrenceStatus.shifted.name]);
-    return {
+    return _shiftedCache[activityId] = {
       for (final r in rows)
         if (r['root_day'] != null) DateTime.parse(r['root_day'] as String),
     };

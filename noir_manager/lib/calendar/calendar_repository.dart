@@ -175,6 +175,15 @@ abstract class CalendarRepository extends ChangeNotifier {
   Future<List<Occurrence>> attachSessions(List<Occurrence> items) async {
     final cache = <int, Activity?>{};
     final skipped = <int, Set<DateTime>>{};
+    // วันท้ายสุดที่ต้องรู้เลขครั้ง ต่องาน (งานไม่มีวันจบนับถึงวันนี้พอ)
+    final upTo = <int, DateTime>{};
+    for (final o in items) {
+      if (!o.repeats || o.rootDay == null) continue;
+      final r = dayOnly(o.rootDay!);
+      final cur = upTo[o.activityId];
+      if (cur == null || r.isAfter(cur)) upTo[o.activityId] = r;
+    }
+    final index = <int, ({Map<DateTime, int> n, int? total})>{};
     final out = <Occurrence>[];
     for (final o in items) {
       if (!o.repeats || o.rootDay == null) {
@@ -192,7 +201,14 @@ abstract class CalendarRepository extends ChangeNotifier {
       final a = cache[o.activityId];
       if (a == null) continue;
       final skip = skipped[o.activityId] ??= await shiftedDays(o.activityId);
-      out.add(o.withSession(sessionCount(a, o.rootDay!, skipped: skip)));
+      if (a.repeat == RepeatKind.dates) {
+        out.add(o.withSession(sessionCount(a, o.rootDay!, skipped: skip)));
+        continue;
+      }
+      // คิดเลขครั้งทั้งงานรอบเดียว แล้วเปิดดูทีละครั้ง (เดิมไล่วันใหม่ทุกครั้ง)
+      final idx = index[o.activityId] ??= sessionIndex(a, skipped: skip, upTo: upTo[o.activityId]!);
+      final n = idx.n[dayOnly(o.rootDay!)];
+      out.add(o.withSession(n == null ? null : SessionCount(n, idx.total)));
     }
     return out;
   }
