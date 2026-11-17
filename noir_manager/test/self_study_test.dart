@@ -12,27 +12,24 @@ import 'package:noir_manager/study/mastery.dart';
 final today = DateTime(2026, 11, 17);
 
 void main() {
-  test('ใส่สารบัญ: 4 วิชา ครบทุกบท/หัวข้อ · ผูกงานในแผนเป็นรอบติว · กดซ้ำไม่ซ้อน', () async {
+  test('ใส่สารบัญ: 3 วิชา ครบทุกบท/หัวข้อ · ผูกงานในแผนเป็นรอบติว · กดซ้ำไม่ซ้อน', () async {
     final cal = MemoryCalendarRepository();
     final study = MemoryStudyRepository();
     await applyNoirPlan(cal, today);
     final r = await applySelfStudy(study, cal);
-    expect(r.subjects, 4);
+    expect(r.subjects, 3);
     expect(r.chapters, selfStudyToc.fold<int>(0, (a, t) => a + t.$2.length));
     expect(r.subtopics, selfStudyToc.fold<int>(0, (a, t) => a + t.$2.fold<int>(0, (b, c) => b + c.$2.length)));
 
     final subs = {for (final s in await study.subjects()) s.name: s.id};
-    expect(subs.keys, containsAll(['IELTS', 'คำศัพท์ A1 → C2', 'DaVinci Resolve', 'Canva']));
+    expect(subs.keys, containsAll(['IELTS', 'DaVinci Resolve', 'Canva']));
     expect((await study.chapters(subs['IELTS']!)).length, 10);
-    expect((await study.chapters(subs['คำศัพท์ A1 → C2']!)).map((c) => c.chapter.name.split(' ').first), ['A1', 'A2', 'B1', 'B2', 'C1', 'C2']);
 
     // งานในแผนผูกถูกวิชา · งาน/ไลฟ์/อ่าน ไม่ผูก
     var tutor = 0;
     for (final id in await cal.activityIds()) {
       final a = await cal.activity(id);
-      if (a.name.startsWith('IELTS · คำศัพท์')) {
-        expect((a.kind, a.subjectId), (ActivityKind.tutor, subs['คำศัพท์ A1 → C2']));
-      } else if (a.name.startsWith('IELTS ·')) {
+      if (a.name.startsWith('IELTS ·')) {
         expect(a.subjectId, subs['IELTS']);
       } else if (a.name.startsWith('ฝึก · DaVinci')) {
         expect(a.subjectId, subs['DaVinci Resolve']);

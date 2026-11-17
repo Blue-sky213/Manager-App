@@ -94,7 +94,7 @@ class _FreshStartSectionState extends State<FreshStartSection> {
   Future<void> _selfStudy() async {
     final ok = await confirmMini(context,
         title: 'ใส่สารบัญเรียนเอง',
-        message: 'วิชา IELTS · คำศัพท์ A1 → C2 · DaVinci Resolve · Canva (บท + หัวข้อ) · ผูกงาน IELTS / DaVinci / Canva ในปฏิทินเป็นรอบติว (กดทำแล้ว = เลือกบท) · ของที่มีอยู่แล้วจะข้าม',
+        message: 'วิชา IELTS · DaVinci Resolve · Canva (บท + หัวข้อ) · ผูกงาน IELTS / DaVinci / Canva ในปฏิทินเป็นรอบติว (กดทำแล้ว = เลือกบท) · ของที่มีอยู่แล้วจะข้าม',
         okLabel: 'ใส่สารบัญ');
     if (!ok || !mounted) return;
     final cal = CalendarScope.of(context);
@@ -116,7 +116,7 @@ class _FreshStartSectionState extends State<FreshStartSection> {
         MiniRow(
           key: const Key('fresh-self-study'),
           icon: Icons.menu_book_outlined,
-          label: 'ใส่สารบัญเรียนเอง (IELTS · คำศัพท์ · DaVinci · Canva)',
+          label: 'ใส่สารบัญเรียนเอง (IELTS · DaVinci · Canva)',
           onTap: _busy ? null : _selfStudy,
         ),
         MiniRow(
