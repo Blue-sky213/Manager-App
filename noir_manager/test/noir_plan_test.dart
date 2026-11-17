@@ -7,6 +7,7 @@ import 'package:noir_manager/calendar/calendar_models.dart';
 import 'package:noir_manager/calendar/memory_calendar_repository.dart';
 import 'package:noir_manager/data/memory_study_repository.dart';
 import 'package:noir_manager/data/noir_plan.dart';
+import 'package:noir_manager/pages/settings_page.dart';
 import 'package:noir_manager/skills/skill_models.dart';
 import 'package:noir_manager/work/project_models.dart';
 
@@ -91,7 +92,8 @@ void main() {
     await tester.tap(find.text('ตั้งค่า').last);
     await tester.pumpAndSettle();
 
-    await tester.ensureVisible(find.byKey(const Key('fresh-reset')));
+    // หน้าตั้งค่าเป็น ListView (สร้างแค่ที่เห็น) → เลื่อนหาก่อน
+    await tester.scrollUntilVisible(find.byKey(const Key('fresh-reset')), 300, scrollable: find.descendant(of: find.byType(SettingsPage), matching: find.byType(Scrollable)).first);
     await tester.tap(find.byKey(const Key('fresh-reset')));
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const Key('fresh-confirm')), 'ลบ');

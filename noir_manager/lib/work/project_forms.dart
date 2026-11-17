@@ -107,7 +107,7 @@ Future<int?> editProjectForm(BuildContext context, WorkRepository repo, {Project
               key: const Key('pj-steps'),
               icon: Icons.checklist,
               label: 'ใส่ขั้นตอนสำเร็จรูป (${projectSteps[type]!.length} ขั้น)',
-              detail: projectSteps[type]!.take(3).join(' → ') + ' …',
+              detail: '${projectSteps[type]!.take(3).join(' → ')} …',
               value: withSteps,
               onChanged: (v) => setLocal(() => withSteps = v),
             ),
