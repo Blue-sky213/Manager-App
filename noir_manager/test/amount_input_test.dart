@@ -7,7 +7,7 @@ import 'package:noir_manager/app.dart';
 import 'package:noir_manager/calendar/memory_calendar_repository.dart';
 import 'package:noir_manager/data/memory_study_repository.dart';
 import 'package:noir_manager/widgets/amount_input.dart';
-import 'package:noir_manager/work/money_calc.dart' show subBudgetKey;
+import 'package:noir_manager/work/money_models.dart' show subBudgetKey;
 
 TextEditingValue type(String text) =>
     const AmountInputFormatter().formatEditUpdate(TextEditingValue.empty, TextEditingValue(text: text, selection: TextSelection.collapsed(offset: text.length)));
