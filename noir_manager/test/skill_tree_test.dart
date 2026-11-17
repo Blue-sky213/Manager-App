@@ -167,6 +167,7 @@ void main() {
     await db.insert('skill', {'name': 'สกิลเดิม', 'status': 'active', 'started_at': '2026-10-01'});
     await createSkillTreeV22(db);
     await createSkillTreeV22(db);
+    await createSkillLessonV23(db); // รอบ 13: skill_node.url
     final repo = SqliteSkillRepository(db);
     final old = (await repo.skills()).single;
     expect((old.name, old.branchId), ('สกิลเดิม', null));

@@ -1,5 +1,6 @@
 // รอบ 13: บทเรียนในสกิล · หัวข้อ + คะแนน + ลิงก์คลิป · ย้ายวิชาเรียนเอง (รอบ 11) มาที่สกิล
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
@@ -32,7 +33,8 @@ Future<void> topicRules(SkillRepository r) async {
   await r.addTopicScore(t, 150, at: DateTime(2026, 11, 12)); // เกิน 100 → 100
   var cut = (await r.topics()).firstWhere((x) => x.id == t);
   expect(cut.scores.map((x) => x.score), [40, 100]);
-  expect((cut.score, cut.green), (100, isTrue));
+  expect(cut.score, 100);
+  expect(cut.green, isTrue);
   // แก้ชื่อ / โน้ต ไม่ทำคะแนนหาย
   await r.saveTopic(cut.copyWith(name: 'Cut page', note: 'blade = B'));
   cut = (await r.topics()).firstWhere((x) => x.id == t);
@@ -72,7 +74,7 @@ void main() {
     final s = await repo.saveSkill(Skill(name: 'Canva', startedAt: today));
     await db.insert('skill_node', {'skill_id': s, 'name': 'ปก', 'sort': 0, 'done': 1});
     await createSkillLessonV23(db);
-    final n = (await repo.nodes()).single;
+    final n = (await repo.nodes()).firstWhere((x) => x.skillId == s);
     expect((n.name, n.done, n.url), ('ปก', true, null));
     expect((await repo.skills()).single.name, 'Canva');
     await db.close();
@@ -212,7 +214,9 @@ void main() {
   });
 
   test('เปิดลิงก์: คำสั่งตามระบบ · มือถือ = ไม่มี (คัดลอกแทน) · ไม่ใช่ http = ไม่เปิด', () {
-    expect(openCommand('https://x.y', os: 'windows'), ('rundll32', ['url.dll,FileProtocolHandler', 'https://x.y']));
+    final win = openCommand('https://x.y', os: 'windows')!;
+    expect(win.$1, 'rundll32');
+    expect(win.$2, ['url.dll,FileProtocolHandler', 'https://x.y']);
     expect(openCommand('https://x.y', os: 'macos')!.$1, 'open');
     expect(openCommand('https://x.y', os: 'android'), isNull);
     expect(isWebLink('https://www.youtube.com/watch?v=a'), isTrue);
@@ -222,6 +226,12 @@ void main() {
   });
 
   testWidgets('หน้าสกิล › บทเรียน: เพิ่มบท + หัวข้อ → ให้คะแนน 🟢 → % ขึ้น · บันทึกรอบเลือกหัวข้อได้', (tester) async {
+    String? copied;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.setData') copied = (call.arguments as Map)['text'] as String?;
+      return null;
+    });
+    addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, null));
     tester.view.physicalSize = const Size(1400, 2400);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -271,6 +281,7 @@ void main() {
     // ▶ ระหว่างเทส = คัดลอกลิงก์
     await tester.tap(find.byKey(ValueKey('lesson-play-${t1.id}')));
     await tester.pumpAndSettle();
+    expect(copied, 'https://www.youtube.com/watch?v=xyz');
     expect(find.textContaining('คัดลอกลิงก์แล้ว'), findsOneWidget);
 
     // บันทึกรอบ → เลือกหัวข้อ + คะแนน
