@@ -5,13 +5,14 @@ import 'package:flutter/material.dart';
 
 import '../theme/noir_colors.dart';
 import '../utils/thai_date.dart';
+import '../widgets/amount_input.dart';
 import '../widgets/mini_form.dart';
 import '../widgets/mini_segments.dart';
 import 'money_models.dart';
 import 'work_repository.dart';
 
-double? _num(String s) => double.tryParse(s.trim().replaceAll(',', '').replaceAll('฿', ''));
-String _plain(double v) => v == v.roundToDouble() ? v.toInt().toString() : v.toStringAsFixed(2);
+double? _num(String s) => parseAmount(s); // คิดเลขได้ · มี , ได้
+String _plain(double v) => formatAmount(v);
 
 Future<DateTime?> _pickDay(BuildContext context, DateTime initial) => showDatePicker(
       context: context,
@@ -62,7 +63,7 @@ Future<int?> editEntryForm(BuildContext context, WorkRepository repo,
             key: const Key('money-amount'),
             controller: amount,
             hint: '฿ 0',
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            money: true,
             onChanged: (_) => setLocal(() {}),
           ),
           if (showErr && bad()) Text('ใส่จำนวนเงิน', style: TextStyle(fontSize: 12, color: c.bad)),
@@ -161,7 +162,7 @@ Future<int?> editSubscriptionForm(BuildContext context, WorkRepository repo, {Su
                 controller: amount,
                 hint: 'ไม่รู้ = เว้นไว้',
                 width: 120,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true)),
+                money: true),
           ),
           MiniRow(
             icon: Icons.event_repeat,
@@ -217,7 +218,7 @@ Future<bool> payBill(BuildContext context, WorkRepository repo, Subscription s, 
         onSecondary: () => Navigator.pop(ctx, false),
         children: [
           MiniBigField(
-              key: const Key('pay-amount'), controller: c, hint: '฿ 0', keyboardType: const TextInputType.numberWithOptions(decimal: true)),
+              key: const Key('pay-amount'), controller: c, hint: '฿ 0', money: true),
         ],
       ),
     );
@@ -260,7 +261,7 @@ Future<int?> editInvestmentForm(BuildContext context, WorkRepository repo, {Inve
                 controller: amount,
                 hint: '0',
                 width: 120,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                money: true,
                 onChanged: (_) => setLocal(() {})),
           ),
           MiniRow(
