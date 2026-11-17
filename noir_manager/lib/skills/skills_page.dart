@@ -16,6 +16,7 @@ import '../widgets/dialogs.dart';
 import '../widgets/mini_form.dart';
 import '../widgets/toast.dart';
 import 'skill_forms.dart';
+import 'skill_lessons_view.dart';
 import 'skill_models.dart';
 import 'skill_progress.dart';
 import 'skill_repository.dart';
@@ -355,6 +356,9 @@ class _SkillsPageState extends State<SkillsPage> {
           label: const Text('บันทึกรอบ'),
         ),
       ]),
+
+      // ---- บทเรียน (รอบ 13) ----
+      SkillLessons(key: ValueKey('lessons-${s.id}'), repo: _repo!, skill: s),
 
       // ---- เป้า ----
       _header(c, 'เป้า', TextButton.icon(

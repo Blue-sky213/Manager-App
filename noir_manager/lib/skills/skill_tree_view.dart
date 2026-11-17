@@ -8,11 +8,6 @@ import 'package:flutter/material.dart';
 
 import '../calendar/calendar_repository.dart';
 import '../calendar/calendar_ui.dart' show categoryAccent;
-import '../data/self_study.dart' show subjectForSkill, subjectGreenRatio;
-import '../data/study_models.dart' show Subject;
-import '../data/study_repository.dart';
-import '../data/study_scope.dart';
-import '../study/mastery.dart' show GradingMode;
 import '../theme/noir_colors.dart';
 import '../widgets/dialogs.dart';
 import '../widgets/mini_form.dart';
@@ -34,10 +29,10 @@ class SkillTreeView extends StatefulWidget {
 
 class _SkillTreeViewState extends State<SkillTreeView> {
   SkillRepository? _repo;
-  StudyRepository? _study;
   List<SkillBranch> _branches = const [];
   List<Skill> _skills = const [];
   List<SkillNode> _nodes = const [];
+  List<SkillTopic> _topics = const [];
   List<SkillNeed> _needs = const [];
   Map<int, SkillStat> _stats = const {};
   Map<int, SkillGoal?> _goal = const {};
@@ -50,7 +45,6 @@ class _SkillTreeViewState extends State<SkillTreeView> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _study = StudyScope.maybeOf(context);
     final repo = CalendarScope.of(context).skillRepo;
     if (repo != _repo) {
       _repo?.removeListener(_load);
@@ -68,26 +62,21 @@ class _SkillTreeViewState extends State<SkillTreeView> {
 
   Future<void> _load() async {
     final repo = _repo!;
-    final study = _study;
     final today = DateTime.now();
-    // สกิลที่มีวิชาเรียนเองคู่กัน (รอบ 11) → % = หัวข้อที่ 🟢 ของวิชานั้น
-    final subjects = study == null ? const <Subject>[] : await study.subjects();
-    final mode = study == null ? GradingMode.ez : await study.gradingMode();
     final branches = await repo.branches();
     final skills = await repo.skills();
     final nodes = await repo.nodes();
     final needs = await repo.needs();
+    final topics = await repo.topics();
     final hours = <int, double>{}, ratios = <int, double>{};
     final goal = <int, SkillGoal?>{};
     for (final s in skills) {
       final logs = await repo.logs(s.id);
       final goals = await repo.goals(s.id);
       hours[s.id] = practiceHours(logs);
-      ratios[s.id] = skillRatio(s, nodes: nodes.where((n) => n.skillId == s.id).toList(), goals: goals, logs: logs, today: today);
-      final sub = subjectForSkill(s.name, subjects);
-      if (sub != null && study != null && s.status != SkillStatus.done) {
-        ratios[s.id] = await subjectGreenRatio(study, sub.id, mode) ?? ratios[s.id]!;
-      }
+      // % = หัวข้อที่ 🟢 ของบทเรียนในสกิลนี้ (รอบ 13) · ไม่มีหัวข้อ = บท / เป้า เหมือนเดิม
+      ratios[s.id] = skillRatio(s,
+          nodes: nodes.where((n) => n.skillId == s.id).toList(), topics: topics, goals: goals, logs: logs, today: today);
       goal[s.id] = goals.where((g) => g.status == GoalStatus.active).firstOrNull;
     }
     final stats = skillStats(skills, needs, hours, ratios);
@@ -97,11 +86,13 @@ class _SkillTreeViewState extends State<SkillTreeView> {
       _branches = branches;
       _skills = skills;
       _nodes = nodes;
+      _topics = topics;
       _needs = needs;
       _stats = stats;
       _goal = goal;
       _next = nextSkill(stats.values);
-      _dots = layoutTree(branches: branches, skills: skills, nodes: nodes, stats: stats, rootLabel: 'Lv ${skillLevel(total)}');
+      _dots = layoutTree(
+          branches: branches, skills: skills, nodes: nodes, topics: topics, stats: stats, rootLabel: 'Lv ${skillLevel(total)}');
       if (!_dots.any((d) => d.key == _sel)) _sel = 'root-0';
     });
   }
@@ -131,7 +122,7 @@ class _SkillTreeViewState extends State<SkillTreeView> {
   Future<void> _toggleNode(SkillNode n) async {
     final mine = _nodes.where((x) => x.skillId == n.skillId).toList();
     final i = mine.indexWhere((x) => x.id == n.id);
-    if (!n.done && nodeState(mine, i) == TreeState.lock) {
+    if (!n.done && nodeState(mine, i, topics: _topics) == TreeState.lock) {
       showToast(context, 'ข้ามด่าน: ยังไม่ผ่าน "${mine[i - 1].name}" · บันทึกให้แล้ว', kind: ToastKind.warn);
     }
     await _repo!.saveNode(n.copyWith(done: !n.done));
@@ -560,7 +551,7 @@ class _SkillTreeViewState extends State<SkillTreeView> {
           mine.isEmpty
               ? 'ยังไม่มีทักษะย่อย'
               : 'ทักษะย่อย: ${[
-                  for (final (i, n) in mine.indexed) '${n.done ? '✓ ' : nodeState(mine, i) == TreeState.lock ? '🔒 ' : ''}${n.name}'
+                  for (final (i, n) in mine.indexed) '${nodePassed(n, _topics) ? '✓ ' : nodeState(mine, i, topics: _topics) == TreeState.lock ? '🔒 ' : ''}${n.name}'
                 ].join(' → ')}',
           style: small,
         ),

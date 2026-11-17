@@ -257,7 +257,12 @@ Future<int?> editLogForm(
   DateTime? day,
 }) async {
   final goals = [for (final g in await repo.goals(skill.id)) if (g.status == GoalStatus.active && (g.kind == GoalKind.faster || g.kind == GoalKind.count)) g];
+  // หัวข้อในบทเรียน (รอบ 13) · ให้คะแนนได้เฉพาะบันทึกใหม่ (แก้บันทึกเดิมไม่เพิ่มคะแนนซ้ำ)
+  final nodes = {for (final n in await repo.nodes()) if (n.skillId == skill.id) n.id: n};
+  final topics = log != null ? const <SkillTopic>[] : [for (final t in await repo.topics()) if (nodes.containsKey(t.nodeId)) t];
   if (!context.mounted) return null;
+  int? topicId;
+  final topicScore = TextEditingController();
   var goalId = log?.goalId ?? goals.firstOrNull?.id;
   final mins = TextEditingController(text: '${log?.minutes ?? minutes ?? ''}');
   final value = TextEditingController(text: log?.value == null ? '' : fmtNumber(log!.value!));
@@ -317,6 +322,29 @@ Future<int?> editLogForm(
                       keyboardType: const TextInputType.numberWithOptions(decimal: true)),
                 ),
             ],
+            if (topics.isNotEmpty) ...[
+              MiniRow(
+                key: const Key('log-topic'),
+                icon: Icons.menu_book_outlined,
+                label: 'เรียนหัวข้อไหน',
+                valueText: topics.where((x) => x.id == topicId).firstOrNull?.name ?? 'ไม่ระบุ',
+                onTap: () async {
+                  final v = await showMiniChoice<int>(ctx, title: 'เรียนหัวข้อไหน', current: topicId ?? -1, items: [
+                    miniChoice(-1, 'ไม่ระบุ'),
+                    for (final x in topics)
+                      miniChoice(x.id, x.name, detail: '${nodes[x.nodeId]!.name}${x.score == null ? '' : ' · ล่าสุด ${x.score}'}'),
+                  ]);
+                  if (v != null) setLocal(() => topicId = v == -1 ? null : v);
+                },
+              ),
+              if (topicId != null)
+                MiniRow(
+                  icon: Icons.insights_outlined,
+                  label: 'เข้าใจกี่คะแนน (0–100)',
+                  value: MiniInlineField(
+                      key: const Key('log-topic-score'), controller: topicScore, hint: '80', width: 70, keyboardType: TextInputType.number),
+                ),
+            ],
             const MiniLabel('พอใจแค่ไหน'),
             Row(children: [
               for (var i = 1; i <= 5; i++)
@@ -340,6 +368,8 @@ Future<int?> editLogForm(
   );
   if (ok != true) return null;
   String? t(TextEditingController c) => c.text.trim().isEmpty ? null : c.text.trim();
+  final ts = int.tryParse(topicScore.text.trim());
+  if (!skipped && topicId != null && ts != null) await repo.addTopicScore(topicId!, ts.clamp(0, 100), at: when);
   return repo.saveLog(SkillLog(
     id: log?.id ?? 0,
     skillId: skill.id,

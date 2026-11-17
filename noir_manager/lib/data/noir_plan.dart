@@ -8,6 +8,7 @@ library;
 
 import '../calendar/calendar_models.dart';
 import '../calendar/calendar_repository.dart';
+import '../skills/skill_lessons.dart';
 import '../skills/skill_models.dart';
 import '../work/project_models.dart';
 import 'study_repository.dart';
@@ -67,11 +68,11 @@ const _slots = <_Slot>[
 /// ชื่องานทั้งหมดในแผน (ไว้เทส / ตรวจ)
 List<String> get noirPlanNames => [for (final s in _slots) s.$1];
 
-/// สกิล: สาย · ไอคอนสาย · สี · สกิล · ไอคอน · ทักษะย่อย
+/// สกิล: สาย · ไอคอนสาย · สี · สกิล · ไอคอน (บท + หัวข้อ มาจากสารบัญเรียนเอง · รอบ 13)
 const _skills = [
-  ('ภาษา', '🗣️', 'sky', 'IELTS', '🇬🇧', ['Vocab', 'Listening', 'Reading', 'Writing', 'Speaking', 'Mock test']),
-  ('ตัดต่อ', '🎬', 'purple', 'DaVinci Resolve', '🎬', ['Cut / Edit (คีย์ลัด)', 'Color', 'Fairlight เสียง', 'Fusion ตัวหนังสือ']),
-  ('ออกแบบ', '🎨', 'pink', 'Canva', '🎨', ['Brand kit Noir Lev', 'ปก YouTube', 'Shorts / โพสต์', 'ภาพเว็บ mecsteam']),
+  ('ภาษา', '🗣️', 'sky', 'IELTS', '🇬🇧'),
+  ('ตัดต่อ', '🎬', 'purple', 'DaVinci Resolve', '🎬'),
+  ('ออกแบบ', '🎨', 'pink', 'Canva', '🎨'),
 ];
 
 Future<PlanResult> applyNoirPlan(CalendarRepository cal, DateTime today, {int months = 6}) async {
@@ -100,7 +101,7 @@ Future<PlanResult> applyNoirPlan(CalendarRepository cal, DateTime today, {int mo
   final skills = await r.skills();
   final skillIds = <String, int>{};
   var newSkills = 0;
-  for (final (bName, bIcon, color, sName, sIcon, nodes) in _skills) {
+  for (final (bName, bIcon, color, sName, sIcon) in _skills) {
     final b = branches.where((x) => x.name == bName).firstOrNull?.id ??
         await r.saveBranch(SkillBranch(name: bName, icon: bIcon, colorKey: color, sort: branches.length + skillIds.length));
     final key = sName.split(' ').first.toLowerCase();
@@ -113,9 +114,6 @@ Future<PlanResult> applyNoirPlan(CalendarRepository cal, DateTime today, {int mo
     final id = await r.saveSkill(Skill(name: sName, icon: sIcon, branchId: b, colorKey: color, startedAt: day0));
     skillIds[sName] = id;
     newSkills++;
-    for (final (i, n) in nodes.indexed) {
-      await r.saveNode(SkillNode(skillId: id, name: n, sort: i));
-    }
     switch (sName) {
       case 'IELTS':
         await r.saveGoal(SkillGoal(skillId: id, kind: GoalKind.count, title: 'คำศัพท์ใหม่', unit: 'คำ', target: 10, streak: 14));
@@ -136,6 +134,8 @@ Future<PlanResult> applyNoirPlan(CalendarRepository cal, DateTime today, {int mo
   if (!branches.any((b) => b.name == 'อ่าน')) {
     await r.saveBranch(SkillBranch(name: 'อ่าน', icon: '📚', colorKey: 'mint', sort: branches.length + 3));
   }
+  // บท + หัวข้อ + ลิงก์คลิป ของ IELTS / DaVinci / Canva
+  await applyLessonPresets(r);
 
   // งานซ้ำในปฏิทิน (ชื่อซ้ำ = ข้าม)
   final have = <String>{};

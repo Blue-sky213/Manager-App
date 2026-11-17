@@ -352,13 +352,14 @@ Future<List<String>> checkDemoLife(CalendarRepository cal, DateTime today) async
   final skills = await r.skills();
   final nodes = await r.nodes();
   final needs = await r.needs();
+  final topics = await r.topics();
   final hours = <int, double>{}, ratios = <int, double>{};
   final logsBy = <int, List<SkillLog>>{};
   for (final s in skills) {
     final logs = await r.logs(s.id);
     logsBy[s.id] = logs;
     hours[s.id] = practiceHours(logs);
-    ratios[s.id] = skillRatio(s, nodes: nodes.where((n) => n.skillId == s.id).toList(), goals: await r.goals(s.id), logs: logs, today: now);
+    ratios[s.id] = skillRatio(s, nodes: nodes.where((n) => n.skillId == s.id).toList(), topics: topics, goals: await r.goals(s.id), logs: logs, today: now);
   }
   final stats = skillStats(skills, needs, hours, ratios);
   for (final s in skills) {

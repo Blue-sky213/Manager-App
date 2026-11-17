@@ -33,17 +33,69 @@ class SkillNeed {
 const branchIcons = ['🎬', '🗣️', '🎨', '🎮', '💻', '🎵', '📷', '🏃', '📚', '🌟'];
 
 /// ทักษะย่อย (ชั้น 3): ด่านในสกิล เรียงต่อกัน · ผ่านอันก่อนถึง "ปลดล็อก" อันถัดไป (แค่เตือน ไม่บล็อก)
+/// รอบ 13: ทักษะย่อย = "บท" ของการเรียนเอง · มีหัวข้อ ([SkillTopic]) ข้างใน · [url] = คลิปของทั้งบท
 class SkillNode {
-  const SkillNode({this.id = 0, required this.skillId, required this.name, this.sort = 0, this.done = false});
+  const SkillNode({this.id = 0, required this.skillId, required this.name, this.sort = 0, this.done = false, this.url});
   final int id;
   final int skillId;
   final String name;
   final int sort;
   final bool done;
+  final String? url;
 
-  SkillNode copyWith({String? name, bool? done, int? sort}) =>
-      SkillNode(id: id, skillId: skillId, name: name ?? this.name, sort: sort ?? this.sort, done: done ?? this.done);
+  SkillNode copyWith({String? name, bool? done, int? sort, String? url, bool clearUrl = false}) => SkillNode(
+      id: id,
+      skillId: skillId,
+      name: name ?? this.name,
+      sort: sort ?? this.sort,
+      done: done ?? this.done,
+      url: clearUrl ? null : (url ?? this.url));
 }
+
+/// 1 คะแนนของหัวข้อ (0–100) · เก็บทุกครั้งเป็นประวัติ
+class TopicScore {
+  const TopicScore(this.score, this.at, {this.id = 0});
+  final int id;
+  final int score;
+  final DateTime at;
+}
+
+/// หัวข้อในบท (รอบ 13) · ให้คะแนนเข้าใจ 🟢 ≥ 80 · 🟡 60–79 · 🔴 < 60 · แนบลิงก์คลิปที่ดูเรียน
+class SkillTopic {
+  const SkillTopic({this.id = 0, required this.nodeId, required this.name, this.sort = 0, this.url, this.note, this.scores = const []});
+  final int id;
+  final int nodeId;
+  final String name;
+  final int sort;
+  final String? url;
+  final String? note;
+
+  /// เก่า → ใหม่
+  final List<TopicScore> scores;
+
+  int? get score => scores.isEmpty ? null : scores.last.score;
+  bool get green => (score ?? 0) >= 80;
+
+  SkillTopic copyWith({String? name, int? sort, String? url, String? note, bool clearUrl = false, bool clearNote = false}) => SkillTopic(
+      id: id,
+      nodeId: nodeId,
+      name: name ?? this.name,
+      sort: sort ?? this.sort,
+      url: clearUrl ? null : (url ?? this.url),
+      note: clearNote ? null : (note ?? this.note),
+      scores: scores);
+}
+
+/// ระดับความเข้าใจ (สีเดียวกับหน้าการเรียน)
+enum TopicLevel { none, bad, ok, good }
+
+TopicLevel topicLevel(int? score) => score == null
+    ? TopicLevel.none
+    : score >= 80
+        ? TopicLevel.good
+        : score >= 60
+            ? TopicLevel.ok
+            : TopicLevel.bad;
 
 class Skill {
   const Skill({

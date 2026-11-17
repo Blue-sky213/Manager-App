@@ -228,12 +228,48 @@ class SqliteSkillRepository extends SkillRepository {
             name: r['name'] as String,
             sort: r['sort'] as int? ?? 0,
             done: (r['done'] as int? ?? 0) == 1,
+            url: r['url'] as String?,
           ),
       ];
 
   @override
   Future<int> saveNode(SkillNode n) =>
-      _save('skill_node', n.id, {'skill_id': n.skillId, 'name': n.name, 'sort': n.sort, 'done': n.done ? 1 : 0});
+      _save('skill_node', n.id, {'skill_id': n.skillId, 'name': n.name, 'sort': n.sort, 'done': n.done ? 1 : 0, 'url': n.url});
+
+  // ---- หัวข้อ + คะแนน (v23) ----
+  @override
+  Future<List<SkillTopic>> topics() async {
+    final scores = <int, List<TopicScore>>{};
+    for (final r in await _db.query('skill_topic_score', orderBy: 'at, id')) {
+      (scores[r['topic_id'] as int] ??= []).add(TopicScore(r['score'] as int, DateTime.parse(r['at'] as String), id: r['id'] as int));
+    }
+    return [
+      for (final r in await _db.query('skill_topic', orderBy: 'sort, id'))
+        SkillTopic(
+          id: r['id'] as int,
+          nodeId: r['node_id'] as int,
+          name: r['name'] as String,
+          sort: r['sort'] as int? ?? 0,
+          url: r['url'] as String?,
+          note: r['note'] as String?,
+          scores: scores[r['id'] as int] ?? const [],
+        ),
+    ];
+  }
+
+  @override
+  Future<int> saveTopic(SkillTopic t) =>
+      _save('skill_topic', t.id, {'node_id': t.nodeId, 'name': t.name, 'sort': t.sort, 'url': t.url, 'note': t.note});
+
+  @override
+  Future<void> deleteTopic(int id) => _delete('skill_topic', id);
+
+  @override
+  Future<void> addTopicScore(int topicId, int score, {DateTime? at}) async {
+    await _db.insert(
+        'skill_topic_score', {'topic_id': topicId, 'score': score.clamp(0, 100), 'at': (at ?? DateTime.now()).toIso8601String()});
+    notifyListeners();
+  }
 
   @override
   Future<void> deleteNode(int id) => _delete('skill_node', id);
