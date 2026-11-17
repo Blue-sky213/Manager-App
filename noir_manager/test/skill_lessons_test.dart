@@ -214,9 +214,9 @@ void main() {
   });
 
   test('เปิดลิงก์: คำสั่งตามระบบ · มือถือ = ไม่มี (คัดลอกแทน) · ไม่ใช่ http = ไม่เปิด', () {
-    final win = openCommand('https://x.y', os: 'windows')!;
-    expect(win.$1, 'explorer.exe');
-    expect(win.$2, ['https://x.y']);
+    // Windows ใช้ ShellExecuteW ไม่ใช้คำสั่ง (rundll32 โดนบล็อก · explorer.exe เปิดผิด)
+    expect(openCommand('https://x.y', os: 'windows'), isNull);
+    expect(utf16z('ก?v=a&t=5'), [0x0E01, 0x3F, 0x76, 0x3D, 0x61, 0x26, 0x74, 0x3D, 0x35, 0]);
     expect(openCommand('https://x.y', os: 'macos')!.$1, 'open');
     expect(openCommand('https://x.y', os: 'android'), isNull);
     expect(isWebLink('https://www.youtube.com/watch?v=a'), isTrue);
