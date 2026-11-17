@@ -25,6 +25,7 @@ import '../shell/app_nav.dart' show hiddenMenus, hiddenMenusKey;
 import '../widgets/mini_form.dart';
 import '../widgets/mini_segments.dart';
 import '../widgets/toast.dart';
+import 'fresh_start.dart';
 import 'test_checklist.dart';
 
 /// โหมดแอป: เรียน / ทำงาน / ทั้งคู่ (เก็บใน setting key = app_mode)
@@ -339,6 +340,9 @@ class _SettingsPageState extends State<SettingsPage> {
                     section('สติกเกอร์อัตโนมัติ', [const AutoStickerSettings()]),
                     const SizedBox(height: 14),
                     section('สำรองข้อมูล', [_BackupSection(backup: widget.backup)]),
+                    const SizedBox(height: 14),
+                    // รอบ 10C
+                    section('เริ่มใหม่ + แผนของนัวร์', [FreshStartSection(backup: widget.backup)]),
                     const SizedBox(height: 14),
                     section('เกี่ยวกับ', [
                       Text('Noir Manager v1 · ฐานข้อมูล v$appSchemaVersion', style: TextStyle(color: c.muted)),

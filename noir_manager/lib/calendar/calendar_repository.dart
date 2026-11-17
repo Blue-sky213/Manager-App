@@ -65,6 +65,9 @@ abstract class CalendarRepository extends ChangeNotifier {
   /// ลบกิจกรรมต้นแบบ + ทุกครั้งของมัน
   Future<void> deleteActivity(int activityId);
 
+  /// id กิจกรรมทั้งหมด (รอบ 10C · ล้างแล้วเริ่มใหม่)
+  Future<List<int>> activityIds();
+
   /// งานทุกครั้งของวัน [day] (สร้างครั้งของงานซ้ำให้อัตโนมัติถ้ายังไม่มี)
   Future<List<Occurrence>> occurrencesOn(DateTime day);
 
