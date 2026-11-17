@@ -2,6 +2,8 @@
 /// เลือกครูจากยอดผู้ติดตาม / ความครบของคอร์ส (สำรวจ 17 พ.ย. 2569):
 /// DaVinci = Casey Faris คอร์สเต็ม 4.5 ชม. (เรียงบทตามคลิป) + Primal Video ภาพรวม 28 นาที
 /// Canva = สอนไทยตั้งแต่ต้น-จบ + Kesington Abdurrazaq คอร์สเต็ม · IELTS = E2 IELTS / IELTS Liz / IELTS Advantage
+/// อังกฤษพื้นฐาน → B1 (นัวร์เลือก 18 พ.ย.) = KruDew English (Grammar ภาษาไทย) + Speak English With Vanessa (พูดช้า ชัด)
+/// → ค่อยเรียน IELTS เมื่อได้ B1 (นัวร์พื้นอังกฤษยังไม่แน่น คลิปอังกฤษล้วนยากเกินไป)
 /// IELTS ไม่มีคลิปเดียวจบ → ลิงก์เป็นหน้าค้นหาในช่องนั้น · บทที่คลิปไม่สอน (ตัดไลฟ์ / speed) = บทของเราเอง
 library;
 
@@ -13,6 +15,9 @@ String yt(String id, [int sec = 0]) => 'https://www.youtube.com/watch?v=$id${sec
 
 /// หน้าค้นหา YouTube (ใช้เมื่อไม่มีคลิปเดียวที่ครบ)
 String ytSearch(String q) => 'https://www.youtube.com/results?search_query=${Uri.encodeQueryComponent(q)}';
+
+/// ค้นหาในช่องของครูคนนั้น (ได้คลิปของครูที่เลือกเท่านั้น)
+String ytChannel(String handle, String q) => 'https://www.youtube.com/@$handle/search?query=${Uri.encodeQueryComponent(q)}';
 
 typedef LessonTopic = (String name, String? url);
 typedef LessonChapter = (String name, String? url, List<LessonTopic> topics);
@@ -26,6 +31,13 @@ const _kes = '1knrVRlCUtg'; // Kesington Abdurrazaq · Canva Complete Course 202
 const _canvaTh = 'yQML-U8jAIs'; // สอนวิธีใช้ Canva ตั้งแต่ต้น-จนจบ
 const _coverTh = 'oCxzbe8eOe4'; // ทำปก YouTube ใส่ภาษาไทย
 const _coverTh2 = 'xN6xQ2FZfeE'; // จับมือทำปก YouTube
+const _dew = 'kdenglishofficial'; // KruDew English Official · Grammar สอนภาษาไทย (นัวร์เลือก 18 พ.ย.)
+const _vanessa = 'SpeakEnglishWithVanessa'; // Speak English With Vanessa · พูดช้า ชัด (นัวร์เลือก 18 พ.ย.)
+String _kd(String q) => ytChannel(_dew, q);
+String _vn(String q) => ytChannel(_vanessa, q);
+
+/// ชื่อสกิลพื้นฐาน · IELTS "ต้องผ่านก่อน" สกิลนี้ (แค่เตือน)
+const englishB1Skill = 'อังกฤษพื้นฐาน → B1';
 
 final lessonPresets = <LessonPreset>[
   (
@@ -149,6 +161,68 @@ final lessonPresets = <LessonPreset>[
     ],
   ),
   (
+    'อังกฤษพื้นฐาน',
+    englishB1Skill,
+    '📘',
+    [
+      ('บท 1 ประโยคพื้นฐาน (ครูดิว)', ytChannel(_dew, 'พื้นฐาน'), [
+        ('ชนิดของคำ · Parts of speech', _kd('ชนิดของคำ')),
+        ('โครงสร้างประโยค ประธาน + กริยา + กรรม', _kd('โครงสร้างประโยค')),
+        ('Verb to be · is / am / are', _kd('verb to be')),
+        ('คำนามนับได้ / นับไม่ได้ · a / an / the', _kd('article a an the')),
+      ]),
+      ('บท 2 ปัจจุบัน · Present (ครูดิว)', _kd('present tense'), [
+        ('Present simple', _kd('present simple')),
+        ('Present continuous', _kd('present continuous')),
+        ('ฟังเรื่องชีวิตประจำวัน (Vanessa)', _vn('daily routine')),
+      ]),
+      ('บท 3 อดีต · Past (ครูดิว)', _kd('past tense'), [
+        ('Past simple', _kd('past simple')),
+        ('กริยา 3 ช่องที่ใช้บ่อย · Irregular verbs', _kd('กริยา 3 ช่อง')),
+        ('Past continuous', _kd('past continuous')),
+        ('ฟังเล่าเรื่องในอดีต (Vanessa)', _vn('past tense story')),
+      ]),
+      ('บท 4 อนาคต + Perfect (ครูดิว)', _kd('future tense'), [
+        ('Will / be going to', _kd('will going to')),
+        ('Present perfect', _kd('present perfect')),
+        ('สรุปทุก Tense', _kd('tense ทั้งหมด')),
+      ]),
+      ('บท 5 คำถาม + Modal verbs', _kd('modal verb'), [
+        ('ประโยคคำถาม Wh- / Yes-No', _kd('ประโยคคำถาม')),
+        ('Can / should / must / have to', _kd('modal verb')),
+        ('ถามตอบในชีวิตจริง (Vanessa)', _vn('questions conversation')),
+      ]),
+      ('บท 6 ประโยคยาวขึ้น (ครูดิว)', _kd('ตัวเชื่อม'), [
+        ('คำเชื่อม · and / but / because / so', _kd('ตัวเชื่อม')),
+        ('ขั้นกว่า ขั้นสุด · Comparison', _kd('comparative superlative')),
+        ('Relative clause · who / which / that', _kd('relative clause')),
+        ('Passive voice', _kd('passive voice')),
+        ('If · Conditionals', _kd('if clause')),
+      ]),
+      ('บท 7 คำศัพท์ (คลังศัพท์ A1–B2)', null, [
+        ('A1 ครบ', null),
+        ('A2 ครบ', null),
+        ('B1 ครบ', null),
+        ('B2 (เริ่ม)', null),
+      ]),
+      ('บท 8 ฟัง (Vanessa · พูดช้า ชัด)', 'https://www.youtube.com/@$_vanessa', [
+        ('ฟังเรื่องชีวิตประจำวัน', _vn('daily life English')),
+        ('ประโยคที่ใช้บ่อย · Common phrases', _vn('common phrases')),
+        ('พูดตาม · Shadowing', _vn('shadowing')),
+        ('ฟังไม่เปิดซับ เข้าใจ 70% ขึ้นไป', _vn('listening practice')),
+      ]),
+      ('บท 9 พูด + ออกเสียง', _vn('pronunciation'), [
+        ('ออกเสียงให้ชัด · Pronunciation', _vn('pronunciation')),
+        ('แนะนำตัวเอง 1 นาที', _vn('introduce yourself')),
+        ('อัดเสียงตัวเองฟัง', null),
+      ]),
+      ('บท 10 วัดระดับ B1', 'https://www.efset.org/', [
+        ('ทำแบบทดสอบ EF SET (ฟรี · บอกระดับ CEFR)', 'https://www.efset.org/'),
+        ('ได้ B1 → เริ่มบท IELTS', null),
+      ]),
+    ],
+  ),
+  (
     'ielts',
     'IELTS',
     '🇬🇧',
@@ -232,10 +306,14 @@ typedef LessonResult = ({int skills, int chapters, int topics, int removed});
 Future<LessonResult> applyLessonPresets(SkillRepository r) async {
   var skills = 0, chapters = 0, topics = 0, removed = 0;
   final all = await r.skills();
+  int? newB1;
   for (final (key, name, icon, toc) in lessonPresets) {
     var skillId = skillByKey(all, key)?.id;
     if (skillId == null) {
-      skillId = await r.saveSkill(Skill(name: name, icon: icon, startedAt: DateTime.now()));
+      // อังกฤษพื้นฐานอยู่สายเดียวกับ IELTS (สาย "ภาษา" จากแผนนัวร์ ถ้ามี)
+      final lang = key == 'อังกฤษพื้นฐาน' ? (await r.branches()).where((b) => b.name == 'ภาษา').firstOrNull?.id : null;
+      skillId = await r.saveSkill(Skill(name: name, icon: icon, branchId: lang, startedAt: DateTime.now()));
+      if (key == 'อังกฤษพื้นฐาน') newB1 = skillId;
       skills++;
     }
     var nodes = (await r.nodes()).where((n) => n.skillId == skillId).toList();
@@ -261,5 +339,8 @@ Future<LessonResult> applyLessonPresets(SkillRepository r) async {
       }
     }
   }
+  // IELTS ต้องผ่านพื้นฐานก่อน (แค่เตือน) · ใส่ครั้งเดียวตอนสร้างพื้นฐาน นัวร์ลบเองได้
+  final ielts = skillByKey(await r.skills(), 'ielts');
+  if (newB1 != null && ielts != null) await r.addNeed(ielts.id, newB1);
   return (skills: skills, chapters: chapters, topics: topics, removed: removed);
 }

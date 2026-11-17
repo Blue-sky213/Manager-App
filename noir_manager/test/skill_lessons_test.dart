@@ -124,11 +124,13 @@ void main() {
           for (final u in [url, for (final x in topics) x.$2]) {
             if (u == null) continue;
             expect(isWebLink(u), isTrue, reason: u);
-            expect(Uri.parse(u).host, 'www.youtube.com', reason: u);
+            expect(Uri.parse(u).host, anyOf('www.youtube.com', 'www.efset.org'), reason: u);
           }
         }
       }
       expect(yt('abc', 950), 'https://www.youtube.com/watch?v=abc&t=950s');
+      expect(ytChannel('kdenglishofficial', 'present simple'),
+          'https://www.youtube.com/@kdenglishofficial/search?query=present+simple');
       expect(ytSearch('E2 IELTS listening'), 'https://www.youtube.com/results?search_query=E2+IELTS+listening');
     });
 
@@ -139,7 +141,10 @@ void main() {
       await r.saveNode(SkillNode(skillId: dv, name: 'Fairlight เสียง', done: true)); // ติ๊กแล้ว → เก็บ
       await r.saveNode(SkillNode(skillId: dv, name: 'บทของนัวร์')); // ตั้งเอง → เก็บ
       final res = await applyLessonPresets(r);
-      expect(res.skills, 2); // Canva + IELTS
+      expect(res.skills, 3); // อังกฤษพื้นฐาน + Canva + IELTS
+      // IELTS ต้องผ่านอังกฤษพื้นฐานก่อน (แค่เตือน)
+      final byName = {for (final s in await r.skills()) s.name: s.id};
+      expect((await r.needs()).map((n) => (n.skillId, n.needId)), [(byName['IELTS'], byName[englishB1Skill])]);
       expect(res.removed, 1);
       final total = lessonPresets.fold<int>(0, (a, p) => a + p.$4.length);
       expect(res.chapters, total);
@@ -149,6 +154,7 @@ void main() {
       expect(names, isNot(contains('Color')));
       final again = await applyLessonPresets(r);
       expect((again.skills, again.chapters, again.topics, again.removed), (0, 0, 0, 0));
+      expect((await r.needs()).length, 1);
     });
 
     test('แผนนัวร์ใส่สารบัญด้วย (ไม่มีทักษะย่อยแบบเก่า)', () async {
@@ -156,7 +162,12 @@ void main() {
       await applyNoirPlan(cal, today);
       final names = {for (final n in await cal.skillRepo.nodes()) n.name};
       expect(names, isNot(contains('Vocab')));
-      expect(names, contains('บท 2 Listening (E2 IELTS)'));
+      expect(names, containsAll(['บท 2 Listening (E2 IELTS)', 'บท 2 ปัจจุบัน · Present (ครูดิว)']));
+      // อังกฤษพื้นฐานอยู่สาย "ภาษา" เดียวกับ IELTS
+      final skills = await cal.skillRepo.skills();
+      final b1 = skills.firstWhere((s) => s.name == englishB1Skill);
+      expect(b1.branchId, skills.firstWhere((s) => s.name == 'IELTS').branchId);
+      expect(b1.branchId, isNotNull);
       expect((await cal.skillRepo.topics()).length, greaterThan(80));
     });
   });
