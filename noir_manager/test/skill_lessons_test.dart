@@ -215,8 +215,8 @@ void main() {
 
   test('เปิดลิงก์: คำสั่งตามระบบ · มือถือ = ไม่มี (คัดลอกแทน) · ไม่ใช่ http = ไม่เปิด', () {
     final win = openCommand('https://x.y', os: 'windows')!;
-    expect(win.$1, 'rundll32');
-    expect(win.$2, ['url.dll,FileProtocolHandler', 'https://x.y']);
+    expect(win.$1, 'explorer.exe');
+    expect(win.$2, ['https://x.y']);
     expect(openCommand('https://x.y', os: 'macos')!.$1, 'open');
     expect(openCommand('https://x.y', os: 'android'), isNull);
     expect(isWebLink('https://www.youtube.com/watch?v=a'), isTrue);

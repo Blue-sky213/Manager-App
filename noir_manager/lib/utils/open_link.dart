@@ -11,7 +11,8 @@ import '../widgets/toast.dart';
 
 /// คำสั่งเปิดลิงก์ของระบบ · null = ไม่รองรับ (มือถือ)
 (String, List<String>)? openCommand(String url, {String? os}) => switch (os ?? Platform.operatingSystem) {
-      'windows' => ('rundll32', ['url.dll,FileProtocolHandler', url]),
+      // ไม่ใช้ rundll32 url.dll: เป็นท่าที่มัลแวร์ใช้บ่อย → Chrome / แอนติไวรัสบล็อกไฟล์ติดตั้ง
+      'windows' => ('explorer.exe', [url]),
       'macos' => ('open', [url]),
       'linux' => ('xdg-open', [url]),
       _ => null,
