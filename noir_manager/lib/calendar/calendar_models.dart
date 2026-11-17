@@ -750,6 +750,19 @@ SessionCount? sessionCount(Activity a, DateTime rootDay,
   return SessionCount(n, a.endDate == null ? null : count);
 }
 
+/// เลขครั้งของทุกวันที่งานเกิด คิดรอบเดียว (เดิม [sessionCount] ไล่วันใหม่ทุกครั้ง → เดือนละหลายร้อยรอบ = หน่วง)
+/// ได้ผลเท่ากับ [sessionCount] ทุกวันจนถึง [upTo] (งานไม่มีวันจบ) · ใช้กับงานซ้ำรายวัน/รายสัปดาห์
+({Map<DateTime, int> n, int? total}) sessionIndex(Activity a, {Set<DateTime> skipped = const {}, required DateTime upTo}) {
+  final last = a.endDate == null ? dayOnly(upTo) : dayOnly(a.endDate!);
+  final n = <DateTime, int>{};
+  var count = 0;
+  for (var d = dayOnly(a.startDate); !d.isAfter(last); d = DateTime(d.year, d.month, d.day + 1)) {
+    if (!occursOn(a, d) || skipped.contains(d)) continue;
+    n[d] = ++count;
+  }
+  return (n: n, total: a.endDate == null ? null : count);
+}
+
 /// "เลื่อนไปรอบถัดไป" ใช้ได้เฉพาะงานที่มีกฎการทำซ้ำ (ทุกวัน / ทุกสัปดาห์)
 /// งานครั้งเดียว / เลือกวันเอง ไม่มีรอบถัดไปให้คำนวณ → ต้องเลือกวันเอง
 bool canShiftToNextRound(Activity a) =>
