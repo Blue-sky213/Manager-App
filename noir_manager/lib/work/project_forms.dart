@@ -32,9 +32,10 @@ Future<int?> editProjectForm(BuildContext context, WorkRepository repo, {Project
   final price = TextEditingController(text: project?.price == null ? '' : _plain(project!.price!));
   final travel = TextEditingController(text: project?.travelMinutes?.toString() ?? '');
   final note = TextEditingController(text: project?.note ?? '');
-  var type = project?.type ?? 'steam';
+  var type = project?.type ?? 'web';
   DateTime? start = project?.start, due = project?.due;
   var split = project == null;
+  var withSteps = project == null; // ใส่ขั้นตอนสำเร็จรูป
   var showErr = false;
   final ok = await showMiniForm<bool>(
     context,
@@ -49,11 +50,11 @@ Future<int?> editProjectForm(BuildContext context, WorkRepository repo, {Project
         },
         onSecondary: () => Navigator.pop(ctx, false),
         children: [
-          MiniBigField(key: const Key('pj-name'), controller: name, hint: 'เช่น ติดตั้งระบบท่อไอน้ำ โรงงาน A'),
+          MiniBigField(key: const Key('pj-name'), controller: name, hint: 'เช่น เว็บ mecsteam.com · Live Day 12'),
           if (showErr && name.text.trim().isEmpty) Text('ใส่ชื่อโปรเจกต์', style: TextStyle(fontSize: 12, color: c.bad)),
           const MiniLabel('แบบงาน'),
           Wrap(spacing: 6, runSpacing: 6, children: [
-            for (final (id, icon, label) in projectTypes)
+            for (final (id, icon, label) in [...projectTypes, ...legacyProjectTypes.where((t) => t.$1 == type)])
               ChoiceChip(
                 key: ValueKey('pj-type-$id'),
                 showCheckmark: false,
@@ -93,12 +94,23 @@ Future<int?> editProjectForm(BuildContext context, WorkRepository repo, {Project
               if (d != null) setLocal(() => due = d);
             },
           ),
-          MiniRow(
-            icon: Icons.directions_car_outlined,
-            label: 'กันเวลาเดินทาง (นาที/วัน)',
-            value: MiniInlineField(controller: travel, hint: '0', width: 70, keyboardType: TextInputType.number),
-          ),
+          // เวลาเดินทางใช้กับงานนอกสถานที่เท่านั้น
+          if (type == 'company' || type == 'other' || travel.text.isNotEmpty)
+            MiniRow(
+              icon: Icons.directions_car_outlined,
+              label: 'กันเวลาเดินทาง (นาที/วัน)',
+              value: MiniInlineField(controller: travel, hint: '0', width: 70, keyboardType: TextInputType.number),
+            ),
           MiniRow(icon: Icons.notes, label: 'โน้ต', last: project != null, value: MiniInlineField(controller: note, width: 200)),
+          if (project == null && projectSteps[type] != null)
+            MiniSwitchRow(
+              key: const Key('pj-steps'),
+              icon: Icons.checklist,
+              label: 'ใส่ขั้นตอนสำเร็จรูป (${projectSteps[type]!.length} ขั้น)',
+              detail: projectSteps[type]!.take(3).join(' → ') + ' …',
+              value: withSteps,
+              onChanged: (v) => setLocal(() => withSteps = v),
+            ),
           if (project == null && (_num(price.text) ?? 0) > 0)
             MiniSwitchRow(
               key: const Key('pj-split'),
@@ -127,6 +139,11 @@ Future<int?> editProjectForm(BuildContext context, WorkRepository repo, {Project
     travelMinutes: int.tryParse(travel.text.trim()),
     note: _t(note),
   ));
+  if (project == null && withSteps) {
+    for (final s in projectSteps[type] ?? const <String>[]) {
+      await repo.saveTask(ProjectTask(projectId: id, title: s));
+    }
+  }
   if (project == null && split && pr != null && pr > 0) {
     final amounts = splitByPercent(pr, const [30, 40, 30]);
     const labels = [('1 · 30%', 'เซ็นสัญญา'), ('2 · 40%', 'ทำงานหลักเสร็จ'), ('3 · 30%', 'ส่งมอบ')];
@@ -144,18 +161,18 @@ Future<void> editMemberForm(BuildContext context, WorkRepository repo, int proje
   final ok = await showMiniForm<bool>(
     context,
     (ctx) => MiniForm(
-      title: member == null ? 'เพิ่มคนในทีม' : 'แก้ข้อมูล',
+      title: member == null ? 'คนเกี่ยวข้อง' : 'แก้ข้อมูล',
       primaryLabel: 'บันทึก',
       onPrimary: () {
         if (name.text.trim().isNotEmpty) Navigator.pop(ctx, true);
       },
       onSecondary: () => Navigator.pop(ctx, false),
       children: [
-        MiniBigField(key: const Key('mb-name'), controller: name, hint: 'ชื่อ เช่น ช่าง ก'),
+        MiniBigField(key: const Key('mb-name'), controller: name, hint: 'ชื่อ เช่น คุณเมย์'),
         MiniRow(
             icon: Icons.badge_outlined,
             label: 'หน้าที่',
-            value: MiniInlineField(key: const Key('mb-role'), controller: role, hint: 'เช่น ช่างเชื่อม / ลูกค้า', width: 200)),
+            value: MiniInlineField(key: const Key('mb-role'), controller: role, hint: 'เช่น ลูกค้า / คนตรวจงาน', width: 200)),
         MiniRow(icon: Icons.assignment_outlined, label: 'งานที่ถือ', last: true, value: MiniInlineField(controller: duty, width: 200)),
       ],
     ),
@@ -181,7 +198,7 @@ Future<void> editTaskForm(BuildContext context, WorkRepository repo, int project
         },
         onSecondary: () => Navigator.pop(ctx, false),
         children: [
-          MiniBigField(key: const Key('task-title'), controller: title, hint: 'เช่น เดินท่อ ชั้น 2'),
+          MiniBigField(key: const Key('task-title'), controller: title, hint: 'เช่น ใส่ภาพหน้าผลงาน'),
           MiniRow(
             icon: Icons.person_outline,
             label: 'คนรับผิดชอบ',

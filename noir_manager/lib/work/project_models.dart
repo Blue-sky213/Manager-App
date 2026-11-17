@@ -4,24 +4,40 @@ library;
 enum ProjectStatus { quote, confirmed, doing, delivered, paid }
 
 String projectStatusText(ProjectStatus s) => switch (s) {
-      ProjectStatus.quote => 'เสนอราคา',
-      ProjectStatus.confirmed => 'ยืนยันแล้ว',
+      // รอบ 10B: ชื่อกลาง ใช้ได้ทั้งงานลูกค้า เว็บ สตรีม
+      ProjectStatus.quote => 'ไอเดีย / เสนอ',
+      ProjectStatus.confirmed => 'พร้อมเริ่ม',
       ProjectStatus.doing => 'กำลังทำ',
-      ProjectStatus.delivered => 'ส่งมอบ',
-      ProjectStatus.paid => 'เก็บเงินแล้ว',
+      ProjectStatus.delivered => 'ส่ง / เผยแพร่',
+      ProjectStatus.paid => 'ปิดแล้ว',
     };
 
-/// แบบโปรเจกต์ (ตั้งชื่อหมวดเงิน / ไอคอน)
+/// แบบโปรเจกต์ที่เลือกได้ (รอบ 10B: งานแบบของนัวร์ ไม่ใช่งานช่าง)
 const projectTypes = [
-  ('steam', '♨️', 'งานสตีม / ท่อ'),
-  ('machine', '⚙️', 'ติดตั้งเครื่องจักร'),
-  ('design', '📐', 'ออกแบบ'),
-  ('web', '💻', 'เว็บ / ดิจิทัล'),
-  ('channel', '🎬', 'ช่อง YouTube'),
+  ('web', '💻', 'เว็บไซต์'),
+  ('stream', '🎮', 'สตรีม / ไลฟ์'),
+  ('design', '🎨', 'ออกแบบ / กราฟิก'),
+  ('company', '🏢', 'งานบริษัท'),
   ('other', '📌', 'อื่น ๆ'),
 ];
 
-(String, String, String) projectType(String id) => projectTypes.firstWhere((t) => t.$1 == id, orElse: () => projectTypes.last);
+/// แบบเก่า (รอบ 8E) · ไม่ให้เลือกแล้ว แต่โปรเจกต์เดิมยังโชว์ถูก
+const legacyProjectTypes = [
+  ('steam', '♨️', 'งานสตีม / ท่อ'),
+  ('machine', '⚙️', 'ติดตั้งเครื่องจักร'),
+  ('channel', '🎬', 'ช่อง YouTube'),
+];
+
+(String, String, String) projectType(String id) =>
+    [...projectTypes, ...legacyProjectTypes].firstWhere((t) => t.$1 == id, orElse: () => projectTypes.last);
+
+/// ขั้นตอนสำเร็จรูปตามแบบงาน · ใส่ให้ตอนสร้างโปรเจกต์ (แก้/ลบได้)
+const projectSteps = <String, List<String>>{
+  'web': ['เก็บความต้องการ', 'Wireframe (Figma)', 'ออกแบบหน้าตา', 'เขียนหน้าเว็บ', 'ใส่ภาพ + เนื้อหา', 'ทดสอบมือถือ', 'Deploy + โดเมน', 'ส่งมอบ'],
+  'stream': ['ตั้งชื่อ Day XX', 'ทำปก (Canva)', 'เตรียม OBS', 'ไลฟ์', 'ตัด Highlight (DaVinci)', 'ปก Shorts', 'อัปโหลด + คำบรรยาย', 'จดสถิติ'],
+  'design': ['Brief', 'Moodboard', 'ร่าง', 'แก้ตามคอมเมนต์', 'ส่งไฟล์'],
+  'company': ['รับงาน', 'ทำ', 'ตรวจ', 'ส่ง'],
+};
 
 class Project {
   const Project({

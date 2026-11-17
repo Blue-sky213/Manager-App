@@ -294,13 +294,23 @@ class _ProjectsPageState extends State<ProjectsPage> {
       ),
     ]);
 
-    final team = section('ทีม + หน้าที่', IconButton(
+    // งานคนเดียวเป็นส่วนใหญ่ → ไม่มีใคร = ปุ่มเล็กปุ่มเดียว ไม่กินที่
+    final team = _members.isEmpty
+        ? Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              key: const Key('mb-add'),
+              onPressed: () => editMemberForm(context, repo, pj.id),
+              icon: const Icon(Icons.person_add_alt, size: 18),
+              label: const Text('คนเกี่ยวข้อง (ลูกค้า · คนตรวจงาน)'),
+            ),
+          )
+        : section('คนเกี่ยวข้อง', IconButton(
       key: const Key('mb-add'),
       tooltip: 'เพิ่มคน',
       onPressed: () => editMemberForm(context, repo, pj.id),
       icon: const Icon(Icons.person_add_alt),
     ), [
-      if (_members.isEmpty) Text('ช่าง · ผู้วางแผน · ลูกค้า (ผู้ตรวจรับ)', style: TextStyle(fontSize: 12, color: c.muted)),
       for (final mb in _members)
         GestureDetector(
           onSecondaryTapUp: (e) => _rowMenu(e.globalPosition,
@@ -322,7 +332,7 @@ class _ProjectsPageState extends State<ProjectsPage> {
       onPressed: () => editTaskForm(context, repo, pj.id),
       icon: const Icon(Icons.add_task),
     ), [
-      if (tasks.isEmpty) Text('เช่น สำรวจหน้างาน · สั่งของ · ติดตั้ง · ทดสอบ · คลิกขวา = ลงปฏิทิน', style: TextStyle(fontSize: 12, color: c.muted)),
+      if (tasks.isEmpty) Text('เช่น ออกแบบ · ทำ · ตรวจ · ส่ง · คลิกขวา = ลงปฏิทิน', style: TextStyle(fontSize: 12, color: c.muted)),
       for (final t in tasks)
         GestureDetector(
           onSecondaryTapUp: (e) async {
@@ -357,7 +367,7 @@ class _ProjectsPageState extends State<ProjectsPage> {
       IconButton(tooltip: 'เพิ่มไฟล์', onPressed: () => _addFiles(pj), icon: const Icon(Icons.attach_file)),
       IconButton(tooltip: 'เพิ่มลิงก์', onPressed: () => _addLink(pj), icon: const Icon(Icons.link)),
     ]), [
-      if (_files.isEmpty) Text('ใบเสนอราคา · แบบ P&ID · รูปหน้างาน', style: TextStyle(fontSize: 12, color: c.muted)),
+      if (_files.isEmpty) Text('ไฟล์งาน · ภาพ · ลิงก์ Figma / GitHub', style: TextStyle(fontSize: 12, color: c.muted)),
       Wrap(spacing: 8, runSpacing: 8, children: [
         for (final f in _files)
           GestureDetector(

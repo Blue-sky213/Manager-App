@@ -341,6 +341,9 @@ class SqliteCalendarRepository extends CalendarRepository {
   }
 
   @override
+  Future<List<int>> activityIds() async => [for (final r in await _db.query('activity', columns: ['id'])) r['id'] as int];
+
+  @override
   Future<void> deleteActivity(int activityId) async {
     await _db.delete('activity', where: 'id = ?', whereArgs: [activityId]);
     notifyListeners();

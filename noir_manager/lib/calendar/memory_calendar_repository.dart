@@ -236,6 +236,9 @@ class MemoryCalendarRepository extends CalendarRepository {
   }
 
   @override
+  Future<List<int>> activityIds() async => _activities.keys.toList();
+
+  @override
   Future<void> deleteActivity(int activityId) async {
     _occs.removeWhere((o) => o.activityId == activityId);
     _activities.remove(activityId);

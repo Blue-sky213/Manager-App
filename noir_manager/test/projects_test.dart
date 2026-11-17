@@ -102,7 +102,9 @@ void main() {
     final pj = (await cal.workRepo.projects()).single;
     final pays = await cal.workRepo.payments(pj.id);
     expect(pays.map((p) => p.amount), [54000, 72000, 54000]);
-    expect(find.text('เสนอราคา'), findsWidgets);
+    // รอบ 10B: แบบเริ่มต้น = เว็บไซต์ → ได้ขั้นตอนสำเร็จรูป 8 ขั้น
+    expect((await cal.workRepo.tasks(pj.id)).map((t) => t.title), projectSteps['web']);
+    expect(find.text('ไอเดีย / เสนอ'), findsWidgets);
     expect((tester.widget(find.byKey(const Key('pj-kpi-price'))) as Text).data, '฿180,000');
 
     // รับเงินงวด 1 → การเงินได้รายรับ · กำไร/รับแล้วอัปเดต
@@ -130,10 +132,11 @@ void main() {
     await tester.enterText(find.byKey(const Key('task-title')), 'เดินท่อ ชั้น 2');
     await tester.tap(find.widgetWithText(FilledButton, 'บันทึก'));
     await tester.pumpAndSettle();
-    final task = (await cal.workRepo.tasks(pj.id)).single;
+    final task = (await cal.workRepo.tasks(pj.id)).firstWhere((t) => t.title == 'เดินท่อ ชั้น 2');
+    await tester.ensureVisible(find.byKey(ValueKey('task-${task.id}')));
     await tester.tap(find.byKey(ValueKey('task-${task.id}')));
     await tester.pumpAndSettle();
-    expect((await cal.workRepo.tasks(pj.id)).single.done, isTrue);
+    expect((await cal.workRepo.tasks(pj.id)).firstWhere((t) => t.id == task.id).done, isTrue);
     expect(tester.takeException(), isNull);
   });
 }
