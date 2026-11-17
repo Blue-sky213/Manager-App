@@ -1,6 +1,9 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import 'amount_input.dart';
 
 import '../theme/noir_colors.dart';
 
@@ -156,6 +159,7 @@ class MiniBigField extends StatelessWidget {
     this.keyboardType,
     this.suffix,
     this.fontSize = 20,
+    this.money = false,
   });
 
   final TextEditingController controller;
@@ -167,13 +171,17 @@ class MiniBigField extends StatelessWidget {
   final String? suffix;
   final double fontSize;
 
+  /// ช่องเงิน: ตัวเลข + คิดเลขได้ · ใส่ , ให้ · โชว์ "= ผลลัพธ์"
+  final bool money;
+
   @override
   Widget build(BuildContext context) {
     final c = context.noir;
-    return TextField(
+    final field = TextField(
       controller: controller,
       autofocus: autofocus,
-      keyboardType: keyboardType,
+      keyboardType: money ? const TextInputType.numberWithOptions(decimal: true) : keyboardType,
+      inputFormatters: _formatters(money, keyboardType),
       style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.w600, color: c.text),
       textInputAction: TextInputAction.done,
       decoration: InputDecoration(
@@ -185,9 +193,50 @@ class MiniBigField extends StatelessWidget {
         focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: c.accent)),
       ),
       onChanged: onChanged,
-      onSubmitted: onSubmitted,
+      onSubmitted: (v) {
+        if (money) settleAmount(controller);
+        onSubmitted?.call(controller.text);
+      },
+    );
+    if (!money) return field;
+    return Focus(
+      skipTraversal: true,
+      onFocusChange: (f) {
+        if (!f) settleAmount(controller);
+      },
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+        field,
+        ValueListenableBuilder<TextEditingValue>(
+          valueListenable: controller,
+          builder: (context, v, _) {
+            if (!isExpression(v.text)) return const SizedBox.shrink();
+            final r = parseAmount(v.text);
+            return Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(r == null ? 'คิดไม่ได้' : '= ${formatAmount(r)}',
+                  key: const Key('amount-result'), style: TextStyle(fontSize: 13, color: r == null ? c.bad : c.accent)),
+            );
+          },
+        ),
+      ]),
     );
   }
+}
+
+/// ตัวกรองช่องตัวเลข: เงิน = เลข + เครื่องหมายคิดเลข · จำนวนเต็ม = เลขอย่างเดียว (พิมพ์ตัวอักษรไม่ติด)
+List<TextInputFormatter>? _formatters(bool money, TextInputType? type) {
+  if (money) return const [AmountInputFormatter()];
+  if (type == TextInputType.number) return [FilteringTextInputFormatter.digitsOnly];
+  return null;
+}
+
+/// ออกจากช่อง / กด Enter → แทนสูตรด้วยผลลัพธ์ (411+945 → 1,356)
+void settleAmount(TextEditingController c) {
+  if (!isExpression(c.text)) return;
+  final r = parseAmount(c.text);
+  if (r == null) return;
+  final t = formatAmount(r);
+  c.value = TextEditingValue(text: t, selection: TextSelection.collapsed(offset: t.length));
 }
 
 /// ป้ายหัวข้อเล็กสีจาง
@@ -291,7 +340,8 @@ class MiniSwitchRow extends StatelessWidget {
 
 /// ช่องกรอกเล็กในแถว (ไม่มีเส้นใต้ · ชิดขวา)
 class MiniInlineField extends StatelessWidget {
-  const MiniInlineField({super.key, required this.controller, this.hint = '—', this.keyboardType, this.onChanged, this.width = 140});
+  const MiniInlineField(
+      {super.key, required this.controller, this.hint = '—', this.keyboardType, this.onChanged, this.width = 140, this.money = false});
 
   final TextEditingController controller;
   final String hint;
@@ -299,14 +349,24 @@ class MiniInlineField extends StatelessWidget {
   final ValueChanged<String>? onChanged;
   final double width;
 
+  /// ช่องเงิน (ดู [MiniBigField.money]) · ช่องแคบ → ออกจากช่องแล้วแทนด้วยผลลัพธ์
+  final bool money;
+
   @override
   Widget build(BuildContext context) {
     final c = context.noir;
     return SizedBox(
       width: width,
-      child: TextField(
+      child: Focus(
+        skipTraversal: true,
+        onFocusChange: (f) {
+          if (!f && money) settleAmount(controller);
+        },
+        child: TextField(
         controller: controller,
-        keyboardType: keyboardType,
+        keyboardType: money ? const TextInputType.numberWithOptions(decimal: true) : keyboardType,
+        inputFormatters: _formatters(money, keyboardType),
+        onSubmitted: money ? (_) => settleAmount(controller) : null,
         textAlign: TextAlign.right,
         style: TextStyle(fontWeight: FontWeight.w600, color: c.text),
         decoration: InputDecoration(
@@ -317,6 +377,7 @@ class MiniInlineField extends StatelessWidget {
           contentPadding: const EdgeInsets.symmetric(vertical: 8),
         ),
         onChanged: onChanged,
+      ),
       ),
     );
   }

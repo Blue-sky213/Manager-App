@@ -10,6 +10,7 @@ import 'package:path_provider/path_provider.dart';
 import '../calendar/calendar_repository.dart';
 import '../theme/noir_colors.dart';
 import '../utils/thai_date.dart';
+import '../widgets/amount_input.dart';
 import '../widgets/dialogs.dart';
 import '../widgets/mini_form.dart';
 import '../widgets/toast.dart';
@@ -103,7 +104,7 @@ class _FinancePageState extends State<FinancePage> {
   }
 
   Future<void> _editBudget() async {
-    final c = TextEditingController(text: _budget == null ? '' : _budget!.round().toString());
+    final c = TextEditingController(text: _budget == null ? '' : formatAmount(_budget!));
     final ok = await showMiniForm<bool>(
       context,
       (ctx) => MiniForm(
@@ -112,12 +113,14 @@ class _FinancePageState extends State<FinancePage> {
         onPrimary: () => Navigator.pop(ctx, true),
         onSecondary: () => Navigator.pop(ctx, false),
         children: [
-          MiniBigField(key: const Key('budget'), controller: c, hint: '฿ 1000', keyboardType: TextInputType.number),
+          MiniBigField(key: const Key('budget'), controller: c, hint: '฿ 1,000', money: true),
         ],
       ),
     );
     if (ok != true) return;
-    await _cal!.setSetting(subBudgetKey, c.text.trim());
+    // เก็บเป็นตัวเลขล้วน ("1,000" / "500+500" → 1000) · ว่าง = ไม่ตั้งงบ
+    final v = parseAmount(c.text);
+    await _cal!.setSetting(subBudgetKey, v == null || v <= 0 ? '' : '$v');
     await _load();
   }
 

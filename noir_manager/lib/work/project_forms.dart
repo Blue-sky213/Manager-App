@@ -7,14 +7,15 @@ import '../calendar/calendar_models.dart';
 import '../calendar/calendar_repository.dart';
 import '../theme/noir_colors.dart';
 import '../utils/thai_date.dart';
+import '../widgets/amount_input.dart';
 import '../widgets/mini_form.dart';
 import 'money_models.dart';
 import 'project_calc.dart';
 import 'project_models.dart';
 import 'work_repository.dart';
 
-double? _num(String s) => double.tryParse(s.trim().replaceAll(',', '').replaceAll('฿', ''));
-String _plain(double v) => v == v.roundToDouble() ? v.toInt().toString() : v.toStringAsFixed(2);
+double? _num(String s) => parseAmount(s); // คิดเลขได้ · มี , ได้
+String _plain(double v) => formatAmount(v);
 String? _t(TextEditingController c) => c.text.trim().isEmpty ? null : c.text.trim();
 
 Future<DateTime?> _pick(BuildContext context, DateTime? initial) => showDatePicker(
@@ -71,7 +72,7 @@ Future<int?> editProjectForm(BuildContext context, WorkRepository repo, {Project
                 controller: price,
                 hint: '0',
                 width: 120,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                money: true,
                 onChanged: (_) => setLocal(() {})),
           ),
           MiniRow(
@@ -233,7 +234,7 @@ Future<void> editPaymentForm(BuildContext context, WorkRepository repo, int proj
             icon: Icons.payments_outlined,
             label: 'ยอด (บาท)',
             value: MiniInlineField(
-                key: const Key('pay-amount'), controller: amount, width: 120, keyboardType: const TextInputType.numberWithOptions(decimal: true)),
+                key: const Key('pay-amount'), controller: amount, width: 120, money: true),
           ),
           MiniRow(icon: Icons.rule, label: 'เงื่อนไข', value: MiniInlineField(controller: cond, hint: 'เช่น เดินท่อเสร็จ', width: 200)),
           MiniRow(
