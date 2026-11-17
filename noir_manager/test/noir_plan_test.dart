@@ -8,6 +8,7 @@ import 'package:noir_manager/calendar/memory_calendar_repository.dart';
 import 'package:noir_manager/data/memory_study_repository.dart';
 import 'package:noir_manager/data/noir_plan.dart';
 import 'package:noir_manager/pages/settings_page.dart';
+import 'package:noir_manager/skills/skill_lessons.dart';
 import 'package:noir_manager/skills/skill_models.dart';
 import 'package:noir_manager/work/project_models.dart';
 
@@ -35,7 +36,7 @@ void main() {
     expect(await cal.occurrencesOn(DateTime(2027, 6, 1)), isEmpty);
 
     final skills = await cal.skillRepo.skills();
-    expect(skills.map((s) => s.name).toSet(), {'IELTS', 'DaVinci Resolve', 'Canva'});
+    expect(skills.map((s) => s.name).toSet(), {'IELTS', 'DaVinci Resolve', 'Canva', englishB1Skill});
     final dv = skills.firstWhere((s) => s.name.startsWith('DaVinci'));
     expect((await cal.skillRepo.activitiesOf(dv.id)).length, 3);
     expect((await cal.skillRepo.branches()).map((b) => b.name), containsAll(['ภาษา', 'ตัดต่อ', 'ออกแบบ', 'อ่าน']));
@@ -76,7 +77,7 @@ void main() {
     expect(await cal.holidays(), isEmpty);
     expect(await cal.occurrencesOn(today), isEmpty);
     expect((await cal.checkin(today))?.energy, 4);
-    expect(await cal.skillRepo.skills(), hasLength(3));
+    expect(await cal.skillRepo.skills(), hasLength(4));
     expect(await cal.workRepo.projects(), hasLength(1));
   });
 
