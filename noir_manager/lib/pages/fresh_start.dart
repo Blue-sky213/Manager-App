@@ -91,21 +91,27 @@ class _FreshStartSectionState extends State<FreshStartSection> {
     }
   }
 
-  Future<void> _selfStudy() async {
+  Future<void> _lessons() async {
     final ok = await confirmMini(context,
-        title: 'ใส่สารบัญเรียนเอง',
-        message: 'วิชา IELTS · DaVinci Resolve · Canva (บท + หัวข้อ) · ผูกงาน IELTS / DaVinci / Canva ในปฏิทินเป็นรอบติว (กดทำแล้ว = เลือกบท) · ของที่มีอยู่แล้วจะข้าม',
-        okLabel: 'ใส่สารบัญ');
+        title: 'สารบัญเรียนเองในสกิล',
+        message: 'ใส่บท + หัวข้อ + ลิงก์คลิป ของ IELTS · DaVinci · Canva ในหน้าสกิล · ถ้ามีวิชา IELTS / DaVinci Resolve / Canva ในหน้าการเรียน (รอบ 11) จะย้ายคะแนนมาที่สกิล แล้วลบวิชานั้นออก (งานในปฏิทินยังอยู่) · สำรองข้อมูลก่อนอัตโนมัติ · กดซ้ำได้ ไม่ซ้อน',
+        okLabel: 'ใส่ / ย้าย');
     if (!ok || !mounted) return;
     final cal = CalendarScope.of(context);
     final study = StudyScope.of(context);
     setState(() => _busy = true);
     try {
-      final r = await applySelfStudy(study, cal);
+      await widget.backup?.backupNow(label: 'before_lessons');
+      final r = await moveSelfStudyToSkills(study, cal);
       if (mounted) {
-        showToast(context, 'ใส่แล้ว: วิชา ${r.subjects} · บท ${r.chapters} · หัวข้อ ${r.subtopics} · ผูกงาน ${r.linked}',
+        showToast(
+            context,
+            'บท ${r.lessons.chapters} · หัวข้อ ${r.lessons.topics} · ย้ายวิชา ${r.subjects} (คะแนน ${r.scores}) · '
+            'งานกลับเป็นงานธรรมดา ${r.unlinked}',
             kind: ToastKind.success);
       }
+    } catch (e) {
+      if (mounted) showToast(context, 'ไม่สำเร็จ: $e', kind: ToastKind.error);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -114,10 +120,10 @@ class _FreshStartSectionState extends State<FreshStartSection> {
   @override
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         MiniRow(
-          key: const Key('fresh-self-study'),
+          key: const Key('fresh-lessons'),
           icon: Icons.menu_book_outlined,
-          label: 'ใส่สารบัญเรียนเอง (IELTS · DaVinci · Canva)',
-          onTap: _busy ? null : _selfStudy,
+          label: 'สารบัญเรียนเอง → สกิล (IELTS · DaVinci · Canva)',
+          onTap: _busy ? null : _lessons,
         ),
         MiniRow(
           key: const Key('fresh-plan'),

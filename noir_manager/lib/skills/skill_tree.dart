@@ -18,10 +18,24 @@ int skillLevel(double hours) => 1 + (hours / 10).floor();
 double practiceHours(List<SkillLog> logs) =>
     logs.where((l) => !l.skipped).fold<int>(0, (s, l) => s + (l.minutes ?? 0)) / 60;
 
-/// ความคืบหน้า 0–1: จบแล้ว = 1 · มีทักษะย่อย = สัดส่วนที่ผ่าน · ไม่มี = เฉลี่ยเป้าที่ยังเปิด
-double skillRatio(Skill s, {List<SkillNode> nodes = const [], List<SkillGoal> goals = const [], List<SkillLog> logs = const [], required DateTime today}) {
+/// บทผ่านแล้วไหม: มีหัวข้อ = 🟢 ครบทุกหัวข้อ · ไม่มีหัวข้อ = ติ๊กผ่านเอง
+bool nodePassed(SkillNode n, Iterable<SkillTopic> topics) {
+  final mine = topics.where((t) => t.nodeId == n.id).toList();
+  return mine.isEmpty ? n.done : mine.every((t) => t.green);
+}
+
+/// ความคืบหน้า 0–1: จบแล้ว = 1 · มีหัวข้อ = หัวข้อที่ 🟢 / ทั้งหมด · มีบท = บทที่ผ่าน · ไม่มี = เฉลี่ยเป้าที่ยังเปิด
+double skillRatio(Skill s,
+    {List<SkillNode> nodes = const [],
+    List<SkillTopic> topics = const [],
+    List<SkillGoal> goals = const [],
+    List<SkillLog> logs = const [],
+    required DateTime today}) {
   if (s.status == SkillStatus.done) return 1;
-  if (nodes.isNotEmpty) return nodes.where((n) => n.done).length / nodes.length;
+  final ids = {for (final n in nodes) n.id};
+  final mine = topics.where((t) => ids.contains(t.nodeId)).toList();
+  if (mine.isNotEmpty) return mine.where((t) => t.green).length / mine.length;
+  if (nodes.isNotEmpty) return nodes.where((n) => nodePassed(n, topics)).length / nodes.length;
   final open = goals.where((g) => g.status != GoalStatus.closed).toList();
   if (open.isEmpty) return 0;
   var sum = 0.0;
@@ -74,9 +88,11 @@ Map<int, SkillStat> skillStats(List<Skill> skills, List<SkillNeed> needs, Map<in
 }
 
 /// สถานะทักษะย่อย: ผ่านแล้ว · ล็อก (อันก่อนหน้ายังไม่ผ่าน) · เปิดอยู่
-TreeState nodeState(List<SkillNode> ordered, int index) {
-  if (ordered[index].done) return TreeState.done;
-  if (index > 0 && !ordered[index - 1].done) return TreeState.lock;
+TreeState nodeState(List<SkillNode> ordered, int index, {Iterable<SkillTopic> topics = const []}) {
+  if (nodePassed(ordered[index], topics)) return TreeState.done;
+  if (index > 0 && !nodePassed(ordered[index - 1], topics)) return TreeState.lock;
+  // มีหัวข้อที่ให้คะแนนแล้ว = กำลังเรียน
+  if (topics.any((t) => t.nodeId == ordered[index].id && t.score != null)) return TreeState.prog;
   return TreeState.open;
 }
 
@@ -150,6 +166,7 @@ List<TreeDot> layoutTree({
   required List<SkillNode> nodes,
   required Map<int, SkillStat> stats,
   required String rootLabel,
+  List<SkillTopic> topics = const [],
 }) {
   final c = Offset(treeCanvas.w / 2, treeCanvas.h / 2);
   // วงรีเล็กน้อย เพราะจอคอมกว้างกว่าสูง
@@ -201,8 +218,11 @@ List<TreeDot> layoutTree({
           pos: at(m.isEven ? 405 : 455, aa), // สลับระยะ ชื่อไม่ชนกัน
           radius: 17,
           parent: sd,
-          state: nodeState(mine, m),
-          ratio: n.done ? 1 : 0,
+          state: nodeState(mine, m, topics: topics),
+          ratio: () {
+            final ts = topics.where((t) => t.nodeId == n.id).toList();
+            return ts.isEmpty ? (n.done ? 1.0 : 0.0) : ts.where((t) => t.green).length / ts.length;
+          }(),
         ));
       }
     }

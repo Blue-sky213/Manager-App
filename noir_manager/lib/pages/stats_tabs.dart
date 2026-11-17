@@ -7,7 +7,6 @@ import 'package:flutter/material.dart';
 import '../calendar/achievements.dart';
 import '../calendar/calendar_models.dart' show dayOnly;
 import '../calendar/calendar_repository.dart';
-import '../data/self_study.dart';
 import '../data/study_scope.dart';
 import '../shell/app_nav.dart' show currentTab;
 import '../skills/skill_models.dart';
@@ -140,6 +139,7 @@ class _StatsPageState extends State<StatsPage> {
 
     final sr = cal.skillRepo;
     final nodes = await sr.nodes();
+    final skillTopics = await sr.topics();
     final skills = <_SkillRow>[];
     for (final s in await sr.skills()) {
       final logs = await sr.logs(s.id);
@@ -147,8 +147,8 @@ class _StatsPageState extends State<StatsPage> {
         s,
         practiceHours(logs),
         practiceHours([for (final l in logs) if (!l.day.isBefore(from)) l]),
-        await subjectRatioOr(study, s, mode,
-            skillRatio(s, nodes: nodes.where((n) => n.skillId == s.id).toList(), goals: await sr.goals(s.id), logs: logs, today: today)),
+        skillRatio(s,
+            nodes: nodes.where((n) => n.skillId == s.id).toList(), topics: skillTopics, goals: await sr.goals(s.id), logs: logs, today: today),
       ));
     }
     skills.sort((a, b) => b.recent != a.recent ? b.recent.compareTo(a.recent) : b.hours.compareTo(a.hours));

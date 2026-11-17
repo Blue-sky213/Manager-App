@@ -48,6 +48,12 @@ abstract class SkillRepository extends ChangeNotifier {
   Future<int> saveNode(SkillNode n);
   Future<void> deleteNode(int id);
 
+  /// หัวข้อทุกบท (มีประวัติคะแนน) · รอบ 13 · v23
+  Future<List<SkillTopic>> topics();
+  Future<int> saveTopic(SkillTopic t);
+  Future<void> deleteTopic(int id);
+  Future<void> addTopicScore(int topicId, int score, {DateTime? at});
+
   Future<List<SkillNeed>> needs();
   Future<void> addNeed(int skillId, int needId);
   Future<void> removeNeed(int skillId, int needId);
@@ -63,6 +69,7 @@ class MemorySkillRepository extends SkillRepository {
   final _links = <int, int>{}; // activityId → skillId
   final _branches = <int, SkillBranch>{};
   final _nodes = <int, SkillNode>{};
+  final _topics = <int, SkillTopic>{};
   final _needs = <SkillNeed>[];
 
   T _done<T>(T v) {
@@ -97,7 +104,9 @@ class MemorySkillRepository extends SkillRepository {
     _files.removeWhere((_, f) => f.skillId == id);
     _reviews.removeWhere((_, r) => r.skillId == id);
     _links.removeWhere((_, s) => s == id);
+    final gone = {for (final n in _nodes.values) if (n.skillId == id) n.id};
     _nodes.removeWhere((_, n) => n.skillId == id);
+    _topics.removeWhere((_, t) => gone.contains(t.nodeId));
     _needs.removeWhere((n) => n.skillId == id || n.needId == id);
     notifyListeners();
   }
@@ -230,13 +239,47 @@ class MemorySkillRepository extends SkillRepository {
   @override
   Future<int> saveNode(SkillNode n) async {
     final id = n.id == 0 ? _next++ : n.id;
-    _nodes[id] = SkillNode(id: id, skillId: n.skillId, name: n.name, sort: n.sort, done: n.done);
+    _nodes[id] = SkillNode(id: id, skillId: n.skillId, name: n.name, sort: n.sort, done: n.done, url: n.url);
     return _done(id);
   }
 
   @override
   Future<void> deleteNode(int id) async {
     _nodes.remove(id);
+    _topics.removeWhere((_, t) => t.nodeId == id);
+    notifyListeners();
+  }
+
+  @override
+  Future<List<SkillTopic>> topics() async =>
+      _topics.values.toList()..sort((a, b) => a.sort != b.sort ? a.sort - b.sort : a.id - b.id);
+
+  @override
+  Future<int> saveTopic(SkillTopic t) async {
+    final id = t.id == 0 ? _next++ : t.id;
+    _topics[id] = SkillTopic(
+        id: id, nodeId: t.nodeId, name: t.name, sort: t.sort, url: t.url, note: t.note, scores: _topics[id]?.scores ?? t.scores);
+    return _done(id);
+  }
+
+  @override
+  Future<void> deleteTopic(int id) async {
+    _topics.remove(id);
+    notifyListeners();
+  }
+
+  @override
+  Future<void> addTopicScore(int topicId, int score, {DateTime? at}) async {
+    final t = _topics[topicId];
+    if (t == null) return;
+    _topics[topicId] = SkillTopic(
+        id: t.id,
+        nodeId: t.nodeId,
+        name: t.name,
+        sort: t.sort,
+        url: t.url,
+        note: t.note,
+        scores: [...t.scores, TopicScore(score.clamp(0, 100), at ?? DateTime.now(), id: _next++)]);
     notifyListeners();
   }
 
