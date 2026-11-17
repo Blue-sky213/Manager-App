@@ -15,6 +15,10 @@ class StudyScope extends InheritedWidget {
 
   final StudyRepository repository;
 
+  /// ไม่มี scope (เช่น เทสที่ห่อแค่ปฏิทิน) = null
+  static StudyRepository? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<StudyScope>()?.repository;
+
   static StudyRepository of(BuildContext context) {
     final scope = context.dependOnInheritedWidgetOfExactType<StudyScope>();
     assert(scope != null, 'ไม่พบ StudyScope เหนือ widget นี้');

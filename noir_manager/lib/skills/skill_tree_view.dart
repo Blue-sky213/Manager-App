@@ -8,6 +8,11 @@ import 'package:flutter/material.dart';
 
 import '../calendar/calendar_repository.dart';
 import '../calendar/calendar_ui.dart' show categoryAccent;
+import '../data/self_study.dart' show subjectForSkill, subjectGreenRatio;
+import '../data/study_models.dart' show Subject;
+import '../data/study_repository.dart';
+import '../data/study_scope.dart';
+import '../study/mastery.dart' show GradingMode;
 import '../theme/noir_colors.dart';
 import '../widgets/dialogs.dart';
 import '../widgets/mini_form.dart';
@@ -29,6 +34,7 @@ class SkillTreeView extends StatefulWidget {
 
 class _SkillTreeViewState extends State<SkillTreeView> {
   SkillRepository? _repo;
+  StudyRepository? _study;
   List<SkillBranch> _branches = const [];
   List<Skill> _skills = const [];
   List<SkillNode> _nodes = const [];
@@ -44,6 +50,7 @@ class _SkillTreeViewState extends State<SkillTreeView> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _study = StudyScope.maybeOf(context);
     final repo = CalendarScope.of(context).skillRepo;
     if (repo != _repo) {
       _repo?.removeListener(_load);
@@ -61,7 +68,11 @@ class _SkillTreeViewState extends State<SkillTreeView> {
 
   Future<void> _load() async {
     final repo = _repo!;
+    final study = _study;
     final today = DateTime.now();
+    // สกิลที่มีวิชาเรียนเองคู่กัน (รอบ 11) → % = หัวข้อที่ 🟢 ของวิชานั้น
+    final subjects = study == null ? const <Subject>[] : await study.subjects();
+    final mode = study == null ? GradingMode.ez : await study.gradingMode();
     final branches = await repo.branches();
     final skills = await repo.skills();
     final nodes = await repo.nodes();
@@ -73,6 +84,10 @@ class _SkillTreeViewState extends State<SkillTreeView> {
       final goals = await repo.goals(s.id);
       hours[s.id] = practiceHours(logs);
       ratios[s.id] = skillRatio(s, nodes: nodes.where((n) => n.skillId == s.id).toList(), goals: goals, logs: logs, today: today);
+      final sub = subjectForSkill(s.name, subjects);
+      if (sub != null && study != null && s.status != SkillStatus.done) {
+        ratios[s.id] = await subjectGreenRatio(study, sub.id, mode) ?? ratios[s.id]!;
+      }
       goal[s.id] = goals.where((g) => g.status == GoalStatus.active).firstOrNull;
     }
     final stats = skillStats(skills, needs, hours, ratios);

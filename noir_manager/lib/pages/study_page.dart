@@ -622,7 +622,7 @@ class _StudyPageState extends State<StudyPage> {
     // ขอบเขตปี: ปีอยู่บนชิปแล้ว หัวกลุ่มบอกแค่ภาค
     String termText(Subject s) => s.planTerm == 3 ? 'ฤดูร้อน' : 'ภาค ${s.planTerm ?? '-'}';
     String groupOf(Subject s) => s.planYear == null
-        ? 'ยังไม่จัดปี'
+        ? 'เรียนเอง / ยังไม่จัดปี'
         : (_scope == 'year' ? termText(s) : 'ปี ${s.planYear} · ${termText(s)}');
     int order(Subject s) => (s.planYear ?? 9) * 10 + (s.planTerm ?? 9);
     inScope.sort((a, b) => order(a).compareTo(order(b)));
