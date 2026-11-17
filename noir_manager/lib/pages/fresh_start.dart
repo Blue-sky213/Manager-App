@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../calendar/calendar_repository.dart';
 import '../data/backup.dart';
 import '../data/noir_plan.dart';
+import '../data/self_study.dart';
 import '../data/study_scope.dart';
 import '../theme/noir_colors.dart';
 import '../widgets/mini_form.dart';
@@ -90,8 +91,34 @@ class _FreshStartSectionState extends State<FreshStartSection> {
     }
   }
 
+  Future<void> _selfStudy() async {
+    final ok = await confirmMini(context,
+        title: 'ใส่สารบัญเรียนเอง',
+        message: 'วิชา IELTS · คำศัพท์ A1 → C2 · DaVinci Resolve · Canva (บท + หัวข้อ) · ผูกงาน IELTS / DaVinci / Canva ในปฏิทินเป็นรอบติว (กดทำแล้ว = เลือกบท) · ของที่มีอยู่แล้วจะข้าม',
+        okLabel: 'ใส่สารบัญ');
+    if (!ok || !mounted) return;
+    final cal = CalendarScope.of(context);
+    final study = StudyScope.of(context);
+    setState(() => _busy = true);
+    try {
+      final r = await applySelfStudy(study, cal);
+      if (mounted) {
+        showToast(context, 'ใส่แล้ว: วิชา ${r.subjects} · บท ${r.chapters} · หัวข้อ ${r.subtopics} · ผูกงาน ${r.linked}',
+            kind: ToastKind.success);
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        MiniRow(
+          key: const Key('fresh-self-study'),
+          icon: Icons.menu_book_outlined,
+          label: 'ใส่สารบัญเรียนเอง (IELTS · คำศัพท์ · DaVinci · Canva)',
+          onTap: _busy ? null : _selfStudy,
+        ),
         MiniRow(
           key: const Key('fresh-plan'),
           icon: Icons.event_note_outlined,
