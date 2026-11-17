@@ -21,6 +21,30 @@ const int appSchemaVersion = _schemaVersion; // v2 setting · v3 cleared_at · v
 /// ที่อยู่ไฟล์ DB ที่เปิดล่าสุด (ใช้กับระบบสำรองข้อมูล)
 String? appDatabasePath;
 
+/// ทุกตารางของเวอร์ชันล่าสุด (เครื่องใหม่ · เทสความเร็วใช้ด้วย) · ไม่ใส่ข้อมูลตัวอย่าง
+Future<void> createAllTables(Database db) async {
+  await createStudySchema(db);
+  await createSettingSchema(db);
+  await createCalendarSchema(db);
+  await createCalendarV5(db);
+  await createCalendarV7(db);
+  await createStudyPlanV8(db);
+  await createTutorV9(db);
+  await createTermV10(db);
+  await createClassInfoV11(db);
+  await createSubjectLinkV12(db);
+  await createGradeV13(db);
+  await createClassLogV14(db);
+  await createClassLogV15(db);
+  await createStickerV16(db);
+  await createRound7V17(db);
+  await createStickerFitV18(db);
+  await createSkillV19(db);
+  await createMoneyV20(db);
+  await createProjectV21(db);
+  await createSkillTreeV22(db);
+}
+
 Future<Database> openAppDatabase() async {
   // Windows/Linux ไม่มี SQLite ในตัวแบบ Android → สลับไปใช้ตัว FFI
   if (!kIsWeb &&
@@ -44,26 +68,7 @@ Future<Database> openAppDatabase() async {
     onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
     // เครื่องใหม่ (ยังไม่มีไฟล์): สร้างทุกตารางในครั้งเดียว
     onCreate: (db, version) async {
-      await createStudySchema(db);
-      await createSettingSchema(db);
-      await createCalendarSchema(db);
-      await createCalendarV5(db);
-      await createCalendarV7(db);
-      await createStudyPlanV8(db);
-      await createTutorV9(db);
-      await createTermV10(db);
-      await createClassInfoV11(db);
-      await createSubjectLinkV12(db);
-      await createGradeV13(db);
-      await createClassLogV14(db);
-      await createClassLogV15(db);
-      await createStickerV16(db);
-      await createRound7V17(db);
-      await createStickerFitV18(db);
-      await createSkillV19(db);
-      await createMoneyV20(db);
-      await createProjectV21(db);
-      await createSkillTreeV22(db);
+      await createAllTables(db);
       await seedStudyData(db);
     },
     // เครื่องที่มีไฟล์ v1 อยู่แล้ว (เครื่องนัวร์): เพิ่มเฉพาะส่วนที่ขาด ข้อมูลเดิมไม่หาย
