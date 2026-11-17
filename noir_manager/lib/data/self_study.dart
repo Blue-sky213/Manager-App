@@ -60,7 +60,7 @@ Future<MoveResult> moveSelfStudyToSkills(StudyRepository study, CalendarReposito
           weekdays: a.weekdays,
           endDate: a.endDate,
           presetId: a.presetId,
-          dates: a.dates.toList()..sort(),
+          dates: a.toDraft().dates,
           subjectId: null,
           kind: ActivityKind.todo,
           flexible: a.flexible,
