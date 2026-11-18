@@ -91,7 +91,7 @@ void main() {
       await applyPhoneCommand(cal, {'type': 'checkin', 'date': '2026-11-18', 'energy': 4, 'sleptAt': '23:30', 'wokeAt': '07:20', 'sticker': sticker.id}, now);
       var c = (await cal.checkin(today))!;
       expect((c.energy, c.sleptAt, c.wokeAt), (4, DateTime(2026, 11, 17, 23, 30), DateTime(2026, 11, 18, 7, 20)));
-      expect((await cal.daySticker(today, today)).map((d) => d.stickerId), contains(sticker.id));
+      expect((await cal.daySticker(today, today)).map((d) => d.sticker.id), contains(sticker.id));
       await applyPhoneCommand(cal, {'type': 'checkin', 'date': '2026-11-18', 'sleptAt': '00:40'}, now);
       c = (await cal.checkin(today))!;
       expect((c.energy, c.sleptAt, c.wokeAt), (4, DateTime(2026, 11, 18, 0, 40), DateTime(2026, 11, 18, 7, 20)));
