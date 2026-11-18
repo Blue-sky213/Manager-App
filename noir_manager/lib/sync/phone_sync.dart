@@ -24,7 +24,7 @@ const snapshotVersion = 1;
 /// วันที่ส่งไปมือถือ: วันนี้ + 7 วันข้างหน้า
 const snapshotDays = 8;
 
-/// โฟลเดอร์ของ Scriptable ใน iCloud for Windows (ชื่อแบบนี้เสมอ: iCloud~<bundle id>)
+/// โฟลเดอร์ของ Scriptable ใน iCloud for Windows (ชื่อแบบนี้เสมอ: `iCloud~bundle.id` แปลงจุดเป็น ~)
 String? defaultPhoneSyncDir({Map<String, String>? env, String? os}) {
   env ??= Platform.environment;
   if ((os ?? Platform.operatingSystem) != 'windows') return null;

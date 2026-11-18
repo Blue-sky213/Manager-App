@@ -11,8 +11,10 @@ import 'package:noir_manager/data/noir_plan.dart';
 import 'package:noir_manager/sync/phone_sync.dart';
 import 'package:noir_manager/sync/phone_sync_settings.dart';
 import 'package:noir_manager/sync/scriptable_script.dart';
+import 'package:noir_manager/theme/app_theme.dart';
+import 'package:noir_manager/theme/noir_colors.dart';
 
-final now = DateTime(2026, 11, 18, 15, 10);
+final now = DateTime(2026, 11, 19, 15, 10); // พฤหัส: มี DaVinci + Canva
 final today = dayOnly(now);
 
 Future<MemoryCalendarRepository> planned() async {
@@ -37,10 +39,10 @@ void main() {
     final cal = await planned();
     final snap = jsonDecode(jsonEncode(await buildSnapshot(cal, now))) as Map; // ต้องแปลงเป็น JSON ได้
     expect(snap['v'], snapshotVersion);
-    expect(snap['today'], '2026-11-18');
+    expect(snap['today'], '2026-11-19');
     final days = snap['days'] as List;
     expect(days.length, snapshotDays);
-    expect(days.last['date'], '2026-11-25');
+    expect(days.last['date'], '2026-11-26');
     final items = (days.first['items'] as List).cast<Map>();
     final dv = items.firstWhere((i) => (i['title'] as String).startsWith('ฝึก · DaVinci'));
     expect((dv['start'], dv['end'], dv['done']), ('20:30', '21:30', false));
@@ -56,13 +58,13 @@ void main() {
     test('ติ๊กทำแล้ว / เลิกติ๊ก · id หายไป → หาจากงานเดียวกันวันเดียวกัน · ไม่เจอ = failed', () async {
       final cal = await planned();
       final o = await occNamed(cal, today, 'ฝึก · Canva');
-      var r = await applyPhoneCommand(cal, {'type': 'done', 'occ': o.id, 'act': o.activityId, 'date': '2026-11-18'}, now);
+      var r = await applyPhoneCommand(cal, {'type': 'done', 'occ': o.id, 'act': o.activityId, 'date': '2026-11-19'}, now);
       expect(r.outcome, CmdOutcome.applied);
       expect((await occNamed(cal, today, 'ฝึก · Canva')).status, OccurrenceStatus.done);
-      r = await applyPhoneCommand(cal, {'type': 'done', 'occ': -1, 'act': o.activityId, 'date': '2026-11-18', 'done': false}, now);
+      r = await applyPhoneCommand(cal, {'type': 'done', 'occ': -1, 'act': o.activityId, 'date': '2026-11-19', 'done': false}, now);
       expect(r.outcome, CmdOutcome.applied);
       expect((await occNamed(cal, today, 'ฝึก · Canva')).status, OccurrenceStatus.planned);
-      r = await applyPhoneCommand(cal, {'type': 'done', 'occ': -1, 'act': -1, 'date': '2026-11-18'}, now);
+      r = await applyPhoneCommand(cal, {'type': 'done', 'occ': -1, 'act': -1, 'date': '2026-11-19'}, now);
       expect(r.outcome, CmdOutcome.failed);
     });
 
@@ -70,31 +72,31 @@ void main() {
       final cal = await planned();
       final tomorrow = today.add(const Duration(days: 1));
       var r = await applyPhoneCommand(
-          cal, {'type': 'add', 'name': 'ตัดปกไลฟ์ CS2', 'date': '2026-11-19', 'start': '19:00', 'minutes': 30, 'imp': 3}, now);
+          cal, {'type': 'add', 'name': 'ตัดปกไลฟ์ CS2', 'date': '2026-11-20', 'start': '19:00', 'minutes': 30, 'imp': 3}, now);
       expect(r.outcome, CmdOutcome.applied);
       final added = await occNamed(cal, tomorrow, 'ตัดปกไลฟ์');
       expect((added.startAt, added.endAt, added.importance),
           (tomorrow.add(const Duration(hours: 19)), tomorrow.add(const Duration(hours: 19, minutes: 30)), 3));
-      r = await applyPhoneCommand(cal, {'type': 'add', 'name': '  ', 'date': '2026-11-19'}, now);
+      r = await applyPhoneCommand(cal, {'type': 'add', 'name': '  ', 'date': '2026-11-20'}, now);
       expect(r.outcome, CmdOutcome.failed);
 
       final o = await occNamed(cal, today, 'อ่านหนังสือ');
-      r = await applyPhoneCommand(cal, {'type': 'move', 'occ': o.id, 'act': o.activityId, 'date': '2026-11-18', 'toDate': '2026-11-21'}, now);
+      r = await applyPhoneCommand(cal, {'type': 'move', 'occ': o.id, 'act': o.activityId, 'date': '2026-11-19', 'toDate': '2026-11-22'}, now);
       expect(r.outcome, CmdOutcome.applied);
-      final moved = (await cal.occurrencesOn(DateTime(2026, 11, 21))).where((x) => x.title == o.title && x.movedFromId == o.id).single;
+      final moved = (await cal.occurrencesOn(DateTime(2026, 11, 22))).where((x) => x.title == o.title && x.movedFromId == o.id).single;
       expect(moved.startAt!.hour * 60 + moved.startAt!.minute, o.startAt!.hour * 60 + o.startAt!.minute);
     });
 
     test('เช็กอิน: นอนหลัง 18:00 = คืนก่อน · ค่าที่ไม่ส่งมาคงเดิม · สติกเกอร์ติดวัน', () async {
       final cal = await planned();
       final sticker = (await cal.stickerPacks()).expand((p) => p.stickers).firstWhere((s) => s.emoji != null);
-      await applyPhoneCommand(cal, {'type': 'checkin', 'date': '2026-11-18', 'energy': 4, 'sleptAt': '23:30', 'wokeAt': '07:20', 'sticker': sticker.id}, now);
+      await applyPhoneCommand(cal, {'type': 'checkin', 'date': '2026-11-19', 'energy': 4, 'sleptAt': '23:30', 'wokeAt': '07:20', 'sticker': sticker.id}, now);
       var c = (await cal.checkin(today))!;
-      expect((c.energy, c.sleptAt, c.wokeAt), (4, DateTime(2026, 11, 17, 23, 30), DateTime(2026, 11, 18, 7, 20)));
+      expect((c.energy, c.sleptAt, c.wokeAt), (4, DateTime(2026, 11, 18, 23, 30), DateTime(2026, 11, 19, 7, 20)));
       expect((await cal.daySticker(today, today)).map((d) => d.sticker.id), contains(sticker.id));
-      await applyPhoneCommand(cal, {'type': 'checkin', 'date': '2026-11-18', 'sleptAt': '00:40'}, now);
+      await applyPhoneCommand(cal, {'type': 'checkin', 'date': '2026-11-19', 'sleptAt': '00:40'}, now);
       c = (await cal.checkin(today))!;
-      expect((c.energy, c.sleptAt, c.wokeAt), (4, DateTime(2026, 11, 18, 0, 40), DateTime(2026, 11, 18, 7, 20)));
+      expect((c.energy, c.sleptAt, c.wokeAt), (4, DateTime(2026, 11, 19, 0, 40), DateTime(2026, 11, 19, 7, 20)));
     });
 
     test('บันทึกรอบ + คะแนนหัวข้อ · ให้คะแนนอย่างเดียว · คำสั่งไม่รู้จัก = failed', () async {
@@ -103,7 +105,7 @@ void main() {
       final dv = (await r0.skills()).firstWhere((s) => s.name.startsWith('DaVinci'));
       final topic = (await r0.topics()).first;
       var r = await applyPhoneCommand(
-          cal, {'type': 'skillLog', 'skill': dv.id, 'date': '2026-11-18', 'minutes': 60, 'topic': topic.id, 'score': 90}, now);
+          cal, {'type': 'skillLog', 'skill': dv.id, 'date': '2026-11-19', 'minutes': 60, 'topic': topic.id, 'score': 90}, now);
       expect(r.outcome, CmdOutcome.applied);
       expect((await r0.logs(dv.id)).single.minutes, 60);
       expect((await r0.topics()).first.score, 90);
@@ -131,7 +133,7 @@ void main() {
     expect(r.wrote, isFalse);
 
     final o = await occNamed(cal, today, 'ฝึก · Canva');
-    final cmd = {'id': 'a1', 'type': 'done', 'occ': o.id, 'act': o.activityId, 'date': '2026-11-18'};
+    final cmd = {'id': 'a1', 'type': 'done', 'occ': o.id, 'act': o.activityId, 'date': '2026-11-19'};
     File('${sync.inboxDir.path}/1-done.json').writeAsStringSync(jsonEncode(cmd));
     File('${sync.inboxDir.path}/2-done.json').writeAsStringSync(jsonEncode({...cmd, 'done': false, 'id': 'a1'})); // id ซ้ำ
     File('${sync.inboxDir.path}/3-add.json').writeAsStringSync('{"id":"a2","type":"add","na'); // ยังโหลดไม่ครบ
@@ -144,7 +146,7 @@ void main() {
     // iCloud ส่งไฟล์ id เดิมมาอีกรอบ (เช่น sync ซ้ำ) → ข้าม
     File('${sync.inboxDir.path}/4-done.json').writeAsStringSync(jsonEncode({...cmd, 'done': false}));
     File('${sync.inboxDir.path}/3-add.json')
-        .writeAsStringSync(jsonEncode({'id': 'a2', 'type': 'add', 'name': 'งานจากมือถือ', 'date': '2026-11-18'}));
+        .writeAsStringSync(jsonEncode({'id': 'a2', 'type': 'add', 'name': 'งานจากมือถือ', 'date': '2026-11-19'}));
     r = await sync.runOnce(now);
     expect(r.applied, ['เพิ่มงาน: งานจากมือถือ']);
     expect((await occNamed(cal, today, 'ฝึก · Canva')).status, OccurrenceStatus.done);
@@ -156,12 +158,13 @@ void main() {
   });
 
   testWidgets('ตั้งค่า: โหมดข้อมูลตัวอย่าง / มือถือ = ปิดใช้ · มีคู่มือ 5 ขั้นเมื่อเปิดใช้ได้', (tester) async {
-    await tester.pumpWidget(const MaterialApp(home: Scaffold(body: PhoneSyncSection())));
+    await tester.pumpWidget(MaterialApp(theme: AppTheme.of(themeChoices.first), home: const Scaffold(body: PhoneSyncSection())));
     expect(find.textContaining('ใช้ได้กับข้อมูลจริงบน PC เท่านั้น'), findsOneWidget);
     final cal = MemoryCalendarRepository();
     final service = PhoneSyncService(cal);
     service.status.value = const PhoneSyncStatus(dir: '/nope/NoirManager');
-    await tester.pumpWidget(MaterialApp(home: Scaffold(body: SingleChildScrollView(child: PhoneSyncSection(service: service)))));
+    await tester.pumpWidget(MaterialApp(
+        theme: AppTheme.of(themeChoices.first), home: Scaffold(body: SingleChildScrollView(child: PhoneSyncSection(service: service)))));
     expect(find.text('ยังไม่พบโฟลเดอร์ Scriptable'), findsOneWidget);
     await tester.tap(find.byKey(const Key('phone-sync-guide')));
     await tester.pumpAndSettle();
