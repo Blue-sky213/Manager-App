@@ -95,6 +95,8 @@ void main() {
 
     // หน้าตั้งค่าเป็น ListView (สร้างแค่ที่เห็น) → เลื่อนหาก่อน
     await tester.scrollUntilVisible(find.byKey(const Key('fresh-reset')), 300, scrollable: find.descendant(of: find.byType(SettingsPage), matching: find.byType(Scrollable)).first);
+    await tester.ensureVisible(find.byKey(const Key('fresh-reset')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('fresh-reset')));
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const Key('fresh-confirm')), 'ลบ');
