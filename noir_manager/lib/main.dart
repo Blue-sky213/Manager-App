@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import 'data/backup.dart';
@@ -6,6 +8,7 @@ import 'calendar/sqlite_calendar_repository.dart';
 import 'data/app_database.dart';
 import 'data/demo_year.dart';
 import 'data/sqlite_study_repository.dart';
+import 'sync/phone_sync.dart';
 
 /// จุดเริ่มต้นของแอป: Dart เรียกฟังก์ชัน main() เป็นอย่างแรกเสมอ
 ///
@@ -19,10 +22,15 @@ Future<void> main() async {
   // สำรองอัตโนมัติวันละครั้ง (ไม่รอ · พลาดก็ไม่กระทบการเปิดแอป)
   backup.dailyIfNeeded().catchError((_) => null);
 
+  final calendar = SqliteCalendarRepository(db);
+  // รอบ 14: เชื่อม iPhone ผ่าน iCloud (เฉพาะข้อมูลจริงบนคอม · ปิดอยู่จนกว่าจะเปิดในตั้งค่า)
+  if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+    PhoneSyncService.instance = PhoneSyncService(calendar)..start().catchError((_) {});
+  }
   final real = NoirManagerApp(
     key: const ValueKey('real'),
     studyRepository: SqliteStudyRepository(db),
-    calendarRepository: SqliteCalendarRepository(db),
+    calendarRepository: calendar,
     askOnboarding: true,
     backup: backup,
   );
