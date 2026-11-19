@@ -11,6 +11,7 @@ import 'lookback_card.dart';
 import '../data/study_scope.dart';
 import '../study/tutor_plan.dart';
 import '../theme/noir_colors.dart';
+import '../calendar/calendar_ui.dart' show thaiWeekdayShort;
 import '../utils/thai_date.dart';
 import '../widgets/mini_segments.dart';
 import '../widgets/toast.dart';
@@ -248,7 +249,7 @@ class _LifeStatsState extends State<LifeStats> with CalendarListener<LifeStats> 
                 for (final d in chartDays)
                   Expanded(
                     child: Text(
-                      d == today ? 'วันนี้' : thaiWeekdayShort(d),
+                      d == today ? 'วันนี้' : thaiWeekdayShort[d.weekday - 1],
                       textAlign: TextAlign.center,
                       style: TextStyle(fontSize: 12, color: d == today ? c.text : c.muted),
                     ),

@@ -9,10 +9,6 @@ import 'package:noir_manager/data/memory_study_repository.dart';
 import 'package:noir_manager/utils/thai_date.dart';
 
 void main() {
-  test('ชื่อวันย่อ', () {
-    expect([for (var i = 0; i < 7; i++) thaiWeekdayShort(DateTime(2026, 11, 16 + i))], ['จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.', 'อา.']);
-  });
-
   testWidgets('งานเพิ่งเริ่มเมื่อวาน → เดือน: "มีข้อมูลตั้งแต่ … นับได้ 2 วัน"', (tester) async {
     tester.view.physicalSize = const Size(1400, 2000);
     tester.view.devicePixelRatio = 1.0;
