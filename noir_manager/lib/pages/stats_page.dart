@@ -11,6 +11,7 @@ import 'lookback_card.dart';
 import '../data/study_scope.dart';
 import '../study/tutor_plan.dart';
 import '../theme/noir_colors.dart';
+import '../calendar/calendar_ui.dart' show thaiWeekdayShort;
 import '../utils/thai_date.dart';
 import '../widgets/mini_segments.dart';
 import '../widgets/toast.dart';
@@ -144,10 +145,17 @@ class _LifeStatsState extends State<LifeStats> with CalendarListener<LifeStats> 
       before.where((o) => o.subjectId != null).toList(),
       (o) => _subjectNames[o.subjectId] ?? 'วิชาอื่น',
     );
+    // กราฟรายวันตามช่วงที่เลือก: สัปดาห์ = จันทร์–อาทิตย์นี้ (วันที่ยังไม่ถึง = ว่าง) · เดือน = 30 วันล่าสุด
+    final week = _rangeSel == _Range.week;
+    final chartDays = week
+        ? [for (var i = 0; i < 7; i++) DateTime(from.year, from.month, from.day + i)]
+        : [for (var i = 29; i >= 0; i--) DateTime(today.year, today.month, today.day - i)];
     final series = [
-      for (var i = 27; i >= 0; i--)
-        percentDone(_days[DateTime(today.year, today.month, today.day - i)] ?? const []),
+      for (final d in chartDays) d.isAfter(today) ? null : percentDone(_days[d] ?? const []),
     ];
+    // ข้อมูลเริ่มทีหลังต้นช่วง (เช่น เพิ่งใส่แผน) → บอกไว้ ไม่งั้นสัปดาห์กับเดือนดูเหมือนกันแล้วงง
+    final firstData = (_days.entries.where((e) => e.value.isNotEmpty).map((e) => e.key).toList()..sort()).firstOrNull;
+    final shortData = firstData != null && firstData.isAfter(from);
 
     Widget card(Widget child) => Card(child: Padding(padding: const EdgeInsets.all(16), child: child));
     Text label(String t) => Text(t, style: TextStyle(fontSize: 13, color: c.muted));
@@ -206,6 +214,12 @@ class _LifeStatsState extends State<LifeStats> with CalendarListener<LifeStats> 
               const SizedBox(height: 4),
               Text('🔥 Streak ${_streak?.current ?? 0} วัน · ดีที่สุด ${_streak?.best ?? 0}',
                   style: TextStyle(fontSize: 13, color: c.text)),
+              if (shortData)
+                Text(
+                  'มีข้อมูลตั้งแต่ ${thaiShortDate(firstData)} · ช่วงนี้นับได้ ${today.difference(firstData).inDays + 1} วัน',
+                  key: const Key('life-short-data'),
+                  style: TextStyle(fontSize: 12, color: c.muted),
+                ),
             ]),
           ),
         ])),
@@ -225,15 +239,28 @@ class _LifeStatsState extends State<LifeStats> with CalendarListener<LifeStats> 
         if (!long)
           card(Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Text('ทำตามแผนรายวัน', style: TextStyle(fontWeight: FontWeight.w600, color: c.text)),
-            label('28 วัน · แท่งเขียว = ครบทั้งวัน · เส้น = เฉลี่ย 7 วัน'),
+            Text(week ? 'สัปดาห์นี้ จ.–อา. · แท่งเขียว = ครบทั้งวัน' : '30 วัน · แท่งเขียว = ครบทั้งวัน · เส้น = เฉลี่ย 7 วัน',
+                key: const Key('life-trend-label'), style: TextStyle(fontSize: 13, color: c.muted)),
             const SizedBox(height: 10),
-            SizedBox(height: 120, child: CustomPaint(painter: _TrendPainter(series, c))),
+            SizedBox(height: 120, child: CustomPaint(painter: _TrendPainter(series, c, average: !week))),
             const SizedBox(height: 4),
-            Row(children: [
-              label(thaiShortDate(today.subtract(const Duration(days: 27)))),
-              const Spacer(),
-              label('วันนี้'),
-            ]),
+            if (week)
+              Row(children: [
+                for (final d in chartDays)
+                  Expanded(
+                    child: Text(
+                      d == today ? 'วันนี้' : thaiWeekdayShort[d.weekday - 1],
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 12, color: d == today ? c.text : c.muted),
+                    ),
+                  ),
+              ])
+            else
+              Row(children: [
+                label(thaiShortDate(chartDays.first)),
+                const Spacer(),
+                label('วันนี้'),
+              ]),
           ]))
         else ...[
           card(Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -331,9 +358,12 @@ class _Bars extends StatelessWidget {
 
 /// กราฟแท่งรายวัน (% ทำตามแผน) + เส้นค่าเฉลี่ย 7 วัน · วันที่ไม่มีงาน = ไม่มีแท่ง
 class _TrendPainter extends CustomPainter {
-  _TrendPainter(this.values, this.c);
+  _TrendPainter(this.values, this.c, {this.average = true});
   final List<double?> values;
   final NoirColors c;
+
+  /// เส้นเฉลี่ย 7 วัน (สัปดาห์เดียวไม่วาด · ไม่มีความหมาย)
+  final bool average;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -355,6 +385,7 @@ class _TrendPainter extends CustomPainter {
         Paint()..color = v >= 100 ? c.good : c.accent.withValues(alpha: 0.45),
       );
     }
+    if (!average) return;
     final path = Path();
     var started = false;
     for (var i = 6; i < n; i++) {
