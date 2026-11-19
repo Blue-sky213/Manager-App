@@ -310,13 +310,14 @@ class PhoneSync {
       final keep = doneIds.length > 500 ? doneIds.sublist(doneIds.length - 500) : doneIds;
       await cal.setSetting(_doneIdsKey, keep.join(','));
     }
-    final data = await buildSnapshot(cal, now);
+    // ส่ง id คำสั่งที่ทำแล้วกลับไป → มือถือเอา ⏳ ออกได้แน่นอน (ไม่ต้องพึ่งเวลาของสองเครื่องให้ตรงกัน)
+    final data = {...await buildSnapshot(cal, now), 'applied': doneIds.length > 100 ? doneIds.sublist(doneIds.length - 100) : doneIds};
     final body = jsonEncode(data);
     var wrote = false;
     if (body != _last || !snapshotFile.existsSync()) {
       // เขียนไฟล์ชั่วคราวแล้วเปลี่ยนชื่อ → มือถือไม่เจอไฟล์ครึ่ง ๆ
       final tmp = File('${snapshotFile.path}.tmp');
-      await tmp.writeAsString(jsonEncode({...data, 'generatedAt': now.toIso8601String()}));
+      await tmp.writeAsString(jsonEncode({...data, 'generatedAt': now.toUtc().toIso8601String()}));
       await tmp.rename(snapshotFile.path);
       _last = body;
       wrote = true;
