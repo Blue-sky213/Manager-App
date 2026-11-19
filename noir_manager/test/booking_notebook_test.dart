@@ -83,6 +83,13 @@ void main() {
     expect(find.text('แยกตามกิจกรรม'), findsOneWidget);
     expect(find.textContaining('Streak'), findsWidgets);
     expect(find.text('เหรียญ'), findsOneWidget);
+    // สัปดาห์ ≠ เดือน: กราฟเปลี่ยนตามช่วงที่เลือก (นัวร์แจ้ง 19 พ.ย. ว่าดูเหมือนกัน)
+    String trend() => tester.widget<Text>(find.byKey(const Key('life-trend-label'))).data!;
+    expect(trend(), startsWith('สัปดาห์นี้'));
+    expect(find.text('วันนี้'), findsWidgets);
+    await tester.tap(find.text('เดือน'));
+    await tester.pumpAndSettle();
+    expect(trend(), startsWith('30 วัน'));
     await tester.tap(find.text('1 ปี'));
     await tester.pumpAndSettle();
     expect(find.text('ทำตามแผนรายเดือน'), findsOneWidget);

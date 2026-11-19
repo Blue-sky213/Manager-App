@@ -25,3 +25,6 @@ int buddhistYear(DateTime d) => d.year + 543;
 
 /// "พฤศจิกายน 2569"
 String thaiMonthYear(DateTime d) => '${thaiMonthsLong[d.month - 1]} ${buddhistYear(d)}';
+
+/// ชื่อวันย่อ "จ." … "อา." (ใต้กราฟรายสัปดาห์)
+String thaiWeekdayShort(DateTime d) => const ['จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.', 'อา.'][d.weekday - 1];
