@@ -125,7 +125,8 @@ void main() {
     expect(r.wrote, isTrue);
     expect(sync.scriptFile.readAsStringSync(), scriptableSource);
     final snap = jsonDecode(sync.snapshotFile.readAsStringSync()) as Map;
-    expect(snap['generatedAt'], now.toIso8601String());
+    expect(snap['generatedAt'], now.toUtc().toIso8601String()); // UTC + Z: มือถืออ่านเวลาได้ตรง
+    expect(snap['applied'], isEmpty);
     expect(sync.snapshotFile.parent.listSync().where((f) => f.path.endsWith('.tmp')), isEmpty);
 
     // ไม่มีอะไรเปลี่ยน → ไม่เขียนซ้ำ (ไม่ให้ iCloud อัปโหลดทุก 30 วินาที)
@@ -149,6 +150,8 @@ void main() {
         .writeAsStringSync(jsonEncode({'id': 'a2', 'type': 'add', 'name': 'งานจากมือถือ', 'date': '2026-11-19'}));
     r = await sync.runOnce(now);
     expect(r.applied, ['เพิ่มงาน: งานจากมือถือ']);
+    // บอกมือถือว่าคำสั่งไหนทำแล้ว → ⏳ หาย (นัวร์เจอ ⏳ ค้าง 19 พ.ย.)
+    expect((jsonDecode(sync.snapshotFile.readAsStringSync()) as Map)['applied'], ['a1', 'a2']);
     expect((await occNamed(cal, today, 'ฝึก · Canva')).status, OccurrenceStatus.done);
     expect(sync.inboxDir.listSync(), isEmpty);
   });

@@ -46,10 +46,14 @@ function loadPending() {
 }
 
 // คำสั่งที่ PC ยังไม่ทำ (snapshot เก่ากว่าคำสั่ง) → แสดงผลล่วงหน้าบนมือถือ
+// PC บอก id คำสั่งที่ทำแล้ว (applied) → ออกจากคิวทันที · เผื่อ PC รุ่นเก่า: snapshot ใหม่กว่าคำสั่ง = ทำแล้ว
 function stillPending(snap) {
   const gen = snap && snap.generatedAt ? new Date(snap.generatedAt).getTime() : 0;
+  const applied = new Set((snap && snap.applied) || []);
   const day = 24 * 3600 * 1000;
-  const list = loadPending().filter((c) => new Date(c.at).getTime() > gen && Date.now() - new Date(c.at).getTime() < day);
+  const list = loadPending().filter(
+    (c) => !applied.has(c.id) && !(gen && new Date(c.at).getTime() <= gen) && Date.now() - new Date(c.at).getTime() < day,
+  );
   lfm.writeString(PENDING, JSON.stringify(list));
   return list;
 }
@@ -96,7 +100,9 @@ function syncText(snap, pending) {
   if (!snap) return "ยังไม่มีข้อมูลจาก PC";
   const mins = Math.round((Date.now() - new Date(snap.generatedAt).getTime()) / 60000);
   const age = mins < 1 ? "เมื่อกี้" : mins < 60 ? `${mins} นาทีก่อน` : `${Math.round(mins / 60)} ชม.ก่อน`;
-  return pending.length ? `รอ PC ${pending.length} รายการ · ข้อมูล ${age}` : `ตรงกับ PC · ${age}`;
+  // นับเป็นงาน ไม่ใช่จำนวนคำสั่ง (ติ๊กแล้วเลิกติ๊กงานเดียว = 1)
+  const n = new Set(pending.map((c) => c.occ ?? c.topic ?? c.skill ?? c.id)).size;
+  return pending.length ? `รอ PC ${n} รายการ · ข้อมูล ${age}` : `ตรงกับ PC · ${age}`;
 }
 
 // ---------- วิดเจ็ต ----------
@@ -327,6 +333,7 @@ async function app() {
     nav.addButton("+ งาน").onTap = async () => { await quickAdd(snap); render(); };
     nav.addButton("เช็กอิน").onTap = async () => { await checkin(snap); render(); };
     nav.addButton("สกิล").onTap = async () => { await skillsView(snap); render(); };
+    nav.addButton("⟳").onTap = () => render();
     nav.addButton("▶").onTap = () => { const i = days.indexOf(key); if (i < days.length - 1) key = days[i + 1]; render(); };
     t.addRow(nav);
     const items = itemsOf(snap, key, pending);
@@ -352,7 +359,10 @@ async function app() {
     t.reload();
   }
   await render();
+  // เปิดค้างไว้ = โหลดข้อมูลใหม่ทุก 15 วินาที (⏳ หายเองเมื่อ PC ทำเสร็จ)
+  const tick = Timer.schedule(15000, true, () => render());
   await t.present(true);
+  tick.invalidate();
 }
 
 if (config.runsInWidget) {
