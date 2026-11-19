@@ -38,7 +38,9 @@ class StickerGlyph extends StatelessWidget {
         child: fit(Image.file(
           File(path),
           fit: BoxFit.contain,
-          cacheWidth: (size * sticker.scale.clamp(1, 2.5) * MediaQuery.devicePixelRatioOf(context)).ceil(),
+          cacheWidth: stickerCacheWidth(size * sticker.scale.clamp(1, 2.5) * MediaQuery.devicePixelRatioOf(context)),
+          // ระหว่างโหลดรูปขนาดใหม่ ให้ค้างรูปเดิมไว้ ไม่โชว์ช่องว่าง (นัวร์เจอช่องว่าง 19 พ.ย.)
+          gaplessPlayback: true,
           // ไฟล์หาย (เช่น ย้ายเครื่อง) → ใช้ตัวอักษรแทน ไม่พัง
           errorBuilder: (_, _, _) => emoji,
         )),
@@ -389,6 +391,7 @@ class _StickerSettingsState extends State<StickerSettings> with CalendarListener
     for (final f in images.where(picked.contains)) {
       ids.add(await repo.addSticker(packId, stickerNameFromFile(f), imagePath: await saveStickerImage(f, dir)));
     }
+    refreshStickerImages();
     // พอดีอัตโนมัติ + ปรับได้ตั้งแต่ครั้งแรก (รอบ 8B)
     if (mounted) await fitNewStickers(context, repo, ids);
   }
@@ -408,6 +411,7 @@ class _StickerSettingsState extends State<StickerSettings> with CalendarListener
       final saved = await saveStickerImage(f, dir);
       ids.add(await repo.addSticker(packId, stickerNameFromFile(f), imagePath: saved));
     }
+    refreshStickerImages();
     if (mounted) await fitNewStickers(context, repo, ids);
   }
 

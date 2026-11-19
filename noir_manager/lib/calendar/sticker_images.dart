@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/painting.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -96,4 +97,15 @@ Future<(double, double, double)?> autoFitImage(String path) async {
   } catch (_) {
     return null;
   }
+}
+
+/// ความกว้างที่ใช้ถอดรูป ปัดขึ้นเป็นขั้น 64 / 128 / 256 (รูปเก็บไว้ด้านยาว 256 อยู่แล้ว)
+/// เดิมคิดตามซูมของแต่ละสติกเกอร์ → ถอดรูปเดียวหลายขนาด หน่วยความจำบวม และเคยค้างเป็นช่องว่าง
+int stickerCacheWidth(double px) => px <= 64 ? 64 : (px <= 128 ? 128 : stickerMaxSide);
+
+/// ล้างรูปที่แอปจำไว้ หลังเพิ่ม / ปรับสติกเกอร์ → วาดใหม่จากไฟล์จริงเสมอ
+void refreshStickerImages() {
+  PaintingBinding.instance.imageCache
+    ..clear()
+    ..clearLiveImages();
 }

@@ -105,6 +105,7 @@ Future<bool> showStickerFitEditor(BuildContext context, CalendarRepository repo,
   );
   if (saved != true) return false;
   await repo.updateStickerFit(sticker.id, scale: scale, dx: dx, dy: dy);
+  refreshStickerImages();
   return true;
 }
 
@@ -132,6 +133,7 @@ Future<int> autoFitAll(CalendarRepository repo, Iterable<Sticker> stickers) asyn
     await repo.updateStickerFit(s.id, scale: f.$1, dx: f.$2, dy: f.$3);
     n++;
   }
+  if (n > 0) refreshStickerImages();
   return n;
 }
 
