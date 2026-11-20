@@ -529,7 +529,10 @@ class _TraySheetState extends State<_TraySheet> {
   Future<void> _pickTime() async {
     final r = await pickRange(context, _start, _dur);
     if (r == null || !mounted) return;
-    setState(() => (_start, _dur) = r);
+    setState(() {
+      _start = r.$1;
+      _dur = r.$2;
+    });
   }
 
   @override
