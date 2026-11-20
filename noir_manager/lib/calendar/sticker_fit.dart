@@ -9,6 +9,7 @@ import '../widgets/mini_form.dart';
 import '../widgets/toast.dart';
 import 'calendar_repository.dart';
 import 'sticker_images.dart';
+import '../sync/sticker_files.dart' show resolveStickerFile;
 import 'sticker_ui.dart';
 
 const _stage = 220.0;
@@ -80,7 +81,7 @@ Future<bool> showStickerFitEditor(BuildContext context, CalendarRepository repo,
               onPressed: sticker.imagePath == null
                   ? null
                   : () async {
-                      final f = await autoFitImage(sticker.imagePath!);
+                      final f = await autoFitImage(resolveStickerFile(sticker.imagePath!) ?? sticker.imagePath!);
                       if (f != null) setLocal(() => (scale, dx, dy) = f);
                     },
               icon: const Icon(Icons.auto_fix_high, size: 18),
@@ -128,7 +129,7 @@ Future<int> autoFitAll(CalendarRepository repo, Iterable<Sticker> stickers) asyn
   var n = 0;
   for (final s in stickers) {
     if (s.imagePath == null) continue;
-    final f = await autoFitImage(s.imagePath!);
+    final f = await autoFitImage(resolveStickerFile(s.imagePath!) ?? s.imagePath!);
     if (f == null) continue;
     await repo.updateStickerFit(s.id, scale: f.$1, dx: f.$2, dy: f.$3);
     n++;

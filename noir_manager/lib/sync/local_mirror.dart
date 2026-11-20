@@ -480,7 +480,16 @@ class LocalMirror {
       for (final p in pulled) {
         if (!p.row.deleted) (content[p.row.table] ??= {})[_canon(p.row.values)] = p.row.id;
       }
+      final had = {for (final e in _shadow.entries) for (final k in e.value.keys) '${e.key}\t$k'};
       await scan(now, content: content);
+      // รอบ 20 (บั๊กย้ายเครื่อง): รายการที่ทั้งเครื่องนี้และบัญชีมี แต่เครื่องนี้ยังไม่เคยซิงก์
+      // = ค่าตั้งต้นตอนติดตั้ง (เช่น เวลานอน 12:00) → ให้ค่าในบัญชีชนะ ไม่นับเป็นค่าต่าง
+      for (final p in pulled) {
+        final key = '${p.row.table}\t${p.row.id}';
+        final mine = _shadow[p.row.table]?[p.row.id];
+        if (mine == null || had.contains(key)) continue;
+        _shadow[p.row.table]![p.row.id] = mine.copyWith(stamps: {for (final k in mine.stamps.keys) k: 0});
+      }
     } else {
       // สแกนก่อนเสมอ (เน็ตหลุดก็ยังประทับเวลาที่แก้จริงได้)
       await scan(now);

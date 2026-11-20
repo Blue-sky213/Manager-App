@@ -11,9 +11,11 @@ import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart' show Database;
 
 import '../calendar/calendar_repository.dart';
+import '../calendar/sticker_images.dart' show refreshStickerImages;
 import '../data/backup.dart';
 import 'google_login.dart';
 import 'local_mirror.dart';
+import 'sticker_files.dart';
 import 'merge.dart';
 import 'supabase_api.dart';
 import 'sync_remote.dart';
@@ -84,6 +86,8 @@ class CloudSyncService {
   final SyncRemote Function(SupabaseApi api, String device) _remoteOf;
 
   late final LocalMirror mirror = LocalMirror(db);
+  late final StickerFileSync _files =
+      StickerFileSync(api, readSetting: cal.getSetting, writeSetting: cal.setSetting);
   final status = ValueNotifier(const CloudStatus());
 
   /// มีค่าต่างกันใหม่ → หน้าหลักโชว์เม็ดเตือน
@@ -215,14 +219,30 @@ class CloudSyncService {
         cal.workRepo.refresh();
         cal.skillRepo.refresh();
       }
+      // รอบ 20: รูปสติกเกอร์ (ส่งที่ยังไม่ส่ง · ดึงที่เครื่องนี้ไม่มี) · พลาด = ไม่ล้มทั้งรอบ
+      String? fileMsg;
+      try {
+        final paths = [
+          for (final row in await db.rawQuery('SELECT image_path FROM sticker WHERE image_path IS NOT NULL'))
+            row['image_path'] as String,
+        ];
+        final got = await _files.run(paths);
+        if (got > 0) {
+          refreshStickerImages();
+          cal.refresh();
+        }
+      } on CloudError catch (e) {
+        fileMsg = e.message;
+      }
       final toast = conflictToast(r.conflicts);
       if (toast != null) conflictNotice.value = toast;
       status.value = status.value.copyWith(
         state: CloudState.ok,
         lastSync: DateTime.fromMillisecondsSinceEpoch(now),
         pending: mirror.dirtyCount,
-        clearMessage: true,
-        conflicts: r.conflicts.isEmpty ? null : [...r.conflicts, ...status.value.conflicts].take(20).toList(),
+        message: fileMsg,
+        clearMessage: fileMsg == null,
+        conflicts: r.conflicts.isEmpty ? null : _mergeConflicts(r.conflicts, status.value.conflicts),
       );
     } on CloudError catch (e) {
       final signedOut = api.session == null;
@@ -242,6 +262,17 @@ class CloudSyncService {
       unawaited(syncNow());
     }
   }
+
+  /// รายการเดียวกัน (ตาราง + แถว + ช่อง) เก็บอันล่าสุดอันเดียว · สูงสุด 50
+  List<SyncConflict> _mergeConflicts(List<SyncConflict> fresh, List<SyncConflict> old) {
+    final seen = <String>{};
+    return [
+      for (final x in [...fresh, ...old])
+        if (seen.add('${x.table}|${x.id}|${x.field}')) x,
+    ].take(50).toList();
+  }
+
+  void clearConflicts() => status.value = status.value.copyWith(conflicts: const []);
 
   /// กด "ใช้อีกค่า"
   Future<void> useOtherValue(SyncConflict c) async {

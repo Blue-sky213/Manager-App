@@ -4,6 +4,7 @@
 library;
 
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'http_transport.dart';
 
@@ -206,6 +207,31 @@ class SupabaseApi {
       throw CloudError('ซิงก์ไม่สำเร็จ ($code)', status: code);
     }
     return text;
+  }
+
+  /// ส่ง / ดึงไฟล์ใน Storage (รอบ 20 · รูปสติกเกอร์) · คืน (สถานะ, ไฟล์)
+  Future<(int, Uint8List)> storage(String method, String path, {List<int>? body, String contentType = 'image/png'}) async {
+    if (session == null) throw CloudError('ยังไม่เข้าระบบ', status: 401);
+    if (session!.expiringSoon) await refresh();
+    Future<(int, Uint8List)> go() async {
+      try {
+        return await httpSendBytes(method, Uri.parse('$url/storage/v1/$path'), {
+          'apikey': key,
+          'Authorization': 'Bearer ${session!.accessToken}',
+          if (body != null) 'Content-Type': contentType,
+          if (body != null) 'x-upsert': 'true',
+        }, body);
+      } on TransportError catch (e) {
+        throw CloudError(e.message);
+      }
+    }
+
+    var r = await go();
+    if (r.$1 == 401 || (r.$1 == 403 && utf8.decode(r.$2, allowMalformed: true).contains('exp'))) {
+      await refresh();
+      r = await go();
+    }
+    return r;
   }
 }
 

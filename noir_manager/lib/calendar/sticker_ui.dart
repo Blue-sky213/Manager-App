@@ -13,6 +13,7 @@ import 'calendar_models.dart';
 import 'calendar_repository.dart';
 import 'sticker_fit.dart';
 import 'sticker_images.dart';
+import '../sync/sticker_files.dart' show resolveStickerFile, stickerFileName, webStickerBytes;
 
 /// วาดสติกเกอร์ 1 ชิ้น: รูป (ถ้ามี) หรืออีโมจิ · ขนาดสี่เหลี่ยม [size]
 class StickerGlyph extends StatelessWidget {
@@ -31,23 +32,29 @@ class StickerGlyph extends StatelessWidget {
             offset: Offset(sticker.dx * size, sticker.dy * size),
             child: Transform.scale(scale: sticker.scale, child: w),
           );
-    // เว็บ: รูปอยู่ในเครื่องที่แปะ (ยังไม่ซิงก์รูป) → ใช้ตัวอักษรแทน
-    if (path == null || kIsWeb) return fit(emoji);
-    return SizedBox(
-      width: size,
-      height: size,
-      child: ClipRect(
-        child: fit(Image.file(
-          File(path),
+    if (path == null) return fit(emoji);
+    Widget box(Widget img) => SizedBox(width: size, height: size, child: ClipRect(child: fit(img)));
+    final cache = stickerCacheWidth(size * sticker.scale.clamp(1, 2.5) * MediaQuery.devicePixelRatioOf(context));
+    // เว็บ (รอบ 20): รูปดึงมาจากบัญชีเก็บในหน่วยความจำ · ยังไม่มา = ตัวอักษรไปก่อน
+    if (kIsWeb) {
+      return ValueListenableBuilder(
+        valueListenable: webStickerBytes,
+        builder: (context, m, _) {
+          final b = m[stickerFileName(path)];
+          return b == null ? fit(emoji) : box(Image.memory(b, fit: BoxFit.contain, cacheWidth: cache, gaplessPlayback: true));
+        },
+      );
+    }
+    // ย้ายเครื่อง (รอบ 20): ไฟล์ไม่อยู่ที่เดิม → หาชื่อเดียวกันในโฟลเดอร์สติกเกอร์ของเครื่องนี้ (ดึงมาจากบัญชี)
+    return box(Image.file(
+          File(resolveStickerFile(path) ?? path),
           fit: BoxFit.contain,
-          cacheWidth: stickerCacheWidth(size * sticker.scale.clamp(1, 2.5) * MediaQuery.devicePixelRatioOf(context)),
+          cacheWidth: cache,
           // ระหว่างโหลดรูปขนาดใหม่ ให้ค้างรูปเดิมไว้ ไม่โชว์ช่องว่าง (นัวร์เจอช่องว่าง 19 พ.ย.)
           gaplessPlayback: true,
           // ไฟล์หาย (เช่น ย้ายเครื่อง) → ใช้ตัวอักษรแทน ไม่พัง
           errorBuilder: (_, _, _) => emoji,
-        )),
-      ),
-    );
+        ));
   }
 }
 

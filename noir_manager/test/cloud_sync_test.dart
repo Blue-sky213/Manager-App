@@ -168,4 +168,22 @@ void main() {
     expect(await phone.db.query('activity', where: 'name = ?', whereArgs: ['ไลฟ์ RE4 Day 2']), isEmpty);
     expect(await phone.db.query('occurrence'), isEmpty);
   });
+
+  test('ย้ายเครื่อง (รอบ 20): เครื่องใหม่ที่มีข้อมูลแล้ว → ค่าตั้งต้น (เวลานอน 12:00) ไม่ทับค่าจริงในบัญชี · ไม่เตือน', () async {
+    final a = await Dev.open(), b = await Dev.open(), remote = MemorySyncRemote();
+    await a.db.update('life_base', {'bed_minute': 60, 'wake_minute': 450});
+    await a.cal.addActivity(NewActivity(name: 'งาน PC เก่า', categoryId: null, importance: 2, timed: false, day: day));
+    await a.sync(remote, 1000);
+    // เครื่องใหม่ใช้ไปก่อนเข้าบัญชี (ไม่ใช่เครื่องว่าง)
+    await b.cal.addActivity(NewActivity(name: 'งานเครื่องใหม่', categoryId: null, importance: 2, timed: false, day: day));
+    final r = await b.sync(remote, 5000);
+    expect(r.wiped, isFalse);
+    expect(r.conflicts, isEmpty);
+    final lb = await b.db.query('life_base');
+    expect(lb.every((x) => x['bed_minute'] == 60 && x['wake_minute'] == 450), isTrue);
+    expect((await b.db.query('activity')).map((x) => x['name']), containsAll(['งาน PC เก่า', 'งานเครื่องใหม่']));
+    await a.sync(remote, 6000);
+    expect((await a.db.query('life_base')).every((x) => x['bed_minute'] == 60), isTrue);
+    expect((await a.db.query('activity')).map((x) => x['name']), contains('งานเครื่องใหม่'));
+  });
 }
