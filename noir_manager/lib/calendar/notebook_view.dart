@@ -17,6 +17,7 @@ import 'sticker_ui.dart' show StickerGlyph;
 import 'day_judge.dart' show importantOf;
 import 'sticker_book.dart';
 import 'stickers.dart' show Sticker, DaySticker;
+import 'tray.dart' show TrayDropTarget, TrayItem;
 
 /// คลิกล่าสุดในสมุด (วัน, เวลา) · ใช้แยกคลิกเดียว / ดับเบิลคลิก
 (DateTime, DateTime)? _lastTap;
@@ -78,6 +79,7 @@ class NotebookMonth extends StatelessWidget {
     required this.holidays,
     this.placed = const {},
     this.onDropSticker,
+    this.onDropTray,
     this.dropLocked,
     this.categories = const {},
     required this.onTapDay,
@@ -107,6 +109,9 @@ class NotebookMonth extends StatelessWidget {
 
   /// วันนี้แปะไม่ได้เพราะอะไร (null = แปะได้)
   final String? Function(DateTime day)? dropLocked;
+
+  /// รับการ์ดจากถาด "กำลังทำอยู่" (รอบ 15) · มุมมองเดือนใช้เวลาครั้งล่าสุด
+  final void Function(TrayItem item, DateTime day, int? minute)? onDropTray;
 
   /// หมวด (ใช้ไอคอนของงานสำคัญในช่อง)
   final Map<int, ActivityCategory> categories;
@@ -328,9 +333,11 @@ class NotebookMonth extends StatelessWidget {
         ),
       ),
     );
+    final tray = onDropTray;
     final drop = onDropSticker;
-    if (drop == null || out) return cell;
-    return StickerDropCell(
+    if (out) return cell;
+    if (drop == null) return tray == null ? cell : TrayDropTarget(day: d, onDrop: tray, child: cell);
+    final sticker = StickerDropCell(
       key: ValueKey('drop-${d.month}-${d.day}'),
       day: d,
       onDrop: (s, x, y) => drop(d, s, x, y),
@@ -339,6 +346,7 @@ class NotebookMonth extends StatelessWidget {
       glyphSize: big,
       child: cell,
     );
+    return tray == null ? sticker : TrayDropTarget(day: d, onDrop: tray, child: sticker);
   }
 }
 
