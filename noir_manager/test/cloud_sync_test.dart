@@ -102,8 +102,8 @@ void main() {
     expect(await b.cal.getSetting('tray_pins'), '["อ่านหนังสือ"]');
     expect(await b.cal.getSetting('phone_sync_dir'), r'C:\iCloud\B');
     for (final t in ['category', 'subject', 'preset', 'life_base']) {
-      final na = Sqflite.firstIntValue(await a.db.rawQuery('SELECT COUNT(*) FROM $t'));
-      final nb = Sqflite.firstIntValue(await b.db.rawQuery('SELECT COUNT(*) FROM $t'));
+      final na = (await a.db.rawQuery('SELECT COUNT(*) AS n FROM $t')).single['n'];
+      final nb = (await b.db.rawQuery('SELECT COUNT(*) AS n FROM $t')).single['n'];
       expect(nb, na, reason: t);
     }
     // วันถัดไป: ทั้งสองเครื่องสร้าง "ครั้ง" ของงานซ้ำเอง → รหัสเดียวกัน ไม่ซ้ำ

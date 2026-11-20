@@ -236,7 +236,7 @@ class LocalMirror {
       if (t.intId && c == 'id') continue;
       final v = row[c];
       final parent = t.refs[c];
-      out[c] = parent != null && v != null ? _l2s[parent]?[(v as num).toInt()] : v;
+      out[c] = (parent != null && v != null) ? (_l2s[parent] ?? const {})[(v as num).toInt()] : v;
     }
     return out;
   }
@@ -263,7 +263,8 @@ class LocalMirror {
       sid = 'o:${pre['activity_id']}@${row['origin_day']}';
     } else {
       final match = content?[_canon(pre)];
-      sid = match != null && _s2l[t.name]?[match] == null ? match : _uuid();
+      final taken = match != null && (_s2l[t.name] ?? const <String, int>{}).containsKey(match);
+      sid = (match != null && !taken) ? match : _uuid();
     }
     _map(t.name, id, sid);
     return sid;
