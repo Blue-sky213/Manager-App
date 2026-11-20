@@ -43,9 +43,9 @@ class _PhoneSyncSectionState extends State<PhoneSyncSection> {
   Future<void> _toggle(bool on) async {
     final s = widget.service!;
     final dir = _dir.text.trim();
-    if (on && dir.isEmpty) return showToast(context, 'ใส่โฟลเดอร์ก่อน', kind: ToastKind.error);
+    if (on && dir.isEmpty) return showToast(context, 'ใส่โฟลเดอร์ก่อน', kind: ToastKind.warn);
     if (on && !Directory(dir).parent.existsSync()) {
-      showToast(context, 'ยังไม่พบโฟลเดอร์ Scriptable ใน iCloud · ทำขั้น 1–2 ก่อน', kind: ToastKind.error);
+      showToast(context, 'ยังไม่พบโฟลเดอร์ Scriptable ใน iCloud · ทำขั้น 1–2 ก่อน', kind: ToastKind.warn);
       return;
     }
     await s.configure(on: on, dir: dir);

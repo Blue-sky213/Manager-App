@@ -1,5 +1,6 @@
 /// แจ้งเตือนแบบเม็ดเล็ก บนกลางจอ (รอบ 8 · A) — แทนแถบ SnackBar เต็มจอด้านล่าง
-/// หายเองใน 2.5 วิ · ชี้เมาส์ค้าง = ไม่หาย · ซ้อนได้ 3 อัน · ผิดพลาด = ค้างจนกดปิด
+/// หายเองทุกแบบ (รอบ 17 · นัวร์ขอ): ปกติ 2.5 วิ · มีปุ่ม (เลิกทำ) 5 วิ · เตือน 4 วิ · ผิดพลาด 6 วิ
+/// ชี้เมาส์ค้าง = ไม่หาย · ซ้อนได้ 3 อัน · ข้อความซ้ำ = อันเดิมนับเวลาใหม่ (ไม่ซ้อน 2 อัน)
 library;
 
 import 'dart:async';
@@ -43,7 +44,11 @@ void showToast(BuildContext context, String text,
     _hostOverlay = overlay;
     overlay.insert(_host!);
   }
-  final list = [..._toasts.value, _ToastData(text, kind ?? guessToastKind(text), action, onAction)];
+  // ข้อความเดิมยังค้างอยู่ → เอาอันเก่าออก ใส่อันใหม่แทน (เวลานับใหม่)
+  final list = [
+    for (final t in _toasts.value) if (t.text != text) t,
+    _ToastData(text, kind ?? guessToastKind(text), action, onAction),
+  ];
   _toasts.value = list.length > 3 ? list.sublist(list.length - 3) : list;
 }
 
@@ -90,11 +95,17 @@ class _ToastPillState extends State<_ToastPill> with SingleTickerProviderStateMi
     _later();
   }
 
-  // ผิดพลาด = ค้างไว้จนกดปิด (ไม่อยากให้พลาดข้อความ)
+  /// เวลาที่โชว์: ข้อความสำคัญอยู่นานกว่า แต่หายเองทุกแบบ (ไม่ต้องกดปิด)
+  Duration get _stay => switch (widget.data.kind) {
+        ToastKind.error => const Duration(seconds: 6),
+        ToastKind.warn => const Duration(seconds: 4),
+        _ when widget.data.action != null => const Duration(seconds: 5),
+        _ => const Duration(milliseconds: 2500),
+      };
+
   void _later() {
     _timer?.cancel();
-    if (widget.data.kind == ToastKind.error) return;
-    _timer = Timer(const Duration(milliseconds: 2500), () {
+    _timer = Timer(_stay, () {
       if (!_hover) _close();
     });
   }
