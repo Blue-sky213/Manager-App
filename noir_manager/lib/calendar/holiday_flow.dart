@@ -98,11 +98,16 @@ Future<void> shiftFlow(BuildContext context, CalendarRepository repo, Occurrence
   }
   final end = await repo.shiftToNextRound(o.id, reason);
   if (!context.mounted) return;
-  _toast(
-      context,
-      end == null
-          ? '"${o.title}" เลื่อนไปรอบถัดไปแล้ว'
-          : '"${o.title}" เลื่อนไปรอบถัดไป · วันสุดท้ายขยายเป็น ${thaiShortDate(end)}');
+  // รอบ 18: กดพลาดได้ → มีปุ่มเลิกทำ (หรือแตะงานนั้น › ยกเลิกการเลื่อน ทีหลัง)
+  showToast(
+    context,
+    end == null
+        ? '"${o.title}" เลื่อนไปรอบถัดไปแล้ว'
+        : '"${o.title}" เลื่อนไปรอบถัดไป · วันสุดท้ายขยายเป็น ${thaiShortDate(end)}',
+    kind: ToastKind.success,
+    action: 'เลิกทำ',
+    onAction: () => repo.unshiftRound(o.id),
+  );
 }
 
 void _toast(BuildContext context, String text) {

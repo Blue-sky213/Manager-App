@@ -780,6 +780,17 @@ DateTime? nextSlotAfter(Activity a, DateTime day) {
   return null;
 }
 
+/// วันสุดท้ายที่งานควรเกิด "ก่อน" [day] ตามกฎการทำซ้ำ · ใช้หดวันสุดท้ายตอนยกเลิกการเลื่อน (รอบ 18)
+DateTime? prevSlotBefore(Activity a, DateTime day) {
+  if (!canShiftToNextRound(a)) return null;
+  final d = dayOnly(day);
+  for (var i = 1; i <= 7; i++) {
+    final c = DateTime(d.year, d.month, d.day - i);
+    if (a.repeat == RepeatKind.daily || a.weekdays.contains(c.weekday)) return c;
+  }
+  return null;
+}
+
 /// หางานที่ล็อกเวลาและทับกับช่วง [start]–[end] ในรายการของวันนั้น
 List<Occurrence> findOverlaps(
   List<Occurrence> dayItems,

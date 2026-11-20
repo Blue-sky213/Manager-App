@@ -683,6 +683,27 @@ class SqliteCalendarRepository extends CalendarRepository {
   }
 
   @override
+  Future<void> unshiftRound(int occurrenceId) async {
+    await _db.transaction((txn) async {
+      final occ = (await txn.query('occurrence', where: 'id = ?', whereArgs: [occurrenceId], limit: 1)).first;
+      if (occ['status'] != OccurrenceStatus.shifted.name) return;
+      await txn.update('occurrence', {'status': OccurrenceStatus.planned.name, 'reason': null},
+          where: 'id = ?', whereArgs: [occurrenceId]);
+      final a = Activity.fromRow(
+          (await txn.query('activity', where: 'id = ?', whereArgs: [occ['activity_id']], limit: 1)).first);
+      if (a.endDate == null) return;
+      final back = prevSlotBefore(a, a.endDate!);
+      if (back == null || back.isBefore(a.startDate)) return;
+      await txn.update('activity', {'end_date': dayKey(back)}, where: 'id = ?', whereArgs: [a.id]);
+      // ครั้งท้ายที่งอกมาจากการขยาย (ยังไม่ได้ทำ) → ลบ · ที่ทำแล้วเก็บไว้
+      await txn.delete('occurrence',
+          where: 'activity_id = ? AND origin_day > ? AND status = ?',
+          whereArgs: [a.id, dayKey(back), OccurrenceStatus.planned.name]);
+    });
+    notifyListeners();
+  }
+
+  @override
   Future<Set<DateTime>> shiftedDays(int activityId) async {
     final hit = _shiftedCache[activityId];
     if (hit != null) return hit;

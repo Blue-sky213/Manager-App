@@ -312,6 +312,8 @@ List<ContextItem<String>> resultItems(Occurrence o) => [
       ],
       if (o.status == OccurrenceStatus.done) ctxItem('undo', Icons.undo, 'ยังไม่ได้ทำ'),
       if (o.status == OccurrenceStatus.cancelled) ctxItem('undo', Icons.undo, 'คืนเป็นตามแผน'),
+      // รอบ 18: กดเลื่อนพลาด → ย้อนคืนได้ (วันสุดท้ายหดกลับด้วย)
+      if (o.status == OccurrenceStatus.shifted) ctxItem('unshift', Icons.undo, 'ยกเลิกการเลื่อน · คืนเป็นตามแผน'),
       if (o.status == OccurrenceStatus.inbox) ctxItem('schedule', Icons.event, 'เลือกวันแทน'),
     ];
 
@@ -446,6 +448,9 @@ Future<void> runOccurrenceAction(BuildContext context, CalendarRepository repo, 
       if (end != null) await repo.setActualTimes(o.id, end: end);
     case 'undo':
       await repo.setDone(o.id, false);
+    case 'unshift':
+      await repo.unshiftRound(o.id);
+      if (context.mounted) showToast(context, '"${o.title}" คืนเป็นตามแผนแล้ว');
     case 'time':
       await editOccurrenceTimeFlow(context, repo, o);
     case 'edit':
