@@ -1,13 +1,10 @@
 import 'package:flutter/foundation.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
-import 'package:sqflite_common_ffi/sqflite_ffi.dart'
-    show databaseFactoryFfi, sqfliteFfiInit;
 
 import '../calendar/sqlite_calendar_repository.dart';
 import '../calendar/stickers.dart';
 import 'backup.dart';
+import 'db_platform_io.dart' if (dart.library.js_interop) 'db_platform_web.dart';
 import 'seed_data.dart';
 import 'study_repository.dart';
 import '../sync/local_mirror.dart' show createSyncV24;
@@ -49,19 +46,10 @@ Future<void> createAllTables(Database db) async {
 }
 
 Future<Database> openAppDatabase() async {
-  // Windows/Linux ไม่มี SQLite ในตัวแบบ Android → สลับไปใช้ตัว FFI
-  if (!kIsWeb &&
-      (defaultTargetPlatform == TargetPlatform.windows ||
-          defaultTargetPlatform == TargetPlatform.linux)) {
-    sqfliteFfiInit();
-    databaseFactory = databaseFactoryFfi;
-  }
-
-  // Windows: C:\Users\<ชื่อ>\AppData\Roaming\<บริษัท>\noir_manager\
-  final dir = await getApplicationSupportDirectory();
-  final path = p.join(dir.path, 'noir_manager.db');
-  // กู้คืนที่จองไว้จากหน้าตั้งค่า → ทับไฟล์ก่อนเปิด
-  await BackupService.applyPendingRestore(path);
+  // คอม = FFI · มือถือ = sqflite · เว็บ = WebAssembly (รอบ 17)
+  final path = await prepareDatabase('noir_manager.db');
+  // กู้คืนที่จองไว้จากหน้าตั้งค่า → ทับไฟล์ก่อนเปิด (เว็บไม่มีไฟล์ให้ทับ)
+  if (!kIsWeb) await BackupService.applyPendingRestore(path);
   appDatabasePath = path;
 
   return openDatabase(

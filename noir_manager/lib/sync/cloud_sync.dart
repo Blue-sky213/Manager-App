@@ -66,7 +66,7 @@ class CloudStatus {
 }
 
 class CloudSyncService {
-  CloudSyncService(this.db, this.cal, {this.backup, SupabaseApi? api, SyncRemote Function(SupabaseApi api, String device)? remote})
+  CloudSyncService(this.db, this.cal, {this.backup, this.devicePrefix = 'PC', SupabaseApi? api, SyncRemote Function(SupabaseApi api, String device)? remote})
       : api = api ?? SupabaseApi(),
         _remoteOf = remote ?? ((a, d) => SupabaseRemote(a, device: d));
 
@@ -76,6 +76,9 @@ class CloudSyncService {
   final Database db;
   final CalendarRepository cal;
   final BackupService? backup;
+
+  /// ชื่อเครื่องขึ้นต้น (PC / Web)
+  final String devicePrefix;
   final SupabaseApi api;
   final SyncRemote Function(SupabaseApi api, String device) _remoteOf;
 
@@ -96,7 +99,7 @@ class CloudSyncService {
   Future<void> start() async {
     _device = await cal.getSetting(cloudDeviceKey) ?? '';
     if (_device.isEmpty) {
-      _device = 'PC-${DateTime.now().millisecondsSinceEpoch.toRadixString(36)}';
+      _device = '$devicePrefix-${DateTime.now().millisecondsSinceEpoch.toRadixString(36)}';
       await cal.setSetting(cloudDeviceKey, _device);
     }
     api.onSession = (s) => cal.setSetting(cloudSessionKey, s == null ? '' : jsonEncode(s.toJson()));

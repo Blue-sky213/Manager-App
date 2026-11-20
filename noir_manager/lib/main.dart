@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import 'data/backup.dart';
@@ -19,13 +20,17 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   final db = await openAppDatabase();
-  final backup = BackupService(db: db, dbPath: appDatabasePath!);
+  // เว็บ (รอบ 17): ไม่มีไฟล์ให้สำรอง · ข้อมูลอยู่ในบัญชี
+  final backup = kIsWeb ? null : BackupService(db: db, dbPath: appDatabasePath!);
   // สำรองอัตโนมัติวันละครั้ง (ไม่รอ · พลาดก็ไม่กระทบการเปิดแอป)
-  backup.dailyIfNeeded().catchError((_) => null);
+  backup?.dailyIfNeeded().catchError((_) => null);
 
   final calendar = SqliteCalendarRepository(db);
-  // รอบ 14: เชื่อม iPhone ผ่าน iCloud (เฉพาะข้อมูลจริงบนคอม · ปิดอยู่จนกว่าจะเปิดในตั้งค่า)
-  if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+  if (kIsWeb) {
+    // เว็บ = ใช้บัญชีเป็นหลัก (เข้าระบบใน ตั้งค่า › บัญชี)
+    CloudSyncService.instance = CloudSyncService(db, calendar, devicePrefix: 'Web')..start().catchError((_) {});
+  } else if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+    // รอบ 14: เชื่อม iPhone ผ่าน iCloud (เฉพาะข้อมูลจริงบนคอม · ปิดอยู่จนกว่าจะเปิดในตั้งค่า)
     PhoneSyncService.instance = PhoneSyncService(calendar)..start().catchError((_) {});
     // รอบ 16: บัญชี + ซิงก์ (ยังไม่เข้าระบบ = ไม่ทำอะไร)
     CloudSyncService.instance = CloudSyncService(db, calendar, backup: backup)..start().catchError((_) {});
@@ -34,7 +39,7 @@ Future<void> main() async {
     key: const ValueKey('real'),
     studyRepository: SqliteStudyRepository(db),
     calendarRepository: calendar,
-    askOnboarding: true,
+    askOnboarding: !kIsWeb, // เว็บ: เข้าบัญชีแล้วได้ข้อมูลเดิม ไม่ต้องตั้งค่าใหม่
     backup: backup,
   );
   runApp(DemoRoot(real: real));

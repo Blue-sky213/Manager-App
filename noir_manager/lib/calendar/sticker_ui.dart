@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../theme/noir_colors.dart';
@@ -30,7 +31,8 @@ class StickerGlyph extends StatelessWidget {
             offset: Offset(sticker.dx * size, sticker.dy * size),
             child: Transform.scale(scale: sticker.scale, child: w),
           );
-    if (path == null) return fit(emoji);
+    // เว็บ: รูปอยู่ในเครื่องที่แปะ (ยังไม่ซิงก์รูป) → ใช้ตัวอักษรแทน
+    if (path == null || kIsWeb) return fit(emoji);
     return SizedBox(
       width: size,
       height: size,

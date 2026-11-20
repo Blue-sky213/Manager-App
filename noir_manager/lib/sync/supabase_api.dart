@@ -3,9 +3,9 @@
 /// - ข้อมูล: /rest/v1/sync_rows (RLS: เห็นเฉพาะของบัญชีตัวเอง)
 library;
 
-import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
+
+import 'http_transport.dart';
 
 import 'merge.dart';
 import 'sync_remote.dart';
@@ -81,11 +81,10 @@ String _thaiAuthError(int status, String body) {
 }
 
 class SupabaseApi {
-  SupabaseApi({this.url = cloudUrl, this.key = cloudKey, HttpClient? client}) : _http = client ?? HttpClient();
+  SupabaseApi({this.url = cloudUrl, this.key = cloudKey});
 
   final String url;
   final String key;
-  final HttpClient _http;
 
   CloudSession? session;
 
@@ -94,23 +93,19 @@ class SupabaseApi {
 
   Future<(int, String)> _send(String method, String path, {Object? body, Map<String, String> headers = const {}, bool auth = false}) async {
     try {
-      final req = await _http.openUrl(method, Uri.parse('$url$path')).timeout(const Duration(seconds: 20));
-      req.headers.set('apikey', key);
-      req.headers.set('Authorization', 'Bearer ${auth ? session!.accessToken : key}');
-      req.headers.contentType = ContentType.json;
-      headers.forEach(req.headers.set);
-      if (body != null) req.add(utf8.encode(jsonEncode(body)));
-      final res = await req.close().timeout(const Duration(seconds: 30));
-      final text = await res.transform(utf8.decoder).join();
-      return (res.statusCode, text);
-    } on SocketException {
-      throw CloudError('ไม่มีเน็ต · ข้อมูลยังอยู่ในเครื่อง จะซิงก์เมื่อออนไลน์');
-    } on HandshakeException {
-      throw CloudError('เชื่อมต่อไม่ปลอดภัย (เช็กวันเวลาเครื่อง)');
-    } on HttpException {
-      throw CloudError('เชื่อมต่อขาดกลางทาง · จะลองใหม่');
-    } on TimeoutException {
-      throw CloudError('เน็ตช้า · จะลองใหม่');
+      return await httpSend(
+        method,
+        Uri.parse('$url$path'),
+        {
+          'apikey': key,
+          'Authorization': 'Bearer ${auth ? session!.accessToken : key}',
+          'Content-Type': 'application/json',
+          ...headers,
+        },
+        body == null ? null : jsonEncode(body),
+      );
+    } on TransportError catch (e) {
+      throw CloudError(e.message);
     }
   }
 

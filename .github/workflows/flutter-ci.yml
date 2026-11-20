@@ -109,3 +109,54 @@ jobs:
           name: noir-manager-windows-setup
           path: noir_manager/build/installer/*.exe
           retention-days: 14
+
+  # รอบ 17: เว็บ (เปิดผ่าน Chrome / Safari บน iPhone) · build ทุก push (ให้เทสได้) · ขึ้นเว็บจริงเฉพาะ main
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: noir_manager
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Get packages
+        run: flutter pub get
+
+      # SQLite แบบ WebAssembly → web/sqlite3.wasm + web/sqflite_sw.js
+      - name: Setup SQLite for web
+        run: dart run sqflite_common_ffi_web:setup --force
+
+      # GitHub Pages อยู่ใต้ /Manager-App/
+      - name: Build web
+        run: flutter build web --release --base-href /Manager-App/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: noir-manager-web
+          path: noir_manager/build/web
+          retention-days: 7
+
+      - if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: noir_manager/build/web
+
+  # ขึ้นเว็บจริง: https://blue-sky213.github.io/Manager-App/ (ต้องเปิด Settings › Pages › Source = GitHub Actions ครั้งเดียว)
+  deploy-web:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [verify, web]
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4
