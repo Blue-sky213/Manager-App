@@ -29,7 +29,7 @@ void main() {
     expect(guessToastKind('จำลอง 12 คาบ'), ToastKind.info);
   });
 
-  testWidgets('แจ้งเตือนขึ้นบนกลาง · หายเองใน 2.5 วิ · ซ้อนได้ 3 อัน · ผิดพลาดค้าง', (tester) async {
+  testWidgets('แจ้งเตือนขึ้นบนกลาง · หายเองใน 2.5 วิ · ซ้อนได้ 3 อัน · ผิดพลาดหายเองใน 6 วิ · ข้อความซ้ำไม่ซ้อน', (tester) async {
     final ctx = await host(tester, const Size(1200, 800));
     showToast(ctx, 'บันทึกแล้ว');
     await tester.pump(const Duration(milliseconds: 300));
@@ -52,9 +52,17 @@ void main() {
     await tester.pumpAndSettle();
 
     showToast(ctx, 'ส่งออกไม่ได้: ดิสก์เต็ม');
+    showToast(ctx, 'ส่งออกไม่ได้: ดิสก์เต็ม'); // ซ้ำ → อันเดียว
+    await tester.pump(const Duration(milliseconds: 300)); // เม็ดขึ้นจอ = เริ่มนับเวลา
     await tester.pump(const Duration(seconds: 5));
     expect(find.text('ส่งออกไม่ได้: ดิสก์เต็ม'), findsOneWidget);
-    await tester.tap(find.byIcon(Icons.close));
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('toast')), findsNothing);
+
+    showToast(ctx, 'ส่งออกไม่ได้: อีกครั้ง');
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.byIcon(Icons.close)); // ยังกดปิดเองได้
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('toast')), findsNothing);
   });
