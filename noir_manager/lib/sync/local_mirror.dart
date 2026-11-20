@@ -453,8 +453,7 @@ class LocalMirror {
 
   /// แถวที่ต้องส่งขึ้นบัญชี
   List<SyncRow> dirtyRows() => [
-        for (final k in _dirty)
-          if (_shadow[k.split('\t')[0]]?[k.split('\t')[1]] case final r?) r,
+        for (final k in _dirty) ?_shadow[k.split('\t')[0]]?[k.split('\t')[1]],
       ];
 
   void markPushed(Iterable<SyncRow> rows) {
