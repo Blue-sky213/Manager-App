@@ -135,6 +135,15 @@ jobs:
       - name: Build web
         run: flutter build web --release --base-href /Manager-App/
 
+      # เปิดเว็บจริงใน Chromium: แอปต้องขึ้น + เปิดซ้ำแล้ว DB ยังอยู่ · ไม่มี error ใน console
+      - name: Web smoke test
+        run: |
+          mkdir -p /tmp/site && cp -r build/web /tmp/site/Manager-App
+          (cd /tmp/site && python3 -m http.server 8080 >/dev/null 2>&1 &)
+          npm i --no-save --silent playwright@1.49.1
+          npx playwright install --with-deps chromium >/dev/null
+          node tool/web_smoke.cjs http://localhost:8080/Manager-App/
+
       - uses: actions/upload-artifact@v4
         with:
           name: noir-manager-web
