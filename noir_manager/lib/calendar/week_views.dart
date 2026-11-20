@@ -12,6 +12,7 @@ import 'calendar_ui.dart';
 import 'lock_flow.dart' show showLockBadge;
 import 'sticker_ui.dart' show StickerGlyph;
 import 'stickers.dart' show stickersByDay, holidaysByDay;
+import 'tray.dart' show TrayDropTarget, TrayItem;
 
 /// นาทีเริ่ม/จบของงานในวันนั้น (ข้ามเที่ยงคืน → ตัดที่ 24:00)
 (int, int) _span(Occurrence o) {
@@ -148,7 +149,11 @@ class WeekTimeline extends StatelessWidget {
     required this.today,
     required this.onTapOccurrence,
     required this.onTapDay,
+    this.onDropTray,
   });
+
+  /// รับการ์ดจากถาด "กำลังทำอยู่" (รอบ 15) · ปล่อยตรงไหน = เวลานั้น (ปัด 15 นาที)
+  final void Function(TrayItem item, DateTime day, int? minute)? onDropTray;
 
   final List<DateTime> days;
   final Map<DateTime, List<Occurrence>> byDay;
@@ -335,7 +340,18 @@ class WeekTimeline extends StatelessWidget {
                     ],
                   ),
                 ),
-                for (final d in days) Expanded(child: column(d)),
+                for (final d in days)
+                  Expanded(
+                    child: onDropTray == null
+                        ? column(d)
+                        : TrayDropTarget(
+                            key: ValueKey('tray-drop-${d.month}-${d.day}'),
+                            day: d,
+                            onDrop: onDropTray!,
+                            minuteAt: (y) => ((fromHour * 60 + y / _hourPx * 60) / 15).round().clamp(0, 95) * 15,
+                            child: column(d),
+                          ),
+                  ),
               ],
             ),
           ],

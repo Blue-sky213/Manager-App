@@ -12,6 +12,7 @@ import '../calendar/day_judge.dart' show judgeDays, importantPending;
 import '../calendar/notebook_view.dart';
 import '../calendar/sticker_book.dart';
 import '../calendar/sticker_ui.dart' show DayStickerCard, stickWithLimit;
+import '../calendar/tray.dart';
 import '../calendar/week_views.dart';
 import '../data/study_repository.dart';
 import '../data/study_scope.dart';
@@ -19,6 +20,7 @@ import '../shell/app_nav.dart';
 import '../theme/noir_colors.dart';
 import '../utils/thai_date.dart';
 import '../widgets/mini_dropdown.dart';
+import '../widgets/mini_segments.dart';
 import '../widgets/toast.dart';
 
 export '../calendar/calendar_models.dart' show addMonths, monthGridDays;
@@ -49,6 +51,9 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
   /// ในมุมมองปี: แตะหัว "พ.ศ." → เลือกปีจากตาราง 16 ปี (แบบปฏิทิน Windows)
   bool _pickYear = false;
   DateTime _selected = dayOnly(DateTime.now());
+
+  /// แผงขวาของเดือน: true = ถาด "กำลังทำอยู่" · false = สมุดสติกเกอร์ (ค่าเริ่ม · จำที่เลือกไว้)
+  bool _trayTab = false;
   List<Occurrence> _items = [];
 
   /// งานของแต่ละวันที่เห็นบนจอ (ใช้วาดสัปดาห์ / จุดสีในเดือน)
@@ -108,10 +113,12 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
     final cats = await repo.categories();
     final holidays = await repo.holidays();
     final style = await _settings?.getSetting('week_style');
+    final monthTab = await _settings?.getSetting('month_tab');
     final days = _visibleDays.toList();
     final stuck = days.isEmpty ? const <DaySticker>[] : await repo.daySticker(days.first, days.last);
     if (!mounted || day != _selected || view != _view) return; // ผู้ใช้กดเปลี่ยนระหว่างโหลด
     setState(() {
+      _trayTab = monthTab == 'tray';
       _items = items;
       _byDay = byDay;
       placedByDay = {};
@@ -271,13 +278,27 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
                         Expanded(
                           flex: 2,
                           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                            StickerBook(onTapSticker: (s) {
-                              if (importantPending(_byDay[_selected] ?? const [])) {
-                                showToast(context, '🔒 ทำงานสำคัญของวันนั้นให้ครบก่อน แล้วค่อยแปะ');
-                                return;
-                              }
-                              stickWithLimit(context, calendar!, _selected, s);
-                            }),
+                            // ถาด + สมุดสติกเกอร์ใช้ที่เดียวกัน (แท็บ) · รอบ 15
+                            MiniSegments<bool>(
+                              key: const Key('month-right-tabs'),
+                              value: _trayTab,
+                              items: const [(true, 'กำลังทำอยู่'), (false, 'สติกเกอร์')],
+                              onChanged: (v) {
+                                setState(() => _trayTab = v);
+                                _settings?.setSetting('month_tab', v ? 'tray' : 'sticker');
+                              },
+                            ),
+                            const SizedBox(height: 8),
+                            if (_trayTab)
+                              TrayPanel(selectedDay: _selected)
+                            else
+                              StickerBook(onTapSticker: (s) {
+                                if (importantPending(_byDay[_selected] ?? const [])) {
+                                  showToast(context, '🔒 ทำงานสำคัญของวันนั้นให้ครบก่อน แล้วค่อยแปะ');
+                                  return;
+                                }
+                                stickWithLimit(context, calendar!, _selected, s);
+                              }),
                             const SizedBox(height: 12),
                             // สติกเกอร์ของวันที่เลือก: คลิกขวา = ⭐ ไฮไลต์ · โน้ต · ลอกออก
                             DayStickerCard(day: _selected),
@@ -292,7 +313,9 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
                     _navRow(),
                     const SizedBox(height: 24),
                     _notebook(),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
+                    TrayPanel(selectedDay: _selected, horizontal: true),
+                    const SizedBox(height: 12),
                     _agenda(today),
                   ],
             CalView.year => [
@@ -329,6 +352,7 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
         placed: placedByDay,
         categories: _categories,
         onDropSticker: !drag ? null : (d, st, x, y) => stickWithLimit(context, calendar!, d, st, x: x, y: y),
+        onDropTray: !drag ? null : _dropTray,
         // งานสำคัญยังไม่ครบ → ยังแปะไม่ได้ (ทำครบแล้วปลดล็อก)
         dropLocked: (d) => importantPending(_byDay[d] ?? const []) ? 'ทำงานสำคัญให้ครบก่อน' : null,
       );
@@ -481,7 +505,9 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
           today: today,
           onPick: (d) => setState(() => _selected = d),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 4),
+        TrayPanel(selectedDay: _selected, horizontal: true),
+        const SizedBox(height: 4),
         GestureDetector(
           behavior: HitTestBehavior.translucent,
           onHorizontalDragEnd: (e) {
@@ -515,19 +541,10 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
       ];
     }
     final style = _weekStyle;
+    // จอกว้าง = ถาดเป็นแผงขวา (ลากลงช่องเวลาได้) · จอกลาง = แถบเหนือสัปดาห์
+    final side = width >= 1000;
 
-    return [
-      _navRow(),
-      const SizedBox(height: 8),
-      Wrap(
-        alignment: WrapAlignment.spaceBetween,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        spacing: 8,
-        runSpacing: 8,
-        children: [_actions(today)],
-      ),
-      const SizedBox(height: 12),
-      switch (style) {
+    final week = switch (style) {
         WeekStyle.timeline => WeekTimeline(
             days: _weekDays,
             byDay: _byDay,
@@ -536,6 +553,7 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
             today: today,
             onTapOccurrence: onOcc,
             onTapDay: onDay,
+            onDropTray: _dropTray,
           ),
         WeekStyle.list => WeekList(
             days: _weekDays,
@@ -553,9 +571,36 @@ class _CalendarPageState extends State<CalendarPage> with CalendarListener<Calen
             onTapOccurrence: onOcc,
             onTapDay: onDay,
           ),
-      },
+      };
+
+    return [
+      _navRow(),
+      const SizedBox(height: 8),
+      Wrap(
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 8,
+        runSpacing: 8,
+        children: [_actions(today)],
+      ),
+      const SizedBox(height: 12),
+      if (side)
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(child: week),
+          const SizedBox(width: 16),
+          SizedBox(width: 280, child: TrayPanel(selectedDay: _selected)),
+        ])
+      else ...[
+        TrayPanel(selectedDay: _selected, horizontal: true),
+        const SizedBox(height: 8),
+        week,
+      ],
     ];
   }
+
+  /// การ์ดจากถาดถูกปล่อยลงวัน → แผ่นยืนยัน (ติ๊กวันเพิ่ม · เวลา)
+  void _dropTray(TrayItem item, DateTime day, int? minute) =>
+      openTraySheet(context, item, day: day, startMinute: minute);
 
   // ---------- ปี ----------
 
