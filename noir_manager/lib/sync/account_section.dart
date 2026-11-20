@@ -2,9 +2,11 @@
 /// ไม่เข้าระบบ = ใช้ในเครื่องได้ทุกอย่าง · เข้าระบบ = ซิงก์อัตโนมัติ ไม่มีหน้าเลือก
 library;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../theme/noir_colors.dart';
+import '../utils/open_link.dart';
 import '../widgets/mini_form.dart';
 import '../widgets/toast.dart';
 import 'cloud_sync.dart';
@@ -74,6 +76,24 @@ class _AccountSectionState extends State<AccountSection> {
     }
   }
 
+  Future<void> _google() async {
+    final s = widget.service!;
+    setState(() => _busy = true);
+    if (!kIsWeb) showToast(context, 'เปิดหน้า Google ในเบราว์เซอร์แล้ว · เลือกบัญชีแล้วกลับมาที่แอป', kind: ToastKind.info);
+    try {
+      final ok = await s.signInWithGoogle((url) => openLink(context, url));
+      if (!mounted) return;
+      if (ok) showToast(context, '✓ เข้าด้วย Google แล้ว · เริ่มซิงก์', kind: ToastKind.success);
+      if (!ok && !kIsWeb) showToast(context, 'หมดเวลารอ Google · กดใหม่ได้', kind: ToastKind.warn);
+    } on CloudError catch (e) {
+      if (mounted) showToast(context, e.message, kind: ToastKind.error);
+    } catch (e) {
+      if (mounted) showToast(context, 'เข้าด้วย Google ไม่สำเร็จ: $e', kind: ToastKind.error);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = context.noir;
@@ -137,8 +157,21 @@ class _AccountSectionState extends State<AccountSection> {
           ),
         ),
       ]),
+      const SizedBox(height: 10),
+      Row(children: [
+        Expanded(child: Divider(color: c.line)),
+        Padding(padding: const EdgeInsets.symmetric(horizontal: 8), child: Text('หรือ', style: TextStyle(fontSize: 12, color: c.muted))),
+        Expanded(child: Divider(color: c.line)),
+      ]),
+      const SizedBox(height: 10),
+      OutlinedButton.icon(
+        key: const Key('cloud-google'),
+        onPressed: _busy ? null : _google,
+        icon: const Text('G', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+        label: const Text('เข้าด้วย Google'),
+      ),
       const SizedBox(height: 8),
-      Text('ไม่เข้าระบบก็ใช้ได้ทุกอย่าง (ข้อมูลอยู่ในเครื่อง) · เข้าด้วย Google มารอบถัดไป',
+      Text('ไม่เข้าระบบก็ใช้ได้ทุกอย่าง (ข้อมูลอยู่ในเครื่อง) · Gmail เดียวกับที่สมัครอีเมล = บัญชีเดียวกัน',
           style: TextStyle(fontSize: 12, color: c.muted)),
     ]);
   }

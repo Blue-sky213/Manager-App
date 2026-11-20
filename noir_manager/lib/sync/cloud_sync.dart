@@ -12,6 +12,7 @@ import 'package:sqflite/sqflite.dart' show Database;
 
 import '../calendar/calendar_repository.dart';
 import '../data/backup.dart';
+import 'google_login.dart';
 import 'local_mirror.dart';
 import 'merge.dart';
 import 'supabase_api.dart';
@@ -96,7 +97,8 @@ class CloudSyncService {
 
   int _now() => DateTime.now().millisecondsSinceEpoch;
 
-  Future<void> start() async {
+  /// [authFragment] = เว็บเพิ่งกลับมาจาก Google (token หลัง #) · null = ปกติ
+  Future<void> start({String? authFragment}) async {
     _device = await cal.getSetting(cloudDeviceKey) ?? '';
     if (_device.isEmpty) {
       _device = '$devicePrefix-${DateTime.now().millisecondsSinceEpoch.toRadixString(36)}';
@@ -111,11 +113,20 @@ class CloudSyncService {
         api.session = null;
       }
     }
+    String? error;
+    if (authFragment != null) {
+      try {
+        api.adoptFragment(authFragment);
+      } on CloudError catch (e) {
+        error = e.message;
+      }
+    }
     final last = int.tryParse(await cal.getSetting(cloudLastSyncKey) ?? '');
     status.value = CloudStatus(
       state: api.session == null ? CloudState.signedOut : CloudState.idle,
       email: api.session?.email,
       lastSync: last == null || last == 0 ? null : DateTime.fromMillisecondsSinceEpoch(last),
+      message: error,
     );
     if (api.session != null) _begin();
   }
@@ -141,6 +152,16 @@ class CloudSyncService {
     if (_running) return; // การเขียนจากซิงก์เอง
     _debounce?.cancel();
     _debounce = Timer(const Duration(seconds: 5), syncNow);
+  }
+
+  /// Google (รอบ 19) · คอม: เปิดเบราว์เซอร์แล้วรอ · เว็บ: เปลี่ยนหน้าไป Google (กลับมาแล้ว [start] รับต่อ)
+  /// false = ยังไม่เสร็จ (เว็บกำลังไป Google / หมดเวลา)
+  Future<bool> signInWithGoogle(Future<void> Function(String url) open) async {
+    final frag = await googleSignInFlow(api.googleAuthorizeUrl, open);
+    if (frag == null) return false;
+    api.adoptFragment(frag);
+    await _signedIn();
+    return true;
   }
 
   Future<void> signIn(String email, String password) async {
