@@ -8,6 +8,7 @@ import 'calendar/sqlite_calendar_repository.dart';
 import 'data/app_database.dart';
 import 'data/demo_year.dart';
 import 'data/sqlite_study_repository.dart';
+import 'sync/cloud_sync.dart';
 import 'sync/phone_sync.dart';
 
 /// จุดเริ่มต้นของแอป: Dart เรียกฟังก์ชัน main() เป็นอย่างแรกเสมอ
@@ -26,6 +27,8 @@ Future<void> main() async {
   // รอบ 14: เชื่อม iPhone ผ่าน iCloud (เฉพาะข้อมูลจริงบนคอม · ปิดอยู่จนกว่าจะเปิดในตั้งค่า)
   if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
     PhoneSyncService.instance = PhoneSyncService(calendar)..start().catchError((_) {});
+    // รอบ 16: บัญชี + ซิงก์ (ยังไม่เข้าระบบ = ไม่ทำอะไร)
+    CloudSyncService.instance = CloudSyncService(db, calendar, backup: backup)..start().catchError((_) {});
   }
   final real = NoirManagerApp(
     key: const ValueKey('real'),

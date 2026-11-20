@@ -7,6 +7,9 @@ import 'package:flutter/foundation.dart';
 import 'skill_models.dart';
 
 abstract class SkillRepository extends ChangeNotifier {
+  /// ข้อมูลเปลี่ยนจากภายนอก (ซิงก์บัญชี) → ให้หน้าที่ฟังอยู่โหลดใหม่
+  void refresh() => notifyListeners();
+
   Future<List<Skill>> skills();
 
   /// id = 0 → เพิ่มใหม่ · คืน id

@@ -9,6 +9,9 @@ import 'money_models.dart';
 import 'project_models.dart';
 
 abstract class WorkRepository extends ChangeNotifier {
+  /// ข้อมูลเปลี่ยนจากภายนอก (ซิงก์บัญชี) → ให้หน้าที่ฟังอยู่โหลดใหม่
+  void refresh() => notifyListeners();
+
   /// รายการเงินในช่วง (รวมทั้งสองวัน)
   Future<List<MoneyEntry>> entries(DateTime from, DateTime to);
   Future<int> saveEntry(MoneyEntry e);

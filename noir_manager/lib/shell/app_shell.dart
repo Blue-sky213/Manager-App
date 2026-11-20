@@ -6,6 +6,8 @@ import '../theme/noir_colors.dart';
 import '../data/backup.dart';
 import '../pages/settings_page.dart';
 import '../data/study_scope.dart';
+import '../sync/cloud_sync.dart';
+import '../widgets/toast.dart';
 import 'app_nav.dart';
 import 'destinations.dart';
 
@@ -118,6 +120,16 @@ class _AppShellState extends State<AppShell> {
     appForward.clear(); // เปิดแอปใหม่ = ไม่มีทางข้างหน้าค้าง
     hiddenMenus.value = const {}; // โหลดจากตั้งค่าใน didChangeDependencies
     hiddenMenus.addListener(_onHidden);
+    CloudSyncService.instance?.conflictNotice.addListener(_onCloudConflict);
+  }
+
+  /// รอบ 16: ซิงก์แล้วเจอค่าต่างกัน → เม็ดเตือน (ใช้ค่าล่าสุดไปแล้ว · ดู/สลับที่ ตั้งค่า › บัญชี)
+  void _onCloudConflict() {
+    final n = CloudSyncService.instance?.conflictNotice;
+    final msg = n?.value;
+    if (msg == null || !mounted) return;
+    n!.value = null;
+    showToast(context, '$msg · ดูที่ ตั้งค่า › บัญชี', kind: ToastKind.warn);
   }
 
   @override
@@ -126,6 +138,7 @@ class _AppShellState extends State<AppShell> {
     subjectJump.removeListener(_onSubjectJump);
     appBack.remove(_onBack);
     hiddenMenus.removeListener(_onHidden);
+    CloudSyncService.instance?.conflictNotice.removeListener(_onCloudConflict);
     super.dispose();
   }
 
