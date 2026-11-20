@@ -118,6 +118,36 @@ class SupabaseApi {
     return s;
   }
 
+  /// หน้าเข้าระบบ Google (รอบ 19) · Google → Supabase → [redirectTo] พร้อม token ใน # ท้ายลิงก์
+  Uri googleAuthorizeUrl(String redirectTo) => Uri.parse('$url/auth/v1/authorize')
+      .replace(queryParameters: {'provider': 'google', 'redirect_to': redirectTo});
+
+  /// รับ token จาก # ท้ายลิงก์ที่ Supabase ส่งกลับมา (access_token=…&refresh_token=…)
+  CloudSession adoptFragment(String fragment) {
+    final q = Uri.splitQueryString(fragment.startsWith('#') ? fragment.substring(1) : fragment);
+    if (q['error'] != null || q['error_description'] != null) {
+      throw CloudError('Google: ${q['error_description'] ?? q['error']}');
+    }
+    final access = q['access_token'], refresh = q['refresh_token'];
+    if (access == null || refresh == null) throw CloudError('Google ไม่ส่งข้อมูลเข้าระบบกลับมา · ลองใหม่');
+    // อ่าน id + อีเมลจาก token (ส่วนกลางของ JWT)
+    final part = access.split('.');
+    final payload = part.length == 3
+        ? (jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(part[1])))) as Map).cast<String, dynamic>()
+        : const <String, dynamic>{};
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final s = CloudSession(
+      accessToken: access,
+      refreshToken: refresh,
+      expiresAt: int.tryParse(q['expires_at'] ?? '') ?? now + (int.tryParse(q['expires_in'] ?? '') ?? 3600),
+      userId: '${payload['sub'] ?? ''}',
+      email: '${payload['email'] ?? ''}',
+    );
+    session = s;
+    onSession?.call(s);
+    return s;
+  }
+
   Future<CloudSession> signIn(String email, String password) =>
       _auth('/auth/v1/token?grant_type=password', {'email': email.trim(), 'password': password});
 

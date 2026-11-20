@@ -10,6 +10,7 @@ import 'data/app_database.dart';
 import 'data/demo_year.dart';
 import 'data/sqlite_study_repository.dart';
 import 'sync/cloud_sync.dart';
+import 'sync/google_login.dart' show takeAuthFragment;
 import 'sync/phone_sync.dart';
 
 /// จุดเริ่มต้นของแอป: Dart เรียกฟังก์ชัน main() เป็นอย่างแรกเสมอ
@@ -19,6 +20,8 @@ Future<void> main() async {
   // ต้องเรียกก่อนใช้ plugin ใด ๆ (path_provider, sqflite) ก่อน runApp
   WidgetsFlutterBinding.ensureInitialized();
 
+  // เว็บเพิ่งกลับมาจาก Google → เก็บ token + ล้างแถบที่อยู่ก่อน Flutter อ่านลิงก์ (รอบ 19)
+  final googleBack = takeAuthFragment();
   final db = await openAppDatabase();
   // เว็บ (รอบ 17): ไม่มีไฟล์ให้สำรอง · ข้อมูลอยู่ในบัญชี
   final backup = kIsWeb ? null : BackupService(db: db, dbPath: appDatabasePath!);
@@ -28,7 +31,8 @@ Future<void> main() async {
   final calendar = SqliteCalendarRepository(db);
   if (kIsWeb) {
     // เว็บ = ใช้บัญชีเป็นหลัก (เข้าระบบใน ตั้งค่า › บัญชี)
-    CloudSyncService.instance = CloudSyncService(db, calendar, devicePrefix: 'Web')..start().catchError((_) {});
+    CloudSyncService.instance = CloudSyncService(db, calendar, devicePrefix: 'Web')
+      ..start(authFragment: googleBack).catchError((_) {});
   } else if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
     // รอบ 14: เชื่อม iPhone ผ่าน iCloud (เฉพาะข้อมูลจริงบนคอม · ปิดอยู่จนกว่าจะเปิดในตั้งค่า)
     PhoneSyncService.instance = PhoneSyncService(calendar)..start().catchError((_) {});
