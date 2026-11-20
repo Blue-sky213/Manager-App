@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 
+import '../sync/account_section.dart';
+import '../sync/cloud_sync.dart';
 import '../sync/phone_sync.dart';
 import '../sync/phone_sync_settings.dart';
 import '../calendar/calendar_repository.dart' show CalendarScope;
@@ -342,6 +344,9 @@ class _SettingsPageState extends State<SettingsPage> {
                     section('สติกเกอร์อัตโนมัติ', [const AutoStickerSettings()]),
                     const SizedBox(height: 14),
                     section('สำรองข้อมูล', [_BackupSection(backup: widget.backup)]),
+                    const SizedBox(height: 14),
+                    // รอบ 16: บัญชีเดียว ใช้ได้หลายเครื่อง
+                    section('บัญชี + ซิงก์', [AccountSection(service: CloudSyncService.instance)]),
                     const SizedBox(height: 14),
                     // รอบ 14: PC ↔ iPhone ผ่าน iCloud + Scriptable
                     section('เชื่อมมือถือ (iPhone)', [PhoneSyncSection(service: PhoneSyncService.instance)]),

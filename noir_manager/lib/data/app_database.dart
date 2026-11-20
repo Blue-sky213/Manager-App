@@ -10,12 +10,13 @@ import '../calendar/stickers.dart';
 import 'backup.dart';
 import 'seed_data.dart';
 import 'study_repository.dart';
+import '../sync/local_mirror.dart' show createSyncV24;
 
 /// เวอร์ชันโครงตาราง: ถ้าวันหลังเพิ่มตาราง/คอลัมน์ ให้เพิ่มเลขนี้ + เขียน onUpgrade
-const int _schemaVersion = 23;
+const int _schemaVersion = 24;
 
 /// เลขเวอร์ชันฐานข้อมูล (โชว์ในหน้าตั้งค่า)
-const int appSchemaVersion = _schemaVersion; // v2 setting · v3 cleared_at · v4 ปฏิทิน · v5 Preset · v6 วิชาง่าย 2 รอบ · v7 คาบผูกวิชา + เวลาจริง · v8 แผนการเรียน · v9 เรียน/ติว + ประเภท/สถานะบท · v10 เทอม/วันหยุด/บันทึกติว + ย้ายค่าวิชาออกจาก setting · v11 ประเภทคาบ/ห้อง/กลุ่ม · v12 เส้นความสัมพันธ์วิชา · v13 คะแนนเก็บ/เกรด · v14 จำนวนขาดเรียน + บันทึกคาบเรียน · v15 หัวข้อ + งานที่สั่งในคาบ · v16 สติกเกอร์อารมณ์ · v17 รอบ 7 · v18 สติกเกอร์พอดี · v19 สกิล · v20 การเงิน · v21 โปรเจกต์ · v22 แผนผังสกิล · v23 บทเรียนในสกิล
+const int appSchemaVersion = _schemaVersion; // v2 setting · v3 cleared_at · v4 ปฏิทิน · v5 Preset · v6 วิชาง่าย 2 รอบ · v7 คาบผูกวิชา + เวลาจริง · v8 แผนการเรียน · v9 เรียน/ติว + ประเภท/สถานะบท · v10 เทอม/วันหยุด/บันทึกติว + ย้ายค่าวิชาออกจาก setting · v11 ประเภทคาบ/ห้อง/กลุ่ม · v12 เส้นความสัมพันธ์วิชา · v13 คะแนนเก็บ/เกรด · v14 จำนวนขาดเรียน + บันทึกคาบเรียน · v15 หัวข้อ + งานที่สั่งในคาบ · v16 สติกเกอร์อารมณ์ · v17 รอบ 7 · v18 สติกเกอร์พอดี · v19 สกิล · v20 การเงิน · v21 โปรเจกต์ · v22 แผนผังสกิล · v23 บทเรียนในสกิล · v24 ซิงก์บัญชี
 
 /// เปิด (หรือสร้างครั้งแรก) ไฟล์ฐานข้อมูล noir_manager.db
 /// ที่อยู่ไฟล์ DB ที่เปิดล่าสุด (ใช้กับระบบสำรองข้อมูล)
@@ -44,6 +45,7 @@ Future<void> createAllTables(Database db) async {
   await createProjectV21(db);
   await createSkillTreeV22(db);
   await createSkillLessonV23(db);
+  await createSyncV24(db);
 }
 
 Future<Database> openAppDatabase() async {
@@ -102,6 +104,7 @@ Future<Database> openAppDatabase() async {
       if (oldVersion < 21) await createProjectV21(db);
       if (oldVersion < 22) await createSkillTreeV22(db);
       if (oldVersion < 23) await createSkillLessonV23(db);
+      if (oldVersion < 24) await createSyncV24(db);
     },
   );
 }
