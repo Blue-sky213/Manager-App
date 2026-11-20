@@ -386,6 +386,40 @@ class MemoryCalendarRepository extends CalendarRepository {
   }
 
   @override
+  Future<void> unshiftRound(int occurrenceId) async {
+    final o = _occ(occurrenceId);
+    if (o.status != OccurrenceStatus.shifted) return;
+    o
+      ..status = OccurrenceStatus.planned
+      ..reason = null;
+    final a = _activities[o.activityId]!;
+    final back = a.endDate == null ? null : prevSlotBefore(a, a.endDate!);
+    if (back != null && !back.isBefore(a.startDate)) {
+      final d = a.toDraft();
+      _activities[a.id] = NewActivity(
+        name: d.name,
+        categoryId: d.categoryId,
+        importance: d.importance,
+        timed: d.timed,
+        day: d.day,
+        startMinute: d.startMinute,
+        durationMin: d.durationMin,
+        repeat: d.repeat,
+        weekdays: d.weekdays,
+        endDate: back,
+        presetId: d.presetId,
+        dates: d.dates,
+        subjectId: d.subjectId,
+        kind: d.kind,
+        classInfo: d.classInfo,
+      ).toActivity(id: a.id);
+      _occs.removeWhere((x) =>
+          x.activityId == a.id && x.originDay != null && x.originDay!.isAfter(back) && x.status == OccurrenceStatus.planned);
+    }
+    notifyListeners();
+  }
+
+  @override
   Future<Set<DateTime>> shiftedDays(int activityId) async => {
         for (final o in _occs)
           if (o.activityId == activityId && o.status == OccurrenceStatus.shifted)

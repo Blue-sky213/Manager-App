@@ -128,6 +128,10 @@ abstract class CalendarRepository extends ChangeNotifier {
   /// ใช้ได้เฉพาะงานที่ [canShiftToNextRound] (ไม่งั้นโยน [StateError])
   Future<DateTime?> shiftToNextRound(int occurrenceId, String reason);
 
+  /// ยกเลิก "เลื่อนไปรอบถัดไป" (รอบ 18 · นัวร์กดพลาด): ครั้งนี้กลับเป็นตามแผน
+  /// งานที่เคยขยายวันสุดท้าย → หดกลับ 1 รอบ + ลบครั้งท้ายที่ยังไม่ได้ทำ (เกินวันสุดท้ายใหม่)
+  Future<void> unshiftRound(int occurrenceId);
+
   /// วันที่ (ตามกฎการทำซ้ำ) ของครั้งที่ถูกเลื่อนไปรอบถัดไป → ไม่นับเลข n/N
   Future<Set<DateTime>> shiftedDays(int activityId);
 
