@@ -53,9 +53,10 @@ void main() {
 
     showToast(ctx, 'ส่งออกไม่ได้: ดิสก์เต็ม');
     showToast(ctx, 'ส่งออกไม่ได้: ดิสก์เต็ม'); // ซ้ำ → อันเดียว
+    await tester.pump(const Duration(milliseconds: 300)); // เม็ดขึ้นจอ = เริ่มนับเวลา
     await tester.pump(const Duration(seconds: 5));
     expect(find.text('ส่งออกไม่ได้: ดิสก์เต็ม'), findsOneWidget);
-    await tester.pump(const Duration(seconds: 2));
+    await tester.pump(const Duration(seconds: 1));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('toast')), findsNothing);
 
