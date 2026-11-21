@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../calendar/calendar_repository.dart';
 import '../data/backup.dart';
+import '../data/noir_plan.dart' show resetForFreshStart;
 import '../data/study_scope.dart';
 import '../theme/noir_colors.dart';
 import '../widgets/mini_form.dart';
