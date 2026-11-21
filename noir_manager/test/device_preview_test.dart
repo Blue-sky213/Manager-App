@@ -56,6 +56,9 @@ void main() {
     expect(find.textContaining('iPhone 15 · 393×852'), findsOneWidget);
 
     // ตอนนี้แอปอยู่ในกรอบมือถือ (ย่อ + มุมโค้ง) → เรียกปุ่มแนวนอนตรง ๆ แทนการแตะตำแหน่ง
+    // รอบ 21: จอมือถือ = รายการหมวด → เปิดหมวด "สำหรับทดสอบ" อีกชั้น
+    tester.widget<InkWell>(find.byKey(const Key('set-cat-test'))).onTap!();
+    await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.text('แนวนอน'), 200,
         scrollable: find.descendant(of: find.byKey(const Key('set-body-test')), matching: find.byType(Scrollable)).first);
     final orient = find.ancestor(of: find.text('แนวนอน'), matching: find.byType(SegmentedButton<bool>));
