@@ -46,6 +46,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('ตั้งค่า').first);
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('set-cat-test')));
+    await tester.pumpAndSettle();
     expect(find.text('ทดลองหน้าจออุปกรณ์'), findsOneWidget);
 
     await tester.tap(find.text('iPhone 15'));
@@ -55,7 +57,7 @@ void main() {
 
     // ตอนนี้แอปอยู่ในกรอบมือถือ (ย่อ + มุมโค้ง) → เรียกปุ่มแนวนอนตรง ๆ แทนการแตะตำแหน่ง
     await tester.scrollUntilVisible(find.text('แนวนอน'), 200,
-        scrollable: find.descendant(of: find.byType(ListView), matching: find.byType(Scrollable)).first);
+        scrollable: find.descendant(of: find.byKey(const Key('set-body-test')), matching: find.byType(Scrollable)).first);
     final orient = find.ancestor(of: find.text('แนวนอน'), matching: find.byType(SegmentedButton<bool>));
     tester.widget<SegmentedButton<bool>>(orient).onSelectionChanged!({true});
     await tester.pumpAndSettle();

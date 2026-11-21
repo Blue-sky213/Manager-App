@@ -89,7 +89,7 @@ Future<Map<String, List<HolidayItem>>> collectHolidayItems(
 
 /// เลื่อนไปรอบถัดไป 1 ครั้ง (ใช้จากแผ่นตัวเลือกตอนแตะงาน) → แจ้งผลแถบล่าง
 Future<void> shiftFlow(BuildContext context, CalendarRepository repo, Occurrence o,
-    {String reason = 'กดเลื่อนเอง'}) async {
+    {String reason = 'เลื่อนด้วยตนเอง'}) async {
   final a = await repo.activity(o.activityId);
   if (!context.mounted) return;
   if (!canShiftToNextRound(a)) {

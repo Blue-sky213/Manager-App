@@ -100,7 +100,7 @@ class _AccountSectionState extends State<AccountSection> {
     final c = context.noir;
     final s = widget.service;
     if (s == null) {
-      return Text('ใช้ได้กับข้อมูลจริงบน PC เท่านั้น (ตอนนี้เปิดโหมดข้อมูลตัวอย่าง)', style: TextStyle(fontSize: 13, color: c.muted));
+      return Text('ใช้ไม่ได้ในโหมดข้อมูลตัวอย่าง', style: TextStyle(fontSize: 13, color: c.muted));
     }
     return ValueListenableBuilder(
       valueListenable: s.status,

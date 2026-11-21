@@ -30,6 +30,7 @@ import '../widgets/mini_form.dart';
 import '../widgets/mini_segments.dart';
 import '../widgets/toast.dart';
 import 'fresh_start.dart';
+import 'settings_layout.dart';
 import 'test_checklist.dart';
 
 /// โหมดแอป: เรียน / ทำงาน / ทั้งคู่ (เก็บใน setting key = app_mode)
@@ -97,8 +98,27 @@ class _SettingsPageState extends State<SettingsPage> {
     widget.onTheme?.call(id);
   }
 
+  /// เพิ่มทุกครั้งที่ state เปลี่ยน → หน้าหมวดที่เปิดซ้อนอยู่ (มือถือ) วาดใหม่ตาม
+  final _tick = ValueNotifier(0);
+
+  /// หมวดที่เลือก (จอกว้าง) · คำค้นหา
+  String _cat = 'display';
+  String _query = '';
+
   @override
-  Widget build(BuildContext context) {
+  void setState(VoidCallback fn) {
+    super.setState(fn);
+    _tick.value++;
+  }
+
+  @override
+  void dispose() {
+    _tick.dispose();
+    super.dispose();
+  }
+
+  /// ตั้งค่าแยกหมวดแบบโทรศัพท์ (รอบ 21) · แต่ละหมวด = หลายกล่อง
+  List<SettingsCategory> _cats(BuildContext context) {
     final c = context.noir;
     final repo = StudyScope.of(context);
 
@@ -130,19 +150,7 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
         );
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('ตั้งค่า')),
-      body: !_loaded
-          ? const Center(child: CircularProgressIndicator())
-          : Align(
-              alignment: Alignment.topCenter,
-              child: ConstrainedBox(
-                // จอกว้างมากไม่ยืดเต็มจอ → อ่านง่าย
-                constraints: const BoxConstraints(maxWidth: 760),
-                child: ListView(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-                  children: [
-                    section('หน้าตา', [
+    final look = section('ธีมและสี', [
                       Text('โหมด', style: TextStyle(color: c.muted, fontSize: 13)),
                       const SizedBox(height: 8),
                       Wrap(spacing: 10, runSpacing: 10, children: [
@@ -185,9 +193,8 @@ class _SettingsPageState extends State<SettingsPage> {
                           },
                         ),
                       ),
-                    ]),
-                    const SizedBox(height: 14),
-                    section('โหมดแอป', [
+                    ]);
+    final mode = section('โหมดการใช้งาน', [
                       MiniSegments<String>(
                         value: _mode,
                         items: [for (final (id, name, _) in appModes) (id, name)],
@@ -223,10 +230,8 @@ class _SettingsPageState extends State<SettingsPage> {
                             ),
                         ]),
                       ),
-                    ]),
-                    const SizedBox(height: 14),
-                    // EZ / Advanced + กฎ Advanced อยู่ที่เดียว (หน้าวิชามีแค่สวิตช์)
-                    section('การให้คะแนนความเข้าใจ', [
+                    ]);
+    final grading = section('การให้คะแนนความเข้าใจ', [
                       MiniSegments<GradingMode>(
                         value: _grading,
                         items: const [(GradingMode.ez, 'EZ'), (GradingMode.advanced, 'Advanced')],
@@ -256,9 +261,8 @@ class _SettingsPageState extends State<SettingsPage> {
                               await repo.setSetting(r.key, v.name);
                             },
                           ),
-                    ]),
-                    const SizedBox(height: 14),
-                    section('เรียน · ติว', [
+                    ]);
+    final study = section('การเรียนและติว', [
                       MiniSwitchRow(
                         label: 'กด "ทำแล้ว" ที่คาบเรียน → บันทึกเรียนถึงไหน',
                         value: _askLog,
@@ -276,9 +280,8 @@ class _SettingsPageState extends State<SettingsPage> {
                           repo.setSetting(tutorPassKey, '$v');
                         },
                       ),
-                    ]),
-                    const SizedBox(height: 14),
-                    section('ล็อก', [
+                    ]);
+    final lock = section('การล็อกงาน', [
                       MiniSwitchRow(
                         label: '🔒 ล็อกงานที่เริ่มไปแล้ว',
                         detail: 'เลื่อน / ยกเลิก / แก้ / ลบ ต้องยืนยัน',
@@ -290,12 +293,9 @@ class _SettingsPageState extends State<SettingsPage> {
                           cal.setSetting(lockSettingKey, v ? 'on' : 'off').then((_) => refreshLockState(cal));
                         },
                       ),
-                    ]),
-                    const SizedBox(height: 14),
-                    section('สติกเกอร์อารมณ์', [const StickerSettings()]),
-                    const SizedBox(height: 14),
-                    if (supportsFullscreen) ...[
-                      section('หน้าต่าง', [
+                    ]);
+    final mood = section('สติกเกอร์อารมณ์', [const StickerSettings()]);
+    final window = section('หน้าต่างโปรแกรม', [
                         ValueListenableBuilder(
                           valueListenable: fullscreen,
                           builder: (context, on, _) => MiniSwitchRow(
@@ -309,10 +309,8 @@ class _SettingsPageState extends State<SettingsPage> {
                             },
                           ),
                         ),
-                      ]),
-                      const SizedBox(height: 14),
-                    ],
-                    section('ข้อมูลตัวอย่าง (ทดสอบ)', [
+                      ]);
+    final demo = section('ข้อมูลตัวอย่าง', [
                       ValueListenableBuilder(
                         valueListenable: demoMode,
                         builder: (context, on, _) => MiniSwitchRow(
@@ -330,37 +328,65 @@ class _SettingsPageState extends State<SettingsPage> {
                         onTap: () => Navigator.of(context)
                             .push(MaterialPageRoute<void>(builder: (_) => const TestChecklistPage())),
                       ),
-                    ]),
-                    const SizedBox(height: 14),
-                    // บนคอมเท่านั้น: ดูหน้าตาแอปบน iPhone / iPad / Android โดยไม่ต้องมีเครื่อง
-                    if (const {TargetPlatform.windows, TargetPlatform.linux, TargetPlatform.macOS}
-                        .contains(defaultTargetPlatform)) ...[
-                      section('ทดลองหน้าจออุปกรณ์', [const _DevicePreviewSettings()]),
-                      const SizedBox(height: 14),
-                    ],
-                    // รอบ 7: หมวดสร้างเอง · สติกเกอร์อัตโนมัติ
-                    section('หมวดงาน', [const CategorySettings()]),
-                    const SizedBox(height: 14),
-                    section('สติกเกอร์อัตโนมัติ', [const AutoStickerSettings()]),
-                    const SizedBox(height: 14),
-                    section('สำรองข้อมูล', [_BackupSection(backup: widget.backup)]),
-                    const SizedBox(height: 14),
-                    // รอบ 16: บัญชีเดียว ใช้ได้หลายเครื่อง
-                    section('บัญชี + ซิงก์', [AccountSection(service: CloudSyncService.instance)]),
-                    const SizedBox(height: 14),
-                    // รอบ 14: PC ↔ iPhone ผ่าน iCloud + Scriptable
-                    section('เชื่อมมือถือ (iPhone)', [PhoneSyncSection(service: PhoneSyncService.instance)]),
-                    const SizedBox(height: 14),
-                    // รอบ 10C
-                    section('เริ่มใหม่ + แผนของนัวร์', [FreshStartSection(backup: widget.backup)]),
-                    const SizedBox(height: 14),
-                    section('เกี่ยวกับ', [
+                    ]);
+    final preview = section('ทดลองหน้าจออุปกรณ์', [const _DevicePreviewSettings()]);
+    final cats = section('หมวดงาน', [const CategorySettings()]);
+    final autoSt = section('สติกเกอร์อัตโนมัติ', [const AutoStickerSettings()]);
+    final backup = section('สำรองข้อมูล', [_BackupSection(backup: widget.backup)]);
+    final account = section('บัญชีและการซิงก์', [AccountSection(service: CloudSyncService.instance)]);
+    final phone = section('วิดเจ็ต iPhone (ผ่าน iCloud)', [PhoneSyncSection(service: PhoneSyncService.instance)]);
+    final fresh = section('ล้างข้อมูลแล้วเริ่มใหม่', [FreshStartSection(backup: widget.backup)]);
+    final about = section('เกี่ยวกับ', [
                       Text('Noir Manager v1 · ฐานข้อมูล v$appSchemaVersion', style: TextStyle(color: c.muted)),
-                    ]),
-                  ],
-                ),
+                    ]);
+    final desktop = const {TargetPlatform.windows, TargetPlatform.linux, TargetPlatform.macOS}.contains(defaultTargetPlatform);
+    return [
+      SettingsCategory('display', 'การแสดงผล', Icons.palette_outlined, 'ธีม · สี · หน้าต่าง', [look, if (supportsFullscreen) window]),
+      SettingsCategory('mode', 'โหมดการใช้งาน', Icons.tune, 'ง่าย / ขั้นสูง · เมนูที่แสดง', [mode]),
+      SettingsCategory('calendar', 'ปฏิทินและงาน', Icons.calendar_month_outlined, 'หมวดงาน · การล็อก · สติกเกอร์อัตโนมัติ', [cats, lock, autoSt]),
+      SettingsCategory('study', 'การเรียน', Icons.school_outlined, 'การให้คะแนนความเข้าใจ · ติว', [grading, study]),
+      SettingsCategory('sticker', 'สติกเกอร์', Icons.emoji_emotions_outlined, 'สติกเกอร์อารมณ์', [mood]),
+      SettingsCategory('account', 'บัญชีและการซิงก์', Icons.person_outline, 'เข้าระบบ · ซิงก์ข้ามเครื่อง', [account]),
+      SettingsCategory('devices', 'อุปกรณ์ที่เชื่อมต่อ', Icons.phone_iphone, 'วิดเจ็ต iPhone', [phone]),
+      SettingsCategory('data', 'ข้อมูล', Icons.save_outlined, 'สำรอง · ล้างข้อมูล', [backup, fresh]),
+      SettingsCategory('test', 'สำหรับทดสอบ', Icons.science_outlined, 'ข้อมูลตัวอย่าง · จำลองหน้าจอ', [demo, if (desktop) preview]),
+      SettingsCategory('about', 'เกี่ยวกับ', Icons.info_outline, 'เวอร์ชัน', [about]),
+    ];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) {
+      return Scaffold(appBar: AppBar(title: const Text('ตั้งค่า')), body: const Center(child: CircularProgressIndicator()));
+    }
+    final cats = _cats(context);
+    return Scaffold(
+      appBar: AppBar(title: const Text('ตั้งค่า')),
+      body: LayoutBuilder(builder: (context, box) {
+        // คอม / แท็บเล็ต = 2 ฝั่ง (หมวดซ้าย · รายละเอียดขวา) · มือถือ = กดเข้าทีละชั้น
+        final wide = box.maxWidth >= 900;
+        final list = SettingsCategoryList(
+          cats: cats,
+          selected: wide ? _cat : null,
+          query: _query,
+          onQuery: (q) => setState(() => _query = q),
+          onOpen: (id) {
+            if (wide) return setState(() => _cat = id);
+            Navigator.of(context).push(MaterialPageRoute<void>(
+              builder: (_) => ValueListenableBuilder(
+                valueListenable: _tick,
+                builder: (ctx, _, _) => SettingsCategoryPage(cat: _cats(ctx).firstWhere((x) => x.id == id)),
               ),
-            ),
+            ));
+          },
+        );
+        if (!wide) return list;
+        return Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          SizedBox(width: 320, child: list),
+          VerticalDivider(width: 1, color: context.noir.line),
+          Expanded(child: SettingsCategoryBody(cat: cats.firstWhere((x) => x.id == _cat, orElse: () => cats.first))),
+        ]);
+      }),
     );
   }
 }

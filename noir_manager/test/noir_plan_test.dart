@@ -7,7 +7,6 @@ import 'package:noir_manager/calendar/calendar_models.dart';
 import 'package:noir_manager/calendar/memory_calendar_repository.dart';
 import 'package:noir_manager/data/memory_study_repository.dart';
 import 'package:noir_manager/data/noir_plan.dart';
-import 'package:noir_manager/pages/settings_page.dart';
 import 'package:noir_manager/skills/skill_lessons.dart';
 import 'package:noir_manager/skills/skill_models.dart';
 import 'package:noir_manager/work/project_models.dart';
@@ -81,7 +80,7 @@ void main() {
     expect(await cal.workRepo.projects(), hasLength(1));
   });
 
-  testWidgets('ตั้งค่า › ล้าง (ต้องพิมพ์ "ลบทั้งหมด") → ใส่แผน', (tester) async {
+  testWidgets('ตั้งค่า › ข้อมูล › ล้าง (ต้องพิมพ์ "ลบทั้งหมด") · ไม่มีปุ่มใส่แผนแล้ว', (tester) async {
     tester.view.physicalSize = const Size(1400, 1000);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -92,9 +91,10 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('ตั้งค่า').last);
     await tester.pumpAndSettle();
-
-    // หน้าตั้งค่าเป็น ListView (สร้างแค่ที่เห็น) → เลื่อนหาก่อน
-    await tester.scrollUntilVisible(find.byKey(const Key('fresh-reset')), 300, scrollable: find.descendant(of: find.byType(SettingsPage), matching: find.byType(Scrollable)).first);
+    await tester.tap(find.byKey(const Key('set-cat-data')));
+    await tester.pumpAndSettle();
+    // รอบ 21: ปุ่มใส่แผน / สารบัญ เอาออกแล้ว (ใช้นำเข้าไฟล์แทน)
+    expect(find.byKey(const Key('fresh-plan')), findsNothing);
     await tester.ensureVisible(find.byKey(const Key('fresh-reset')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('fresh-reset')));
@@ -110,12 +110,6 @@ void main() {
     expect(await cal.activityIds(), isEmpty);
     expect(await study.subjects(), isEmpty);
 
-    await tester.ensureVisible(find.byKey(const Key('fresh-plan')));
-    await tester.tap(find.byKey(const Key('fresh-plan')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, 'ใส่แผน'));
-    await tester.pumpAndSettle();
-    expect(await cal.activityIds(), hasLength(noirPlanNames.length));
     expect(tester.takeException(), isNull);
   });
 }

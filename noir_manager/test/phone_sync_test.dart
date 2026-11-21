@@ -162,7 +162,7 @@ void main() {
 
   testWidgets('ตั้งค่า: โหมดข้อมูลตัวอย่าง / มือถือ = ปิดใช้ · มีคู่มือ 5 ขั้นเมื่อเปิดใช้ได้', (tester) async {
     await tester.pumpWidget(MaterialApp(theme: AppTheme.of(themeChoices.first), home: const Scaffold(body: PhoneSyncSection())));
-    expect(find.textContaining('ใช้ได้กับข้อมูลจริงบน PC เท่านั้น'), findsOneWidget);
+    expect(find.textContaining('ใช้ได้เฉพาะแอปบนคอมพิวเตอร์'), findsOneWidget);
     final cal = MemoryCalendarRepository();
     final service = PhoneSyncService(cal);
     service.status.value = const PhoneSyncStatus(dir: '/nope/NoirManager');

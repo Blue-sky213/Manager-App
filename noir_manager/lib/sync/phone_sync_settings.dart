@@ -56,7 +56,7 @@ class _PhoneSyncSectionState extends State<PhoneSyncSection> {
     final c = context.noir;
     final s = widget.service;
     if (s == null) {
-      return Text('ใช้ได้กับข้อมูลจริงบน PC เท่านั้น (ตอนนี้เปิดโหมดข้อมูลตัวอย่าง / มือถือ)',
+      return Text('ใช้ได้เฉพาะแอปบนคอมพิวเตอร์ (ไม่รวมโหมดข้อมูลตัวอย่าง)',
           style: TextStyle(fontSize: 13, color: c.muted));
     }
     return ValueListenableBuilder(
