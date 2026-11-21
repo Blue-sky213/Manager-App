@@ -107,7 +107,7 @@ class _AccountSectionState extends State<AccountSection> {
       builder: (context, st, _) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         st.state == CloudState.signedOut ? _signedOut(c, st) : _signedIn(c, s, st),
         // รอบ 20: งานซ้ำจากการย้ายเครื่อง (โหลดใหม่ทุกครั้งที่ซิงก์เสร็จ)
-        _DuplicateCard(key: ValueKey(st.lastSync), service: s),
+        if (st.state != CloudState.signedOut) _DuplicateCard(key: ValueKey(st.lastSync), service: s),
       ]),
     );
   }

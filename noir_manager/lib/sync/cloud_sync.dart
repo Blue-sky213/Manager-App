@@ -264,7 +264,7 @@ class CloudSyncService {
     try {
       final lastRev = int.tryParse(await cal.getSetting(cloudLastRevKey) ?? '') ?? 0;
       final lastSync = int.tryParse(await cal.getSetting(cloudLastSyncKey) ?? '') ?? 0;
-      if (lastRev == 0) await backup?.backupNow(label: 'before_sync');
+      if (lastSync == 0) await backup?.backupNow(label: 'before_sync');
       final now = _now();
       final (r, maxRev) = await mirror.round(_remoteOf(api, _device), now: now, lastSync: lastSync, lastRev: lastRev);
       await cal.setSetting(cloudLastRevKey, '$maxRev');

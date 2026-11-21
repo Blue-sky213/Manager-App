@@ -118,6 +118,15 @@ void main() {
     expect((await b.cal.occurrencesOn(d2)).length, 1);
   });
 
+  test('เครื่องแรก (บัญชีว่าง) ซิงก์รอบถัดไป = ไม่ล้างของตัวเอง', () async {
+    final a = await Dev.open(), remote = MemorySyncRemote();
+    await a.cal.setSetting('tray_pins', '["ก"]');
+    expect((await a.sync(remote, 1000)).wiped, isFalse);
+    await a.cal.setSetting('tray_pins', '["ข"]');
+    expect((await a.sync(remote, 2000)).wiped, isFalse);
+    expect(await a.cal.getSetting('tray_pins'), '["ข"]');
+  });
+
   test('รอบ 21 ออนไลน์ก่อน: เน็ตหลุดแก้ต่อได้ · ของที่ถึงบัญชีทีหลังชนะ · ไม่มีรายการให้เลือก', () async {
     final (pc, phone, remote) = await twoDevices();
     remote.offline = true;
