@@ -9,7 +9,9 @@ import 'calendar/sqlite_calendar_repository.dart';
 import 'data/app_database.dart';
 import 'data/demo_year.dart';
 import 'data/sqlite_study_repository.dart';
+import 'calendar/sticker_images.dart' show stickerFolder;
 import 'sync/cloud_sync.dart';
+import 'sync/sticker_files.dart' show localStickerDir;
 import 'sync/google_login.dart' show takeAuthFragment;
 import 'sync/phone_sync.dart';
 
@@ -29,6 +31,8 @@ Future<void> main() async {
   backup?.dailyIfNeeded().catchError((_) => null);
 
   final calendar = SqliteCalendarRepository(db);
+  // รอบ 20: โฟลเดอร์รูปสติกเกอร์ของเครื่องนี้ (รับรูปที่ดึงมาจากบัญชี)
+  if (!kIsWeb) localStickerDir = (await stickerFolder()).path;
   if (kIsWeb) {
     // เว็บ = ใช้บัญชีเป็นหลัก (เข้าระบบใน ตั้งค่า › บัญชี)
     CloudSyncService.instance = CloudSyncService(db, calendar, devicePrefix: 'Web')
