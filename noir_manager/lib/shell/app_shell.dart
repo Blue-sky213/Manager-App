@@ -312,6 +312,8 @@ class _Sidebar extends StatelessWidget {
             ),
           ],
           const Spacer(), // ดันปุ่มตั้งค่า + สลับธีมลงไปล่างสุด
+          // รอบ 21: สถานะบัญชี (ออนไลน์ / กำลังบันทึก / ออฟไลน์ · รอส่ง)
+          if (CloudSyncService.instance case final cloud?) CloudStatusChip(service: cloud),
           OutlinedButton.icon(
             onPressed: onSettings,
             icon: const Icon(Icons.settings_outlined),
@@ -389,6 +391,37 @@ class _SidebarItem extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// แถบสถานะเล็ก ๆ เหนือปุ่มตั้งค่า (รอบ 21)
+class CloudStatusChip extends StatelessWidget {
+  const CloudStatusChip({super.key, required this.service});
+  final CloudSyncService service;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.noir;
+    return ValueListenableBuilder(
+      valueListenable: service.status,
+      builder: (context, st, _) {
+        if (st.state == CloudState.signedOut) return const SizedBox.shrink();
+        final (color, text) = switch (st.state) {
+          CloudState.syncing => (c.accent, 'กำลังบันทึก…'),
+          CloudState.offline => (c.warn, 'ออฟไลน์ · ${st.pending} รายการรอส่ง'),
+          CloudState.error => (c.bad, 'บันทึกไม่สำเร็จ · ดูในตั้งค่า'),
+          _ => (c.good, st.pending > 0 ? 'รอส่ง ${st.pending} รายการ' : 'ออนไลน์ · บันทึกแล้ว'),
+        };
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Row(key: const Key('cloud-chip'), children: [
+            Container(width: 9, height: 9, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+            const SizedBox(width: 8),
+            Expanded(child: Text(text, style: TextStyle(fontSize: 13, color: c.muted), overflow: TextOverflow.ellipsis)),
+          ]),
+        );
+      },
     );
   }
 }

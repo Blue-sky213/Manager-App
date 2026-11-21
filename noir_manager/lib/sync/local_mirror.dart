@@ -476,29 +476,19 @@ class LocalMirror {
     if (!_loaded) await load();
     var wiped = false;
     List<RemoteRow> pulled;
-    if (lastRev == 0) {
-      // ครั้งแรกของเครื่องนี้: ดึงก่อน แล้วค่อยสแกน (จับคู่รายการที่เหมือนกันทุกช่อง ไม่ให้ซ้ำ)
+    // ดูจาก lastSync ไม่ใช่ lastRev: เครื่องแรกที่ส่งขึ้นบัญชีว่างได้ lastRev = 0 → ถ้าดูจาก lastRev รอบถัดไปจะล้างของตัวเองทิ้ง
+    if (lastSync == 0) {
+      // รอบ 21 ออนไลน์ก่อน: เครื่องที่เข้าบัญชีครั้งแรก
+      // บัญชีมีข้อมูลแล้ว → ใช้ของบัญชีอย่างเดียว (ล้างของในเครื่อง · สำรองไว้ก่อนแล้ว) = ไม่มีงานซ้ำ
+      // บัญชียังว่าง (เครื่องแรก) → ส่งของในเครื่องขึ้นทั้งหมด
       pulled = await remote.pull(0);
-      if (pulled.isNotEmpty && !hasShadow && await isFresh()) {
+      if (pulled.isNotEmpty) {
         await wipeLocal();
         wiped = true;
       }
-      final content = <String, Map<String, String>>{};
-      for (final p in pulled) {
-        if (!p.row.deleted) (content[p.row.table] ??= {})[matchKey(p.row.table, p.row.values)] = p.row.id;
-      }
-      final had = {for (final e in _shadow.entries) for (final k in e.value.keys) '${e.key}\t$k'};
-      await scan(now, content: content);
-      // รอบ 20 (บั๊กย้ายเครื่อง): รายการที่ทั้งเครื่องนี้และบัญชีมี แต่เครื่องนี้ยังไม่เคยซิงก์
-      // = ค่าตั้งต้นตอนติดตั้ง (เช่น เวลานอน 12:00) → ให้ค่าในบัญชีชนะ ไม่นับเป็นค่าต่าง
-      for (final p in pulled) {
-        final key = '${p.row.table}\t${p.row.id}';
-        final mine = _shadow[p.row.table]?[p.row.id];
-        if (mine == null || had.contains(key)) continue;
-        _shadow[p.row.table]![p.row.id] = mine.copyWith(stamps: {for (final k in mine.stamps.keys) k: 0});
-      }
+      await scan(now);
     } else {
-      // สแกนก่อนเสมอ (เน็ตหลุดก็ยังประทับเวลาที่แก้จริงได้)
+      // สแกนก่อนเสมอ (เน็ตหลุดก็ยังจำได้ว่าช่องไหนแก้ในเครื่องนี้)
       await scan(now);
       await save();
       pulled = await remote.pull(lastRev);
@@ -516,11 +506,9 @@ class LocalMirror {
       if (p.rev > maxRev) maxRev = p.rev;
       final key = '${p.row.table}\t${p.row.id}';
       final mine = _shadow[p.row.table]?[p.row.id];
-      // เครื่องนี้ยังเขียนไม่ได้ (pending) = ยังไม่มีค่าของตัวเอง
-      final local = _pending.contains(key) ? null : mine;
-      final m = mergeRow(local, p.row, lastSync: lastSync);
-      conflicts.addAll(m.conflicts);
-      final merged = m.row!;
+      // รอบ 21: ของที่ถึงบัญชีทีหลังชนะ → ใช้ค่าในบัญชี ยกเว้นช่องที่เครื่องนี้แก้แต่ยังไม่ได้ส่ง (จะส่งตามไปทีหลัง = ชนะ)
+      final local = _pending.contains(key) || !_dirty.contains(key) ? null : mine;
+      final merged = serverFirst(local, p.row, lastSync: lastSync);
       final changedHere = !sameRow(merged, mine) || _pending.contains(key);
       final needPush = !sameRow(merged, p.row);
       if (changedHere) {

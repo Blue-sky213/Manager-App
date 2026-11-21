@@ -227,7 +227,7 @@ Future<void> _work(CalendarRepository cal, DateTime now, DateTime Function(int) 
   p = Project(name: 'ออกแบบ Heatpipe C', client: 'ร้าน C', type: 'design', status: ProjectStatus.confirmed, price: 45000,
       start: ahead(2), due: ahead(30));
   id = await w.saveProject(p);
-  await team(id, [('นัวร์', 'ผู้ออกแบบ', 'แบบ 3D + แบบก่อสร้าง'), ('คุณต้น', 'ลูกค้า', 'อนุมัติแบบ')]);
+  await team(id, [('ฉัน', 'ผู้ออกแบบ', 'แบบ 3D + แบบก่อสร้าง'), ('คุณต้น', 'ลูกค้า', 'อนุมัติแบบ')]);
   await tasks(id, [
     ('เก็บความต้องการ', null, ahead(3), false),
     ('แบบร่าง', null, ahead(10), false),
@@ -240,7 +240,7 @@ Future<void> _work(CalendarRepository cal, DateTime now, DateTime Function(int) 
   p = Project(name: 'เว็บ mecsteam.com', client: 'MEC Steam', type: 'web', status: ProjectStatus.delivered, price: 25000,
       start: ago(70), due: ago(8));
   id = await w.saveProject(p);
-  await team(id, [('นัวร์', 'Dev', 'หน้าเว็บ + Deploy'), ('คุณเมย์', 'ลูกค้า', 'ตรวจเนื้อหา')]);
+  await team(id, [('ฉัน', 'Dev', 'หน้าเว็บ + Deploy'), ('คุณเมย์', 'ลูกค้า', 'ตรวจเนื้อหา')]);
   await tasks(id, [
     ('โครงหน้าเว็บ', null, ago(60), true),
     ('หน้า Products', null, ago(40), true),

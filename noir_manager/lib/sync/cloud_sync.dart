@@ -17,6 +17,7 @@ import 'google_login.dart';
 import 'local_mirror.dart';
 import 'sticker_files.dart';
 import 'merge.dart';
+import 'realtime.dart';
 import 'supabase_api.dart';
 import 'sync_remote.dart';
 
@@ -24,6 +25,9 @@ const cloudSessionKey = 'cloud_session';
 const cloudLastRevKey = 'cloud_last_rev';
 const cloudLastSyncKey = 'cloud_last_sync';
 const cloudDeviceKey = 'cloud_device';
+
+/// 'off' = ไม่จำเครื่องนี้ (เปิดแอปครั้งหน้าต้องเข้าระบบใหม่)
+const cloudRememberKey = 'cloud_remember';
 
 enum CloudState { signedOut, idle, syncing, ok, offline, error }
 
@@ -90,6 +94,16 @@ class CloudSyncService {
       StickerFileSync(api, readSetting: cal.getSetting, writeSetting: cal.setSetting);
   final status = ValueNotifier(const CloudStatus());
 
+  /// โหลดสถานะเข้าระบบเสร็จแล้ว (ก่อนหน้านี้ยังไม่รู้ว่าต้องโชว์หน้าเข้าระบบไหม)
+  final ready = ValueNotifier(false);
+
+  /// จำเครื่องนี้ (ค่าเริ่ม = จำ)
+  final remember = ValueNotifier(true);
+
+  RealtimeListener? _rt;
+  bool _selfRefresh = false;
+  int _ticks = 0;
+
   /// มีค่าต่างกันใหม่ → หน้าหลักโชว์เม็ดเตือน
   final conflictNotice = ValueNotifier<String?>(null);
 
@@ -108,8 +122,13 @@ class CloudSyncService {
       _device = '$devicePrefix-${DateTime.now().millisecondsSinceEpoch.toRadixString(36)}';
       await cal.setSetting(cloudDeviceKey, _device);
     }
-    api.onSession = (s) => cal.setSetting(cloudSessionKey, s == null ? '' : jsonEncode(s.toJson()));
-    final raw = await cal.getSetting(cloudSessionKey);
+    api.onSession = (s) {
+      cal.setSetting(cloudSessionKey, s == null ? '' : jsonEncode(s.toJson()));
+      _rt?.updateToken();
+    };
+    remember.value = await cal.getSetting(cloudRememberKey) != 'off';
+    // ไม่จำเครื่อง = เปิดแอปใหม่ต้องเข้าระบบใหม่ (ข้อมูลในเครื่องยังอยู่)
+    final raw = remember.value ? await cal.getSetting(cloudSessionKey) : null;
     if (raw != null && raw.isNotEmpty) {
       try {
         api.session = CloudSession.fromJson((jsonDecode(raw) as Map).cast<String, dynamic>());
@@ -132,19 +151,37 @@ class CloudSyncService {
       lastSync: last == null || last == 0 ? null : DateTime.fromMillisecondsSinceEpoch(last),
       message: error,
     );
+    ready.value = true;
     if (api.session != null) _begin();
+  }
+
+  Future<void> setRemember(bool on) async {
+    remember.value = on;
+    await cal.setSetting(cloudRememberKey, on ? 'on' : 'off');
   }
 
   void _begin() {
     cal.addListener(_onChange);
     cal.workRepo.addListener(_onChange);
     cal.skillRepo.addListener(_onChange);
+    // รอบ 21: สัญญาณสด (เครื่องอื่นบันทึก → ดึงทันที) · ดึงสำรองทุก 30 วิ (ต่อสัญญาณสดอยู่ = ทุก 2 นาที)
+    _rt?.stop();
+    _rt = RealtimeListener(api, device: _device, onChange: () {
+      _debounce?.cancel();
+      _debounce = Timer(const Duration(milliseconds: 300), syncNow);
+    })
+      ..start();
     _timer?.cancel();
-    _timer = Timer.periodic(const Duration(seconds: 60), (_) => syncNow());
+    _timer = Timer.periodic(const Duration(seconds: 30), (_) {
+      _ticks++;
+      if (!(_rt?.connected ?? false) || _ticks % 4 == 0) syncNow();
+    });
     syncNow();
   }
 
   void _stop() {
+    _rt?.stop();
+    _rt = null;
     _timer?.cancel();
     _debounce?.cancel();
     cal.removeListener(_onChange);
@@ -153,9 +190,27 @@ class CloudSyncService {
   }
 
   void _onChange() {
-    if (_running) return; // การเขียนจากซิงก์เอง
+    if (_selfRefresh) return; // หน้าจอโหลดใหม่เพราะซิงก์เอง
+    if (_running) {
+      _again = true; // แก้ระหว่างกำลังซิงก์ → ส่งต่ออีกรอบ
+      return;
+    }
+    // รอบ 21: บันทึกขึ้นบัญชีใน ~1 วิหลังแก้
     _debounce?.cancel();
-    _debounce = Timer(const Duration(seconds: 5), syncNow);
+    _debounce = Timer(const Duration(seconds: 1), syncNow);
+  }
+
+  /// สั่งหน้าจอโหลดใหม่ (ไม่นับเป็นการแก้ของผู้ใช้)
+  void _refreshUi({bool stickers = false}) {
+    _selfRefresh = true;
+    try {
+      if (stickers) refreshStickerImages();
+      cal.refresh();
+      cal.workRepo.refresh();
+      cal.skillRepo.refresh();
+    } finally {
+      _selfRefresh = false;
+    }
   }
 
   /// Google (รอบ 19) · คอม: เปิดเบราว์เซอร์แล้วรอ · เว็บ: เปลี่ยนหน้าไป Google (กลับมาแล้ว [start] รับต่อ)
@@ -209,16 +264,12 @@ class CloudSyncService {
     try {
       final lastRev = int.tryParse(await cal.getSetting(cloudLastRevKey) ?? '') ?? 0;
       final lastSync = int.tryParse(await cal.getSetting(cloudLastSyncKey) ?? '') ?? 0;
-      if (lastRev == 0) await backup?.backupNow(label: 'before_sync');
+      if (lastSync == 0) await backup?.backupNow(label: 'before_sync');
       final now = _now();
       final (r, maxRev) = await mirror.round(_remoteOf(api, _device), now: now, lastSync: lastSync, lastRev: lastRev);
       await cal.setSetting(cloudLastRevKey, '$maxRev');
       await cal.setSetting(cloudLastSyncKey, '$now');
-      if (r.applied > 0 || r.wiped) {
-        cal.refresh();
-        cal.workRepo.refresh();
-        cal.skillRepo.refresh();
-      }
+      if (r.applied > 0 || r.wiped) _refreshUi();
       // รอบ 20: รูปสติกเกอร์ (ส่งที่ยังไม่ส่ง · ดึงที่เครื่องนี้ไม่มี) · พลาด = ไม่ล้มทั้งรอบ
       String? fileMsg;
       try {
@@ -227,10 +278,7 @@ class CloudSyncService {
             row['image_path'] as String,
         ];
         final got = await _files.run(paths);
-        if (got > 0) {
-          refreshStickerImages();
-          cal.refresh();
-        }
+        if (got > 0) _refreshUi(stickers: true);
       } on CloudError catch (e) {
         fileMsg = e.message;
       }

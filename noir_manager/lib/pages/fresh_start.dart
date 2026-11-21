@@ -1,13 +1,12 @@
-/// ตั้งค่า › เริ่มใหม่ + แผนของนัวร์ (รอบ 10C)
-/// ล้าง = สำรองก่อนเสมอ + ต้องพิมพ์ "ลบทั้งหมด" · ใส่แผน = กดซ้ำได้ ไม่ซ้อน
+/// ตั้งค่า › ข้อมูล › ล้างข้อมูลแล้วเริ่มใหม่ (รอบ 10C)
+/// สำรองก่อนเสมอ + ต้องพิมพ์ "ลบทั้งหมด" · ปุ่มใส่แผน / สารบัญ เอาออกรอบ 21 (ใช้นำเข้าไฟล์แทน รอบ 22)
 library;
 
 import 'package:flutter/material.dart';
 
 import '../calendar/calendar_repository.dart';
 import '../data/backup.dart';
-import '../data/noir_plan.dart';
-import '../data/self_study.dart';
+import '../data/noir_plan.dart' show resetForFreshStart;
 import '../data/study_scope.dart';
 import '../theme/noir_colors.dart';
 import '../widgets/mini_form.dart';
@@ -34,7 +33,7 @@ class _FreshStartSectionState extends State<FreshStartSection> {
       (ctx) => StatefulBuilder(builder: (ctx, setLocal) {
         final c = ctx.noir;
         return MiniForm(
-          title: 'ล้างแล้วเริ่มใหม่',
+          title: 'ล้างข้อมูลแล้วเริ่มใหม่',
           primaryLabel: 'สำรอง + ลบ',
           onPrimary: () {
             if (typed.text.trim() != resetWord) return setLocal(() => showErr = true);
@@ -73,68 +72,13 @@ class _FreshStartSectionState extends State<FreshStartSection> {
     }
   }
 
-  Future<void> _plan() async {
-    final ok = await confirmMini(context,
-        title: 'ใส่แผนของนัวร์',
-        message: 'งาน mecsteam · IELTS · DaVinci · Canva · ไลฟ์ · อ่านหนังสือ (6 เดือน) + สกิล + เว็บ mecsteam.com · ของที่มีชื่อเดียวกันอยู่แล้วจะข้าม',
-        okLabel: 'ใส่แผน');
-    if (!ok || !mounted) return;
-    final cal = CalendarScope.of(context);
-    setState(() => _busy = true);
-    try {
-      final r = await applyNoirPlan(cal, DateTime.now());
-      if (mounted) {
-        showToast(context, 'ใส่แล้ว: งานซ้ำ ${r.activities} · สกิล ${r.skills} · ขั้นงานเว็บ ${r.tasks}', kind: ToastKind.success);
-      }
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _lessons() async {
-    final ok = await confirmMini(context,
-        title: 'สารบัญเรียนเองในสกิล',
-        message: 'ใส่บท + หัวข้อ + ลิงก์คลิป ของ IELTS · DaVinci · Canva ในหน้าสกิล · ถ้ามีวิชา IELTS / DaVinci Resolve / Canva ในหน้าการเรียน (รอบ 11) จะย้ายคะแนนมาที่สกิล แล้วลบวิชานั้นออก (งานในปฏิทินยังอยู่) · สำรองข้อมูลก่อนอัตโนมัติ · กดซ้ำได้ ไม่ซ้อน',
-        okLabel: 'ใส่ / ย้าย');
-    if (!ok || !mounted) return;
-    final cal = CalendarScope.of(context);
-    final study = StudyScope.of(context);
-    setState(() => _busy = true);
-    try {
-      await widget.backup?.backupNow(label: 'before_lessons');
-      final r = await moveSelfStudyToSkills(study, cal);
-      if (mounted) {
-        showToast(
-            context,
-            'บท ${r.lessons.chapters} · หัวข้อ ${r.lessons.topics} · ย้ายวิชา ${r.subjects} (คะแนน ${r.scores}) · '
-            'งานกลับเป็นงานธรรมดา ${r.unlinked}',
-            kind: ToastKind.success);
-      }
-    } catch (e) {
-      if (mounted) showToast(context, 'ไม่สำเร็จ: $e', kind: ToastKind.error);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         MiniRow(
-          key: const Key('fresh-lessons'),
-          icon: Icons.menu_book_outlined,
-          label: 'สารบัญเรียนเอง → สกิล (IELTS · DaVinci · Canva)',
-          onTap: _busy ? null : _lessons,
-        ),
-        MiniRow(
-          key: const Key('fresh-plan'),
-          icon: Icons.event_note_outlined,
-          label: 'ใส่แผนของนัวร์ (6 เดือน)',
-          onTap: _busy ? null : _plan,
-        ),
-        MiniRow(
           key: const Key('fresh-reset'),
           icon: Icons.delete_sweep_outlined,
-          label: 'ล้างแล้วเริ่มใหม่ (สำรองก่อน)',
+          label: 'ล้างข้อมูลแล้วเริ่มใหม่',
+          valueText: 'สำรองให้ก่อน',
           last: true,
           onTap: _busy ? null : _reset,
         ),

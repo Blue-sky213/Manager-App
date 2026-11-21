@@ -90,6 +90,8 @@ void main() {
     // ตั้งค่า: เลือก EZ → ไม่มีแถวกฎ · Advanced → มี 2 แถว
     await tester.tap(find.text('ตั้งค่า').first);
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('set-cat-study')));
+    await tester.pumpAndSettle();
     expect(find.byKey(const Key('rule-green_twice_rule')), findsNothing);
     await tester.tap(find.text('Advanced').first);
     await tester.pumpAndSettle();

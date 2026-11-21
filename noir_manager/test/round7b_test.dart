@@ -202,7 +202,10 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('ตั้งค่า').first);
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(find.byKey(const Key('cat-create')), 300, scrollable: find.byType(Scrollable).first);
+    await tester.tap(find.byKey(const Key('set-cat-calendar')));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.byKey(const Key('cat-create')), 300,
+        scrollable: find.descendant(of: find.byKey(const Key('set-body-calendar')), matching: find.byType(Scrollable)).first);
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('cat-create')));
     await tester.pumpAndSettle();

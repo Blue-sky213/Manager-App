@@ -52,7 +52,7 @@ void main() {
       await tester.ensureVisible(target);
       await tester.tap(target);
       await tester.pumpAndSettle();
-      expect(find.text('หน้าตา'), findsOneWidget); // หัวข้อแรก (ข้อถัดไปอาจอยู่ใต้จอเตี้ย)
+      expect(find.byKey(const Key('set-cat-display')), findsOneWidget); // รอบ 21: รายการหมวด
       expect(tester.takeException(), isNull, reason: 'หน้าตั้งค่าที่ $name');
     });
   }
@@ -70,12 +70,14 @@ void main() {
     await tester.tap(find.text('ชมพู').first); // แถวสีพาสเทล · สว่าง
     await tester.pumpAndSettle();
     expect(await study.getSetting('theme'), 'pink');
-    final bg = Theme.of(tester.element(find.text('โหมดแอป'))).scaffoldBackgroundColor;
+    final bg = Theme.of(tester.element(find.text('ธีมและสี'))).scaffoldBackgroundColor;
     expect(bg, const Color(0xFFFDF4F7));
 
     // 3 กลุ่ม: โหมด (มืด · สว่าง · ตามเวลา) · พาสเทลสว่าง · พาสเทลมืด
     expect(find.text('ตามเวลา'), findsOneWidget);
     expect(find.text('ชมพู'), findsNWidgets(2));
+    await tester.tap(find.byKey(const Key('set-cat-mode')));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('ทั้งคู่'));
     await tester.pumpAndSettle();
     expect(await study.getSetting('app_mode'), 'both');

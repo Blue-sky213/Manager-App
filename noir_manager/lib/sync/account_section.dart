@@ -100,14 +100,14 @@ class _AccountSectionState extends State<AccountSection> {
     final c = context.noir;
     final s = widget.service;
     if (s == null) {
-      return Text('ใช้ได้กับข้อมูลจริงบน PC เท่านั้น (ตอนนี้เปิดโหมดข้อมูลตัวอย่าง)', style: TextStyle(fontSize: 13, color: c.muted));
+      return Text('ใช้ไม่ได้ในโหมดข้อมูลตัวอย่าง', style: TextStyle(fontSize: 13, color: c.muted));
     }
     return ValueListenableBuilder(
       valueListenable: s.status,
       builder: (context, st, _) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         st.state == CloudState.signedOut ? _signedOut(c, st) : _signedIn(c, s, st),
         // รอบ 20: งานซ้ำจากการย้ายเครื่อง (โหลดใหม่ทุกครั้งที่ซิงก์เสร็จ)
-        _DuplicateCard(key: ValueKey(st.lastSync), service: s),
+        if (st.state != CloudState.signedOut) _DuplicateCard(key: ValueKey(st.lastSync), service: s),
       ]),
     );
   }
@@ -142,7 +142,20 @@ class _AccountSectionState extends State<AccountSection> {
           ),
         ),
       ),
-      const SizedBox(height: 12),
+      // รอบ 21: จำเครื่องนี้ (ค่าเริ่ม = จำ · ปิด = เปิดแอปครั้งหน้าต้องเข้าระบบใหม่)
+      ValueListenableBuilder(
+        valueListenable: widget.service!.remember,
+        builder: (context, on, _) => CheckboxListTile(
+          key: const Key('cloud-remember'),
+          value: on,
+          onChanged: (v) => widget.service!.setRemember(v ?? true),
+          contentPadding: EdgeInsets.zero,
+          controlAffinity: ListTileControlAffinity.leading,
+          dense: true,
+          title: Text('จำเครื่องนี้ (ไม่ต้องเข้าระบบอีก)', style: TextStyle(fontSize: 14, color: c.text)),
+        ),
+      ),
+      const SizedBox(height: 4),
       Row(children: [
         Expanded(
           child: OutlinedButton(

@@ -159,3 +159,22 @@ SyncRow useOther(SyncRow merged, SyncConflict c, {required int now}) {
     stamps: {...merged.stamps, c.field!: now},
   );
 }
+
+/// รอบ 21 (ออนไลน์ก่อน · นัวร์เลือก): ของที่ถึงบัญชีทีหลังชนะ
+/// [local] = ค่าในเครื่องที่ยังไม่ได้ส่ง (null = ไม่มี) · ช่องที่เครื่องนี้แก้หลังซิงก์ครั้งก่อน = เก็บไว้แล้วส่งตาม
+/// ช่องอื่นทั้งหมด = ค่าในบัญชี · ไม่มี "ค่าต่างกันให้เลือก" อีก
+SyncRow serverFirst(SyncRow? local, SyncRow remote, {required int lastSync}) {
+  if (local == null) return remote;
+  bool mineNew(int? t) => t != null && t > lastSync;
+  // ลบในเครื่อง (ยังไม่ส่ง) → ลบตาม · บัญชีลบ แต่เครื่องนี้แก้ทีหลัง → ยังอยู่ (ส่งตามไป)
+  if (local.deleted && mineNew(local.deletedAt)) return local;
+  final mine = {for (final e in local.stamps.entries) if (mineNew(e.value)) e.key};
+  if (mine.isEmpty) return remote;
+  return SyncRow(
+    table: remote.table,
+    id: remote.id,
+    values: {...remote.values, for (final f in mine) f: local.values[f]},
+    stamps: {...remote.stamps, for (final f in mine) f: local.stamps[f]!},
+    deletedAt: null,
+  );
+}
