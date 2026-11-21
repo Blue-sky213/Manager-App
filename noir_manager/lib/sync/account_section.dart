@@ -11,6 +11,7 @@ import '../widgets/mini_form.dart';
 import '../widgets/toast.dart';
 import 'cloud_sync.dart';
 import 'conflict_text.dart';
+import 'duplicate_plan.dart';
 import 'merge.dart';
 import 'supabase_api.dart' show CloudError;
 
@@ -103,7 +104,11 @@ class _AccountSectionState extends State<AccountSection> {
     }
     return ValueListenableBuilder(
       valueListenable: s.status,
-      builder: (context, st, _) => st.state == CloudState.signedOut ? _signedOut(c, st) : _signedIn(c, s, st),
+      builder: (context, st, _) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        st.state == CloudState.signedOut ? _signedOut(c, st) : _signedIn(c, s, st),
+        // รอบ 20: งานซ้ำจากการย้ายเครื่อง (โหลดใหม่ทุกครั้งที่ซิงก์เสร็จ)
+        _DuplicateCard(key: ValueKey(st.lastSync), service: s),
+      ]),
     );
   }
 
@@ -251,6 +256,81 @@ class _AccountSectionState extends State<AccountSection> {
           ]),
         ),
         TextButton(onPressed: () => s.useOtherValue(x), child: Text('ใช้ $other')),
+      ]),
+    );
+  }
+}
+
+/// การ์ด "งานซ้ำจากการย้ายเครื่อง" · ไม่มีงานซ้ำ = ไม่โชว์อะไร
+class _DuplicateCard extends StatefulWidget {
+  const _DuplicateCard({super.key, required this.service});
+  final CloudSyncService service;
+
+  @override
+  State<_DuplicateCard> createState() => _DuplicateCardState();
+}
+
+class _DuplicateCardState extends State<_DuplicateCard> {
+  List<DuplicateActivity> _dups = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final d = await findDuplicateActivities(widget.service.db);
+    if (mounted) setState(() => _dups = d);
+  }
+
+  Future<void> _clean() async {
+    final n = _dups.fold(0, (a, d) => a + d.removeIds.length);
+    final ok = await confirmMini(
+      context,
+      title: 'ลบงานซ้ำ $n รายการ?',
+      message: '${_dups.map((d) => d.name).take(6).join(' · ')}${_dups.length > 6 ? ' …' : ''}\n'
+          'เก็บตัวที่มีประวัติ (ติ๊กแล้ว / เลื่อน) ไว้ · ลบเฉพาะตัวที่ยังไม่เคยใช้ · ทุกเครื่องจะหายตาม',
+      okLabel: 'ลบตัวซ้ำ',
+    );
+    if (!ok || !mounted) return;
+    final cal = widget.service.cal;
+    for (final d in _dups) {
+      for (final id in d.removeIds) {
+        await cal.deleteActivity(id);
+      }
+    }
+    if (!mounted) return;
+    showToast(context, '✓ ลบงานซ้ำ $n รายการแล้ว', kind: ToastKind.success);
+    await _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.noir;
+    final removable = _dups.fold(0, (a, d) => a + d.removeIds.length);
+    final manual = _dups.where((d) => d.keepWithHistory.isNotEmpty).toList();
+    if (removable == 0 && manual.isEmpty) return const SizedBox.shrink();
+    return Container(
+      key: const Key('cloud-duplicates'),
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: c.surface2, borderRadius: BorderRadius.circular(10)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('⚠ พบงานซ้ำ ${_dups.length} งาน (ขึ้น 2 อันในวันเดียวกัน)',
+            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: c.warn)),
+        const SizedBox(height: 4),
+        Text('เกิดจากทั้งเครื่องเก่าและเครื่องใหม่สร้างแผนชุดเดียวกันไว้ แล้วรวมกันตอนเข้าบัญชี',
+            style: TextStyle(fontSize: 12, color: c.muted)),
+        const SizedBox(height: 6),
+        for (final d in _dups.take(8))
+          Text('• ${d.name}${d.keepWithHistory.isNotEmpty ? '  (มีประวัติทั้ง 2 อัน · ลบเองในปฏิทิน)' : ''}',
+              style: TextStyle(fontSize: 12.5, color: c.text)),
+        if (removable > 0)
+          Align(
+            alignment: Alignment.centerRight,
+            child: FilledButton(key: const Key('cloud-duplicates-clean'), onPressed: _clean, child: Text('ลบตัวซ้ำ $removable รายการ')),
+          ),
       ]),
     );
   }

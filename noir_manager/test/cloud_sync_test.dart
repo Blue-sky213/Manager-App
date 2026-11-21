@@ -6,6 +6,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:noir_manager/calendar/calendar_models.dart';
 import 'package:noir_manager/calendar/sqlite_calendar_repository.dart';
 import 'package:noir_manager/data/app_database.dart';
+import 'package:noir_manager/sync/duplicate_plan.dart';
 import 'package:noir_manager/sync/local_mirror.dart';
 import 'package:noir_manager/sync/sync_remote.dart';
 
@@ -185,5 +186,45 @@ void main() {
     await a.sync(remote, 6000);
     expect((await a.db.query('life_base')).every((x) => x['bed_minute'] == 60), isTrue);
     expect((await a.db.query('activity')).map((x) => x['name']), contains('งานเครื่องใหม่'));
+  });
+
+  NewActivity plan(String name, DateTime start) => NewActivity(
+        name: name,
+        categoryId: null,
+        importance: 2,
+        timed: true,
+        day: start,
+        startMinute: 8 * 60,
+        durationMin: 240,
+        repeat: RepeatKind.daily,
+        endDate: start.add(const Duration(days: 155)),
+      );
+
+  test('ย้ายเครื่อง (รอบ 20): แผนชุดเดียวกันสร้างคนละวันบน 2 เครื่อง → เข้าบัญชีแล้วเหลือชุดเดียว', () async {
+    final a = await Dev.open(), b = await Dev.open(), remote = MemorySyncRemote();
+    await a.cal.addActivity(plan('งาน · mecsteam', DateTime(2026, 11, 17)));
+    await a.sync(remote, 1000);
+    await b.cal.addActivity(plan('งาน · mecsteam', DateTime(2026, 11, 21))); // กดใส่แผนอีกรอบบนเครื่องใหม่
+    await b.cal.addActivity(NewActivity(name: 'งานเครื่องใหม่', categoryId: null, importance: 2, timed: false, day: day));
+    await b.sync(remote, 5000);
+    final acts = await b.db.query('activity', where: 'name = ?', whereArgs: ['งาน · mecsteam']);
+    expect(acts.length, 1);
+    expect(acts.single['start_date'], '2026-11-17'); // ใช้ของบัญชี (เครื่องเก่า)
+    expect((await b.cal.occurrencesOn(DateTime(2026, 11, 21))).where((o) => o.title == 'งาน · mecsteam').length, 1);
+  });
+
+  test('หางานซ้ำที่เกิดไปแล้ว: เก็บตัวที่มีประวัติ · ลบได้เฉพาะตัวที่ยังไม่เคยใช้', () async {
+    final d = await Dev.open();
+    final old = await d.cal.addActivity(plan('อ่านหนังสือ', DateTime(2026, 11, 17)));
+    final dup = await d.cal.addActivity(plan('อ่านหนังสือ', DateTime(2026, 11, 21)));
+    await d.cal.addActivity(plan('ไลฟ์', DateTime(2026, 11, 17)));
+    final occ = (await d.cal.occurrencesOn(DateTime(2026, 11, 18))).firstWhere((o) => o.activityId == old);
+    await d.cal.setDone(occ.id, true);
+    final found = await findDuplicateActivities(d.db);
+    expect(found.single.name, 'อ่านหนังสือ');
+    expect(found.single.keepId, old);
+    expect(found.single.removeIds, [dup]);
+    await d.cal.deleteActivity(dup);
+    expect(await findDuplicateActivities(d.db), isEmpty);
   });
 }
