@@ -36,18 +36,20 @@ Future<void> main() async {
   if (kIsWeb) {
     // เว็บ = ใช้บัญชีเป็นหลัก (เข้าระบบใน ตั้งค่า › บัญชี)
     CloudSyncService.instance = CloudSyncService(db, calendar, devicePrefix: 'Web')
-      ..start(authFragment: googleBack).catchError((_) {});
+      ..start(authFragment: googleBack).catchError((_) => CloudSyncService.instance!.ready.value = true);
   } else if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
     // รอบ 14: เชื่อม iPhone ผ่าน iCloud (เฉพาะข้อมูลจริงบนคอม · ปิดอยู่จนกว่าจะเปิดในตั้งค่า)
     PhoneSyncService.instance = PhoneSyncService(calendar)..start().catchError((_) {});
     // รอบ 16: บัญชี + ซิงก์ (ยังไม่เข้าระบบ = ไม่ทำอะไร)
-    CloudSyncService.instance = CloudSyncService(db, calendar, backup: backup)..start().catchError((_) {});
+    CloudSyncService.instance = CloudSyncService(db, calendar, backup: backup)
+      ..start().catchError((_) => CloudSyncService.instance!.ready.value = true);
   }
   final real = NoirManagerApp(
     key: const ValueKey('real'),
     studyRepository: SqliteStudyRepository(db),
     calendarRepository: calendar,
     askOnboarding: !kIsWeb, // เว็บ: เข้าบัญชีแล้วได้ข้อมูลเดิม ไม่ต้องตั้งค่าใหม่
+    cloud: CloudSyncService.instance, // รอบ 21: หน้าเข้าระบบก่อนใช้
     backup: backup,
   );
   runApp(DemoRoot(real: real));

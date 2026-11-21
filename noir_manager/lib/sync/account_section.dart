@@ -142,7 +142,20 @@ class _AccountSectionState extends State<AccountSection> {
           ),
         ),
       ),
-      const SizedBox(height: 12),
+      // รอบ 21: จำเครื่องนี้ (ค่าเริ่ม = จำ · ปิด = เปิดแอปครั้งหน้าต้องเข้าระบบใหม่)
+      ValueListenableBuilder(
+        valueListenable: widget.service!.remember,
+        builder: (context, on, _) => CheckboxListTile(
+          key: const Key('cloud-remember'),
+          value: on,
+          onChanged: (v) => widget.service!.setRemember(v ?? true),
+          contentPadding: EdgeInsets.zero,
+          controlAffinity: ListTileControlAffinity.leading,
+          dense: true,
+          title: Text('จำเครื่องนี้ (ไม่ต้องเข้าระบบอีก)', style: TextStyle(fontSize: 14, color: c.text)),
+        ),
+      ),
+      const SizedBox(height: 4),
       Row(children: [
         Expanded(
           child: OutlinedButton(

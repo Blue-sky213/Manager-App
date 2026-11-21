@@ -118,31 +118,27 @@ void main() {
     expect((await b.cal.occurrencesOn(d2)).length, 1);
   });
 
-  test('กรณีนัวร์: มือถือแก้ offline ก่อน · คอมแก้ทีหลัง · มือถือออนไลน์ทีหลัง → ได้ค่าคอม + เตือน', () async {
+  test('รอบ 21 ออนไลน์ก่อน: เน็ตหลุดแก้ต่อได้ · ของที่ถึงบัญชีทีหลังชนะ · ไม่มีรายการให้เลือก', () async {
     final (pc, phone, remote) = await twoDevices();
     remote.offline = true;
     final phoneId = (await phone.activity('ไลฟ์ RE4'))['id'];
     await phone.db.update('activity', {'start_minute': 20 * 60}, where: 'id = ?', whereArgs: [phoneId]);
-    await phone.scanAt(10000); // 10:12 offline
+    await phone.scanAt(10000); // มือถือแก้ตอนเน็ตหลุด
     final pcId = (await pc.activity('ไลฟ์ RE4'))['id'];
     await pc.db.update('activity', {'start_minute': 21 * 60}, where: 'id = ?', whereArgs: [pcId]);
-    await pc.scanAt(11000); // 11:05
+    await pc.scanAt(11000);
     remote.offline = false;
-    final r1 = await pc.sync(remote, 12000);
-    expect(r1.conflicts, isEmpty);
-    final r2 = await phone.sync(remote, 13000); // มือถือกลับมาออนไลน์
-    expect(r2.conflicts.single.field, 'start_minute');
-    expect((await phone.activity('ไลฟ์ RE4'))['start_minute'], 21 * 60);
-    await pc.sync(remote, 14000);
-    expect((await pc.activity('ไลฟ์ RE4'))['start_minute'], 21 * 60);
-
-    // กด "ใช้อีกค่า" บนมือถือ → ค่ามือถือชนะทั้งสองเครื่อง
-    await phone.mirror.useOtherValue(r2.conflicts.single, 15000);
+    expect((await pc.sync(remote, 12000)).conflicts, isEmpty); // คอมถึงบัญชีก่อน
+    expect((await phone.sync(remote, 13000)).conflicts, isEmpty); // มือถือถึงทีหลัง → ชนะ
     expect((await phone.activity('ไลฟ์ RE4'))['start_minute'], 20 * 60);
-    await phone.sync(remote, 15100);
-    final r3 = await pc.sync(remote, 16000);
-    expect(r3.conflicts, isEmpty);
+    await pc.sync(remote, 14000);
     expect((await pc.activity('ไลฟ์ RE4'))['start_minute'], 20 * 60);
+
+    // ไม่ได้แก้ในเครื่อง = รับค่าบัญชีเสมอ
+    await pc.db.update('activity', {'duration_min': 90}, where: 'id = ?', whereArgs: [pcId]);
+    await pc.sync(remote, 15000);
+    await phone.sync(remote, 16000);
+    expect((await phone.activity('ไลฟ์ RE4'))['duration_min'], 90);
   });
 
   test('แก้คนละช่อง = ได้ทั้งคู่ ไม่เตือน · ค่าเหมือนกัน = ไม่เตือน · ลบแล้วหายทุกเครื่อง', () async {
@@ -170,22 +166,19 @@ void main() {
     expect(await phone.db.query('occurrence'), isEmpty);
   });
 
-  test('ย้ายเครื่อง (รอบ 20): เครื่องใหม่ที่มีข้อมูลแล้ว → ค่าตั้งต้น (เวลานอน 12:00) ไม่ทับค่าจริงในบัญชี · ไม่เตือน', () async {
+  test('รอบ 21: เครื่องใหม่ที่มีข้อมูลอยู่แล้ว → ใช้ของบัญชีอย่างเดียว (ค่าตั้งต้นไม่ทับ · ไม่มีงานซ้ำ)', () async {
     final a = await Dev.open(), b = await Dev.open(), remote = MemorySyncRemote();
     await a.db.update('life_base', {'bed_minute': 60, 'wake_minute': 450});
     await a.cal.addActivity(NewActivity(name: 'งาน PC เก่า', categoryId: null, importance: 2, timed: false, day: day));
     await a.sync(remote, 1000);
-    // เครื่องใหม่ใช้ไปก่อนเข้าบัญชี (ไม่ใช่เครื่องว่าง)
     await b.cal.addActivity(NewActivity(name: 'งานเครื่องใหม่', categoryId: null, importance: 2, timed: false, day: day));
     final r = await b.sync(remote, 5000);
-    expect(r.wiped, isFalse);
+    expect(r.wiped, isTrue);
     expect(r.conflicts, isEmpty);
-    final lb = await b.db.query('life_base');
-    expect(lb.every((x) => x['bed_minute'] == 60 && x['wake_minute'] == 450), isTrue);
-    expect((await b.db.query('activity')).map((x) => x['name']), containsAll(['งาน PC เก่า', 'งานเครื่องใหม่']));
+    expect((await b.db.query('life_base')).every((x) => x['bed_minute'] == 60 && x['wake_minute'] == 450), isTrue);
+    expect((await b.db.query('activity')).map((x) => x['name']), ['งาน PC เก่า']);
     await a.sync(remote, 6000);
-    expect((await a.db.query('life_base')).every((x) => x['bed_minute'] == 60), isTrue);
-    expect((await a.db.query('activity')).map((x) => x['name']), contains('งานเครื่องใหม่'));
+    expect((await a.db.query('activity')).map((x) => x['name']), ['งาน PC เก่า']);
   });
 
   NewActivity plan(String name, DateTime start) => NewActivity(

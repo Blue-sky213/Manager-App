@@ -14,6 +14,8 @@ import 'pages/onboarding_page.dart';
 import 'widgets/device_preview.dart';
 import 'shell/window_mode.dart';
 import 'data/demo_year.dart' show demoMode;
+import 'sync/cloud_sync.dart';
+import 'sync/login_gate.dart';
 import 'theme/app_theme.dart';
 import 'theme/noir_colors.dart';
 import 'shell/app_nav.dart';
@@ -27,6 +29,7 @@ class NoirManagerApp extends StatefulWidget {
     super.key,
     required this.studyRepository,
     this.askOnboarding = false,
+    this.cloud,
     this.backup,
     required this.calendarRepository,
   });
@@ -36,6 +39,9 @@ class NoirManagerApp extends StatefulWidget {
 
   /// เปิดครั้งแรก → ถามคำถามแรกเข้า (main.dart เปิด · เทสส่วนใหญ่ปิด)
   final bool askOnboarding;
+
+  /// บัญชี + ซิงก์ (null = เทส / ไม่มีหน้าเข้าระบบ)
+  final CloudSyncService? cloud;
 
   /// ระบบสำรองข้อมูล (มีเฉพาะแอปจริงที่ใช้ไฟล์ DB · เทสไม่มี)
   final BackupService? backup;
@@ -174,14 +180,18 @@ class _NoirManagerAppState extends State<NoirManagerApp> {
           localizationsDelegates: GlobalMaterialLocalizations.delegates,
           // ธีมเดียวที่เลือก (มี brightness ของตัวเอง) → ไม่ใช้ darkTheme / themeMode ของระบบ
           theme: AppTheme.of(themeChoiceOf(resolveTheme(_themeId))),
-          home: _onboarding
-              ? OnboardingPage(onDone: () => setState(() => _onboarding = false), onTheme: _setTheme)
-              : AppShell(
-            isDark: themeChoiceOf(resolveTheme(_themeId)).dark,
-            onToggleTheme: _toggleTheme,
-            themeId: _themeId,
-            onTheme: _setTheme,
-            backup: widget.backup,
+          // รอบ 21: ต้องเข้าระบบก่อน (ข้อมูลจริงบนคอม / เว็บ) · เทส / ข้อมูลตัวอย่าง = ไม่มีหน้าเข้าระบบ
+          home: LoginGate(
+            service: widget.cloud,
+            child: _onboarding
+                ? OnboardingPage(onDone: () => setState(() => _onboarding = false), onTheme: _setTheme)
+                : AppShell(
+                    isDark: themeChoiceOf(resolveTheme(_themeId)).dark,
+                    onToggleTheme: _toggleTheme,
+                    themeId: _themeId,
+                    onTheme: _setTheme,
+                    backup: widget.backup,
+                  ),
           ),
         ),
       ),
