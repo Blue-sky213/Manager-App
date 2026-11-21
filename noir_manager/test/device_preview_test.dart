@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:noir_manager/app.dart';
 import 'package:noir_manager/calendar/memory_calendar_repository.dart';
 import 'package:noir_manager/data/memory_study_repository.dart';
+import 'package:noir_manager/pages/settings_layout.dart';
 import 'package:noir_manager/widgets/device_preview.dart';
 
 /// จำลองจอมือถือ / แท็บเล็ตบนคอม: ทุกอุปกรณ์ × แนวตั้ง / แนวนอน ต้องไม่ล้นจอ
@@ -38,6 +39,7 @@ void main() {
 
   testWidgets('ตั้งค่า (บนคอม): เลือก iPhone 15 → แนวนอน → จำไว้ → ปิด', (tester) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
     tester.view.physicalSize = const Size(1280, 2400);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -57,6 +59,8 @@ void main() {
 
     // ตอนนี้แอปอยู่ในกรอบมือถือ (ย่อ + มุมโค้ง) → เรียกปุ่มแนวนอนตรง ๆ แทนการแตะตำแหน่ง
     // รอบ 21: จอมือถือ = รายการหมวด → เปิดหมวด "สำหรับทดสอบ" อีกชั้น
+    await tester.scrollUntilVisible(find.byKey(const Key('set-cat-test')), 200,
+        scrollable: find.descendant(of: find.byType(SettingsCategoryList), matching: find.byType(Scrollable)).first);
     tester.widget<InkWell>(find.byKey(const Key('set-cat-test'))).onTap!();
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.text('แนวนอน'), 200,
