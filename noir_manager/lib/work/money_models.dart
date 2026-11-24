@@ -74,7 +74,7 @@ class Investment {
 }
 
 const expenseCategories = ['อาหาร', 'เดินทาง', 'ค่าบริการ', 'อุปกรณ์', 'วัสดุ / ค่าแรง', 'บ้าน', 'อื่น ๆ'];
-const incomeCategories = ['งานรับจ้าง', 'งวดงาน', 'ขายของ', 'สปอนเซอร์', 'อื่น ๆ'];
+const incomeCategories = ['งานรับจ้าง', 'งวดงาน', 'ขายของ', 'สปอนเซอร์', 'เงินเดือน', 'อื่น ๆ'];
 
 /// งบค่าบริการรวมต่อเดือน (setting)
 const subBudgetKey = 'sub_budget';

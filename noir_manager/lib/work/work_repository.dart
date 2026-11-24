@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 
 import 'money_models.dart';
+import 'pay_calc.dart';
 import 'project_models.dart';
 
 abstract class WorkRepository extends ChangeNotifier {
@@ -43,6 +44,17 @@ abstract class WorkRepository extends ChangeNotifier {
   Future<List<ProjectFile>> projectFiles(int projectId);
   Future<int> saveProjectFile(ProjectFile f);
   Future<void> deleteProjectFile(int id);
+
+  // ---------- เช็คอินงาน (รอบ 22 · v25) ----------
+  Future<List<WorkSession>> workSessions(DateTime from, DateTime to);
+  Future<int> saveWorkSession(WorkSession s);
+  Future<void> deleteWorkSession(int id);
+  Future<Map<DateTime, AbsenceKind>> absences(DateTime from, DateTime to);
+
+  /// [kind] null = ล้าง
+  Future<void> setAbsence(DateTime day, AbsenceKind? kind);
+  Future<PayConfig> payConfig();
+  Future<void> savePayConfig(PayConfig c);
 }
 
 DateTime _day(DateTime d) => DateTime(d.year, d.month, d.day);
@@ -54,6 +66,49 @@ class MemoryWorkRepository extends WorkRepository {
   final _invs = <int, Investment>{};
 
   int _id(int id) => id == 0 ? _next++ : id;
+
+  final _sessions = <int, WorkSession>{};
+  final _absences = <DateTime, AbsenceKind>{};
+  PayConfig _pay = const PayConfig();
+
+  bool _in(DateTime d, DateTime from, DateTime to) => !_day(d).isBefore(_day(from)) && !_day(d).isAfter(_day(to));
+
+  @override
+  Future<List<WorkSession>> workSessions(DateTime from, DateTime to) async =>
+      _sessions.values.where((s) => _in(s.day, from, to)).toList()..sort((a, b) => a.day.compareTo(b.day) != 0 ? a.day.compareTo(b.day) : a.startMin - b.startMin);
+
+  @override
+  Future<int> saveWorkSession(WorkSession s) async {
+    final id = _id(s.id);
+    _sessions[id] = s.copyWith(id: id);
+    notifyListeners();
+    return id;
+  }
+
+  @override
+  Future<void> deleteWorkSession(int id) async {
+    _sessions.remove(id);
+    notifyListeners();
+  }
+
+  @override
+  Future<Map<DateTime, AbsenceKind>> absences(DateTime from, DateTime to) async =>
+      {for (final e in _absences.entries) if (_in(e.key, from, to)) e.key: e.value};
+
+  @override
+  Future<void> setAbsence(DateTime day, AbsenceKind? kind) async {
+    kind == null ? _absences.remove(_day(day)) : _absences[_day(day)] = kind;
+    notifyListeners();
+  }
+
+  @override
+  Future<PayConfig> payConfig() async => _pay;
+
+  @override
+  Future<void> savePayConfig(PayConfig c) async {
+    _pay = c;
+    notifyListeners();
+  }
 
   @override
   Future<List<MoneyEntry>> entries(DateTime from, DateTime to) async => _entries.values
@@ -468,4 +523,64 @@ class SqliteWorkRepository extends WorkRepository {
 
   @override
   Future<void> deleteProjectFile(int id) => _delete('project_file', id);
+
+  // ---------- เช็คอินงาน (v25) ----------
+  static DateTime? _pd(Object? v) => v == null ? null : DateTime.parse(v as String);
+
+  @override
+  Future<List<WorkSession>> workSessions(DateTime from, DateTime to) async => [
+        for (final r in await _db.query('work_session',
+            where: 'day >= ? AND day <= ?', whereArgs: [_d(from), _d(to)], orderBy: 'day, start_min, id'))
+          WorkSession(
+            id: r['id'] as int,
+            day: DateTime.parse(r['day'] as String),
+            startMin: r['start_min'] as int,
+            endMin: r['end_min'] as int?,
+            compFor: _pd(r['comp_for']),
+            pieces: r['pieces'] as int?,
+            note: r['note'] as String?,
+          ),
+      ];
+
+  @override
+  Future<int> saveWorkSession(WorkSession s) => _save('work_session', s.id, {
+        'day': _d(s.day),
+        'start_min': s.startMin,
+        'end_min': s.endMin,
+        'comp_for': s.compFor == null ? null : _d(s.compFor!),
+        'pieces': s.pieces,
+        'note': s.note,
+      });
+
+  @override
+  Future<void> deleteWorkSession(int id) => _delete('work_session', id);
+
+  @override
+  Future<Map<DateTime, AbsenceKind>> absences(DateTime from, DateTime to) async => {
+        for (final r in await _db.query('work_absence', where: 'day >= ? AND day <= ?', whereArgs: [_d(from), _d(to)]))
+          DateTime.parse(r['day'] as String):
+              AbsenceKind.values.firstWhere((k) => k.name == r['kind'], orElse: () => AbsenceKind.absent),
+      };
+
+  @override
+  Future<void> setAbsence(DateTime day, AbsenceKind? kind) async {
+    if (kind == null) {
+      await _db.delete('work_absence', where: 'day = ?', whereArgs: [_d(day)]);
+    } else {
+      await _db.insert('work_absence', {'day': _d(day), 'kind': kind.name}, conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+    notifyListeners();
+  }
+
+  @override
+  Future<PayConfig> payConfig() async {
+    final r = await _db.query('setting', columns: ['value'], where: 'key = ?', whereArgs: [payConfigKey]);
+    return PayConfig.decode(r.isEmpty ? null : r.first['value'] as String?);
+  }
+
+  @override
+  Future<void> savePayConfig(PayConfig c) async {
+    await _db.insert('setting', {'key': payConfigKey, 'value': c.encode()}, conflictAlgorithm: ConflictAlgorithm.replace);
+    notifyListeners();
+  }
 }
