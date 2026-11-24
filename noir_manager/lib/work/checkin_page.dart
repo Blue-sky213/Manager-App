@@ -378,7 +378,7 @@ class _CheckinViewState extends State<CheckinView> {
         if (todaySessions.isNotEmpty || stale) ...[
           const SizedBox(height: 10),
           Wrap(alignment: WrapAlignment.center, spacing: 8, runSpacing: 6, children: [
-            for (final s in [if (stale) open!, ...todaySessions])
+            for (final s in [if (stale) open, ...todaySessions])
               ActionChip(
                 label: Text('${clock(s.startMin)} – ${s.open ? '…' : clock(s.endMin!)}'),
                 avatar: const Icon(Icons.edit_outlined, size: 16),
