@@ -15,7 +15,7 @@ void main() {
     final db = await databaseFactoryFfi.openDatabase(inMemoryDatabasePath,
         options: OpenDatabaseOptions(onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON')));
     await createAllTables(db);
-    Future<int> n(String sql) async => Sqflite.firstIntValue(await db.rawQuery(sql)) ?? 0;
+    Future<int> n(String sql) async => ((await db.rawQuery(sql)).first.values.first as num).toInt();
     final total = builtinStickerPacks.fold(0, (a, p) => a + p.$2.length);
     expect(await n('SELECT COUNT(*) FROM sticker'), total);
     // จำลองข้อมูลที่รวมมาจาก 2 เครื่อง: ชุด "อารมณ์" ซ้ำทั้งชุด + "การทำงาน" มีทุกตัว 2 อัน
