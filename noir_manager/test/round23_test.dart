@@ -63,13 +63,13 @@ void main() {
     await tester.pumpAndSettle();
     ScrollPosition pos() => tester.state<ScrollableState>(find.byType(Scrollable).first).position;
     expect(pos().pixels, 0);
-    await tester.drag(find.byType(SingleChildScrollView), const Offset(-120, 0));
+    // แท็บที่อยู่ชิดขอบขวา (เห็นครึ่งเดียว) → กดแล้วเลื่อนมากลาง
+    await tester.tap(find.byKey(const ValueKey('tab-ตารางเรียน')));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('tab-ติว')));
-    await tester.pumpAndSettle();
-    expect(value, 5);
+    expect(value, 3);
     expect(pos().pixels, greaterThan(0));
-    final r = tester.getRect(find.byKey(const ValueKey('tab-ติว')));
+    final r = tester.getRect(find.byKey(const ValueKey('tab-ตารางเรียน')));
+    expect((r.center.dx - 180).abs(), lessThan(40)); // อยู่กลางจอ
     expect(r.left, greaterThanOrEqualTo(0));
     expect(r.right, lessThanOrEqualTo(360));
     await tester.drag(find.byType(SingleChildScrollView), const Offset(800, 0));
