@@ -191,7 +191,11 @@ class DayResult {
     this.swap = false,
     this.live = false,
     this.pieces = 0,
+    this.swapFor,
   });
+
+  /// วันทำงานที่ขาด ซึ่งวันหยุดนี้ทำแทน (สลับวันหยุด)
+  final DateTime? swapFor;
 
   /// นาทีที่ทำ (หักพักแล้ว)
   final int worked, breakMin, normal, otRaw, ot, holN, holOT, short, shortDed, pieces;
@@ -202,7 +206,8 @@ class DayResult {
 int _floor(int v, int step) => v <= 0 ? 0 : (v ~/ step) * step;
 
 /// คิด 1 วัน · [nowMin] = เวลาตอนนี้ (สำหรับรอบที่ยังไม่กดเลิก)
-DayResult calcDay(PayConfig c, DateTime day, List<WorkSession> sessions, {int? nowMin}) {
+/// [swapFor] = วันที่ขาดที่วันหยุดนี้ทำแทน (calcMonth จับคู่ให้เอง)
+DayResult calcDay(PayConfig c, DateTime day, List<WorkSession> sessions, {int? nowMin, DateTime? swapFor, bool paired = false}) {
   final holiday = !c.workDays.contains(day.weekday);
   if (sessions.isEmpty) return DayResult(holiday: holiday);
   var raw = 0;
@@ -217,7 +222,9 @@ DayResult calcDay(PayConfig c, DateTime day, List<WorkSession> sessions, {int? n
   }
   final brk = raw >= c.breakAfterMin ? c.breakMin : 0;
   final w = math.max(0, raw - brk);
-  final swap = holiday && comp != null;
+  // [paired] = calcMonth จับคู่ให้แล้ว (ใช้ผลนั้นอย่างเดียว) · คิดวันเดียว = ใช้ที่ผู้ใช้เลือกไว้
+  final pair = paired ? swapFor : (swapFor ?? comp);
+  final swap = holiday && pair != null;
   if (holiday && !swap) {
     final n = math.min(w, c.normalMin);
     return DayResult(worked: w, breakMin: brk, holN: n, holOT: _floor(w - n, c.roundMin), holiday: true, live: live, pieces: pieces);
@@ -234,6 +241,7 @@ DayResult calcDay(PayConfig c, DateTime day, List<WorkSession> sessions, {int? n
     shortDed: _floor(short, c.roundMin),
     holiday: holiday,
     swap: swap,
+    swapFor: swap ? pair : null,
     live: live,
     pieces: pieces,
   );
@@ -290,7 +298,31 @@ MonthResult calcMonth(
   for (final s in sessions) {
     if (s.day.year == year && s.day.month == month) (byDay[dateOf(s.day)] ??= []).add(s);
   }
-  final compDays = {for (final s in sessions) if (s.compFor != null) dateOf(s.compFor!)};
+  // สลับวันหยุดอัตโนมัติ (นัวร์ 24 พ.ย.): ทำงานวันหยุดในเดือนที่มีวันขาดงาน = ทำแทนวันนั้นก่อนเสมอ
+  // กันการหยุดวันธรรมดาแล้วมาทำวันหยุดเพื่อได้ OT มากกว่า · เหลือวันหยุดที่ไม่มีวันขาดให้แทน = อัตราวันหยุด
+  final absentDays = [
+    for (final e in absences.entries)
+      if (e.value == AbsenceKind.absent && e.key.year == year && e.key.month == month && !e.key.isAfter(t) && !byDay.containsKey(dateOf(e.key)))
+        dateOf(e.key)
+  ]..sort();
+  final holDays = [for (final d in byDay.keys) if (!c.workDays.contains(d.weekday) && !d.isAfter(t)) d]..sort();
+  final swapOf = <DateTime, DateTime>{};
+  final free = {...absentDays};
+  for (final d in holDays) {
+    // จับคู่ที่ผู้ใช้เลือกไว้เองก่อน
+    final chosen = byDay[d]!.map((s) => s.compFor).whereType<DateTime>().map(dateOf).where(free.contains).firstOrNull;
+    if (chosen != null) {
+      swapOf[d] = chosen;
+      free.remove(chosen);
+    }
+  }
+  for (final d in holDays) {
+    if (swapOf.containsKey(d) || free.isEmpty) continue;
+    final first = (free.toList()..sort()).first;
+    swapOf[d] = first;
+    free.remove(first);
+  }
+  final compDays = swapOf.values.toSet();
   final days = <DateTime, DayResult>{};
   final absent = <DateTime>[], compensated = <DateTime>[], unresolved = <DateTime>[];
   var ot = 0, shortDed = 0, normal = 0, holN = 0, holOT = 0, worked = 0, pieces = 0;
@@ -298,7 +330,7 @@ MonthResult calcMonth(
     final day = DateTime(year, month, d);
     if (day.isAfter(t)) break;
     final ss = byDay[day] ?? const [];
-    final r = calcDay(c, day, ss, nowMin: isSameDate(day, t) ? nowMin : null);
+    final r = calcDay(c, day, ss, nowMin: isSameDate(day, t) ? nowMin : null, swapFor: swapOf[day], paired: true);
     days[day] = r;
     if (ss.isEmpty) {
       final a = absences[day];

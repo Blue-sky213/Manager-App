@@ -15,6 +15,7 @@ import '../calendar/sticker_images.dart' show refreshStickerImages;
 import '../data/backup.dart';
 import 'google_login.dart';
 import 'local_mirror.dart';
+import 'duplicate_plan.dart';
 import 'sticker_files.dart';
 import 'merge.dart';
 import 'realtime.dart';
@@ -269,7 +270,9 @@ class CloudSyncService {
       final (r, maxRev) = await mirror.round(_remoteOf(api, _device), now: now, lastSync: lastSync, lastRev: lastRev);
       await cal.setSetting(cloudLastRevKey, '$maxRev');
       await cal.setSetting(cloudLastSyncKey, '$now');
-      if (r.applied > 0 || r.wiped) _refreshUi();
+      // รอบ 23: สติกเกอร์ซ้ำจากการรวมบัญชีช่วงแรก → รวมเป็นตัวเดียว (ลบแล้วรอบหน้าส่งการลบขึ้นบัญชี = ทุกเครื่องหายตาม)
+      final dupStickers = await dedupeStickers(db);
+      if (r.applied > 0 || r.wiped || dupStickers > 0) _refreshUi(stickers: dupStickers > 0);
       // รอบ 20: รูปสติกเกอร์ (ส่งที่ยังไม่ส่ง · ดึงที่เครื่องนี้ไม่มี) · พลาด = ไม่ล้มทั้งรอบ
       String? fileMsg;
       try {
