@@ -108,24 +108,9 @@ class _CheckinViewState extends State<CheckinView> {
   // ---------------- การกระทำ ----------------
 
   Future<void> _checkIn() async {
-    final t = _today;
-    DateTime? comp;
-    if (!_cfg.workDays.contains(t.weekday) && _cfg.timed) {
-      final m = calcMonth(_cfg, t.year, t.month, _sessions, _abs, today: t, nowMin: _nowMin);
-      final cands = [...m.absent, ...m.unresolved]..sort();
-      final pick = await showMiniChoice<Object>(context, title: 'วันนี้วันหยุด · นับเป็นอะไร?', items: [
-        for (final d in cands.reversed.take(4))
-          miniChoice<Object>(d, 'ทำแทนวันที่ขาด · ${thaiShortDate(d)}', detail: 'สลับวันหยุด: 8 ชม. แรกแทนวันนั้น (ไม่หัก) · เกินจากนั้น = OT ×${_cfg.otRate}'),
-        miniChoice<Object>('hol', 'ทำงานวันหยุด', detail: 'คิดอัตราวันหยุด'),
-      ]);
-      if (pick == null) return;
-      if (pick is DateTime) {
-        comp = pick;
-        if (_abs[pick] == null) await _repo!.setAbsence(pick, AbsenceKind.absent);
-      }
-    }
-    await _repo!.saveWorkSession(WorkSession(day: t, startMin: _nowMin, compFor: comp));
-    if (mounted) showToast(context, 'เข้างาน ${clock(_nowMin)}${comp != null ? ' · แทนวันที่ ${comp.day}' : ''}', kind: ToastKind.success);
+    // วันหยุด: ไม่ต้องถาม · ถ้าเดือนนี้มีวันขาดงาน ระบบนับเป็นการทำแทน (สลับวันหยุด) ให้เอง
+    await _repo!.saveWorkSession(WorkSession(day: _today, startMin: _nowMin));
+    if (mounted) showToast(context, 'เข้างาน ${clock(_nowMin)}', kind: ToastKind.success);
   }
 
   Future<void> _checkOut(WorkSession s) async {
@@ -300,13 +285,14 @@ class _CheckinViewState extends State<CheckinView> {
     final open = _open;
     final holiday = !_cfg.workDays.contains(t.weekday);
     final todaySessions = _on(t);
-    final d = calcDay(_cfg, t, todaySessions, nowMin: _nowMin);
+    final d = m.days[t] ?? calcDay(_cfg, t, todaySessions, nowMin: _nowMin);
     final stale = open != null && !isSameDate(open.day, t);
+    final swapFor = m.days[t]?.swapFor;
     String state;
     if (open != null) {
       state = stale
           ? 'ยังไม่ได้กดเลิกงานของ ${thaiShortDate(open.day)}'
-          : 'กำลังทำงาน · ${open.compFor != null ? 'แทนวันที่ ${open.compFor!.day} ${thaiMonthsShort[open.compFor!.month - 1]}' : holiday ? 'วันหยุด' : 'วันทำงาน'}';
+          : 'กำลังทำงาน · ${swapFor != null ? 'แทนวันที่ขาด ${swapFor.day} ${thaiMonthsShort[swapFor.month - 1]}' : holiday ? 'วันหยุด' : 'วันทำงาน'}';
     } else if (todaySessions.isNotEmpty) {
       state = 'เลิกงานแล้ว · ทำ ${hrsText(d.worked)}';
     } else {
@@ -337,7 +323,7 @@ class _CheckinViewState extends State<CheckinView> {
       ];
       if (parts.isNotEmpty) info.add(Text(parts.join(' · '), textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: c.muted)));
     }
-    if (open != null && !stale && _cfg.timed && !(holiday && open.compFor == null) && d.normal < _cfg.normalMin) {
+    if (open != null && !stale && _cfg.timed && !(holiday && swapFor == null) && d.normal < _cfg.normalMin) {
       final bank = _cfg.type == PayType.monthly ? m.bank : 0;
       final extra = bank < 0 ? -bank : 0;
       info.add(Text.rich(
@@ -511,7 +497,7 @@ class _CheckinViewState extends State<CheckinView> {
       final ab = _abs[d];
       final chips = <(String, Color, Color)>[];
       if (r.live) chips.add(('กำลังทำ', c.greenBg, c.greenText));
-      if (r.swap) chips.add(('แทนวันที่ ${ss.firstWhere((s) => s.compFor != null).compFor!.day}', c.navBg, c.navText));
+      if (r.swapFor != null) chips.add(('แทนวันที่ขาด ${r.swapFor!.day}', c.navBg, c.navText));
       if (r.ot > 0) chips.add(('OT ${hrsText(r.ot)}', c.purpleBg, c.purpleText));
       if (r.holOT > 0) chips.add(('OT วันหยุด ${hrsText(r.holOT)}', c.purpleBg, c.purpleText));
       if (_cfg.type == PayType.monthly && r.shortDed > 0) chips.add(('ขาด ${hrsText(r.shortDed)}', c.amberBg, c.bad));

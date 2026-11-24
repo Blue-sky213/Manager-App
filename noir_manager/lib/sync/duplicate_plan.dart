@@ -46,3 +46,38 @@ Future<List<DuplicateActivity>> findDuplicateActivities(DatabaseExecutor db) asy
   }
   return out;
 }
+
+/// สติกเกอร์ซ้ำ (รอบ 23 · นัวร์เจอชุด "อารมณ์" / "การทำงาน" มีทุกตัว 2 อัน)
+/// สาเหตุ: ทุกเครื่องสร้างชุดในแอปเองตอนติดตั้ง → ตอนรวมบัญชีช่วงแรก (ก่อนรอบ 21) ได้มา 2 ชุดแล้วรวมเป็นชุดเดียวกัน
+/// แก้: ชุดในแอปชื่อเดียวกัน = ชุดเดียว · ในชุดเดียวกัน ชื่อ + อีโมจิ + รูป เหมือนกัน = ตัวเดียว
+/// ย้ายสติกเกอร์ที่แปะในวันไปที่ตัวที่เก็บไว้ก่อน แล้วค่อยลบ (ไม่มีวันไหนเสียสติกเกอร์) · คืนจำนวนที่ลบ
+Future<int> dedupeStickers(Database db) => db.transaction((txn) async {
+      var removed = 0;
+      final packs = await txn.query('sticker_pack', where: 'builtin = 1', orderBy: 'id');
+      final keepPack = <String, int>{};
+      for (final p in packs) {
+        final name = p['name'] as String, id = p['id'] as int;
+        final keep = keepPack[name];
+        if (keep == null) {
+          keepPack[name] = id;
+          continue;
+        }
+        await txn.update('sticker', {'pack_id': keep}, where: 'pack_id = ?', whereArgs: [id]);
+        await txn.delete('sticker_pack', where: 'id = ?', whereArgs: [id]);
+        removed++;
+      }
+      final keepSticker = <String, int>{};
+      for (final s in await txn.query('sticker', orderBy: 'id')) {
+        final key = '${s['pack_id']}\t${s['name']}\t${s['emoji']}\t${s['image_path']}';
+        final id = s['id'] as int;
+        final keep = keepSticker[key];
+        if (keep == null) {
+          keepSticker[key] = id;
+          continue;
+        }
+        await txn.update('day_sticker', {'sticker_id': keep}, where: 'sticker_id = ?', whereArgs: [id]);
+        await txn.delete('sticker', where: 'id = ?', whereArgs: [id]);
+        removed++;
+      }
+      return removed;
+    });

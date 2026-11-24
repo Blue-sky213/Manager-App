@@ -53,12 +53,27 @@ void main() {
     expect(m.pay, closeTo(15000 + 4.5 * 93.75, 0.001)); // 15,421.88
   });
 
-  test('ทำวันหยุดเพิ่มเฉย ๆ (ไม่ได้แทนวันไหน) = อัตราวันหยุด ×1 · OT วันหยุด ×3', () {
-    final m = month([ws(22, '03:30', '17:00')], abs: {16: AbsenceKind.absent});
-    expect(m.absent, [DateTime(2026, 11, 16)]);
+  test('ทำวันหยุดในเดือนที่มีวันขาด = ทำแทนวันนั้นให้อัตโนมัติ (ไม่ต้องเลือก) · กันหยุดวันธรรมดาไปเอา OT วันหยุด', () {
+    // เคสจริงของนัวร์: ขาด ศ. 20 · ทำ อา. 22 03:30–17:30 (13 ชม.)
+    final m = month([ws(22, '03:30', '17:30')], abs: {20: AbsenceKind.absent});
+    expect(m.absent, isEmpty);
+    expect(m.compensated, [DateTime(2026, 11, 20)]);
+    expect(m.days[DateTime(2026, 11, 22)]!.swapFor, DateTime(2026, 11, 20));
+    expect(m.holN, 0);
+    expect(m.ot, 300);
+    expect(m.pay, closeTo(15000 + 5 * 93.75, 0.001)); // 15,468.75
+    // ขาด 2 วัน ทำวันหยุด 1 วัน → แทนวันแรก · อีกวันยังหัก
+    final two = month([ws(22, '08:00', '17:00')], abs: {19: AbsenceKind.absent, 20: AbsenceKind.absent});
+    expect(two.compensated, [DateTime(2026, 11, 19)]);
+    expect(two.absent, [DateTime(2026, 11, 20)]);
+    expect(two.pay, 14500);
+  });
+
+  test('ทำวันหยุดเพิ่ม (เดือนนั้นไม่มีวันขาด) = อัตราวันหยุด ×1 · OT วันหยุด ×3', () {
+    final m = month([ws(22, '03:30', '17:00')]);
     expect(m.holN, 480);
     expect(m.holOT, 270);
-    expect(m.pay, closeTo(15000 - 500 + 500 + 843.75, 0.001)); // 15,843.75
+    expect(m.pay, closeTo(15000 + 500 + 843.75, 0.001)); // 15,843.75
   });
 
   test('เข้าสาย 09:00: เลิก 18:00 = ไม่หัก · เลิก 17:00 = หัก 1 ชม. · ขาดไม่ถึง 30 นาที = ไม่หัก', () {
