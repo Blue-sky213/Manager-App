@@ -18,6 +18,8 @@ const _tables = {
   'project': 'โปรเจกต์',
   'project_task': 'งานในโปรเจกต์',
   'money_entry': 'รายการเงิน',
+  'work_session': 'เข้า–ออกงาน',
+  'work_absence': 'วันที่ไม่มาทำงาน',
   'skill': 'สกิล',
   'skill_log': 'บันทึกสกิล',
   'class_log': 'บันทึกเรียน',

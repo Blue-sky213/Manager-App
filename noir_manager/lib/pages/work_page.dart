@@ -1,13 +1,14 @@
-/// เมนู "งาน" (รอบ 9A · 9C): แท็บ ภาพรวม (เปิดมาเจอ) · บอร์ด · ขั้นงานทั้งหมด · เงินแยกไปเมนูของตัวเอง
+/// เมนู "งาน" (รอบ 9A · 9C · 22): แท็บ ภาพรวม (เปิดมาเจอ) · เข้างาน (เช็คอิน + ค่าจ้าง) · บอร์ด · ขั้นงานทั้งหมด · เงินแยกไปเมนูของตัวเอง
 library;
 
 import 'package:flutter/material.dart';
 
 import '../widgets/menu_header.dart';
+import '../work/checkin_page.dart';
 import '../work/projects_page.dart';
 import '../work/work_overview.dart';
 
-enum WorkTab { overview, board, tasks }
+enum WorkTab { overview, checkin, board, tasks }
 
 class WorkPage extends StatefulWidget {
   const WorkPage({super.key});
@@ -32,13 +33,14 @@ class _WorkPageState extends State<WorkPage> {
           tabs: MenuTabs<WorkTab>(
             key: const Key('work-tabs'),
             value: _tab,
-            items: const [(WorkTab.overview, 'ภาพรวม'), (WorkTab.board, 'บอร์ด'), (WorkTab.tasks, 'ขั้นงานทั้งหมด')],
+            items: const [(WorkTab.overview, 'ภาพรวม'), (WorkTab.checkin, 'เข้างาน'), (WorkTab.board, 'บอร์ด'), (WorkTab.tasks, 'ขั้นงานทั้งหมด')],
             onChanged: (t) => setState(() => _tab = t),
           ),
         ),
         Expanded(
           child: IndexedStack(index: _tab.index, children: [
             WorkOverview(onOpenProject: _openProject, onAllTasks: () => setState(() => _tab = WorkTab.tasks)),
+            const CheckinView(),
             const ProjectsPage(),
             AllTasksView(onOpenProject: _openProject),
           ]),
