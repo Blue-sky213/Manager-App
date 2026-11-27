@@ -6,13 +6,14 @@
 ก่อนเริ่มงานทุกครั้ง อ่าน:
 1. `docs/PRINCIPLES.md` — กฎการทำงานของ AI ทุกตัว (บังคับ)
 2. `docs/FEATURE_MAP.md` — ฟีเจอร์ที่มี, เข้าถึงยังไง, หลักฐานว่าทำงาน
+3. `docs/LESSONS.md` — บทเรียนจากปัญหาที่เคยเกิด (เช็กลิสต์ก่อนเริ่ม / ก่อนส่งงาน)
 
 ## Stack
 
 | เรื่อง | ค่า |
 |---|---|
 | Framework | Flutter (Dart SDK `^3.13.7`) · Material 3 |
-| ฐานข้อมูล | SQLite — `sqflite` (Android/iOS), `sqflite_common_ffi` (Windows) · schema **v23** |
+| ฐานข้อมูล | SQLite — `sqflite` (Android/iOS), `sqflite_common_ffi` (Windows) · schema **v25** |
 | Migration | `onUpgrade` + `addColumnIfMissing` — ห้ามแก้ migration เก่า เพิ่มเวอร์ชันใหม่เท่านั้น |
 | แพลตฟอร์ม | Windows (หลัก) · Android · iPhone/iPad (ติดตั้งเทสเอง ไม่ขึ้น App Store) |
 | ฟอนต์ | IBM Plex Sans Thai (`assets/fonts/`) |
